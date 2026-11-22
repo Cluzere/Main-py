@@ -109,7 +109,9 @@ Semua angka di bawah adalah default; environment dapat mengubah nilai kategori y
 - Kuota per-user ini masih di RAM: restart meresetnya. RATE_LIMIT_EXEMPT_USER_IDS dapat mengecualikan ID tertentu dari rate limiter per-user; kuota global tetap berlaku.
 - RATE_LIMIT_ENABLED=0 menonaktifkan rate limiter per-user, bukan kuota global.
 - Konkurensi panggilan AI: 4 (MAX_CONCURRENT_AI_CALLS=4).
-- Konkurensi image provider: 2 (MAX_CONCURRENT_IMAGE_CALLS=2).\n- Konkurensi audio provider: 2 (MAX_CONCURRENT_AUDIO_CALLS=2).\n- Konkurensi attachment: 2 (MAX_CONCURRENT_ATTACHMENTS=2).
+- Konkurensi image provider: 2 (MAX_CONCURRENT_IMAGE_CALLS=2).
+- Konkurensi audio provider: 2 (MAX_CONCURRENT_AUDIO_CALLS=2).
+- Konkurensi attachment: 2 (MAX_CONCURRENT_ATTACHMENTS=2).
 - Maksimum gambar vision per turn: 5.
 - Batas riwayat prompt: 240.000 karakter.
 - Batas Responses SSE: 20 MB total dan 1 MB per baris.
