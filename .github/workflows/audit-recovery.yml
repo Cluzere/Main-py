@@ -1,0 +1,27 @@
+name: Audit recovery candidate
+
+on:
+  push:
+    branches:
+      - audit-recovery-gpt-2026-11-23
+    paths:
+      - "audit-recovery/review-round-2/main_final_hardened_candidate.py"
+      - "audit-recovery/review-round-2/test_audit_regressions.py"
+      - ".github/workflows/audit-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax-and-regressions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile candidate
+        run: python -m py_compile audit-recovery/review-round-2/main_final_hardened_candidate.py
+      - name: Run focused regression tests
+        run: python -m unittest discover -s audit-recovery/review-round-2 -p "test_*.py" -v
