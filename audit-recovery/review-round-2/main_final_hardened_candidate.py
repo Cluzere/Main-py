@@ -125,7 +125,9 @@ SECRET_BLOCK_THRESHOLD = _env_int("SECRET_BLOCK_THRESHOLD", 5, minimum=1)
 RATE_LIMIT_ENABLED = _env_bool("RATE_LIMIT_ENABLED", True)
 RATE_LIMIT_EXEMPT_USER_IDS = _env_id_set("RATE_LIMIT_EXEMPT_USER_IDS")
 RATE_DAILY_LIMIT_PER_USER = _env_int("RATE_DAILY_LIMIT_PER_USER", 400, minimum=0)
-DIAGNOSTIC_ADMIN_ONLY = _env_bool("DIAGNOSTIC_ADMIN_ONLY", False)
+# Diagnostik melakukan panggilan API berbayar; default admin-only untuk mencegah penyalahgunaan.
+# Pemilik bot dapat membuka akses secara eksplisit dengan DIAGNOSTIC_ADMIN_ONLY=0.
+DIAGNOSTIC_ADMIN_ONLY = _env_bool("DIAGNOSTIC_ADMIN_ONLY", True)
 
 # Penyimpanan state tombol (Regenerate / DM) supaya tetap hidup setelah restart.
 VIEW_STATE_FILE = os.path.join(BASE_DIR, "view_state.json")
