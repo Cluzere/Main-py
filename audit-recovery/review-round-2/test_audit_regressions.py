@@ -2,6 +2,7 @@ import ast
 import json
 import logging
 import os
+import types
 import tempfile
 import unittest
 from collections import OrderedDict
@@ -29,6 +30,7 @@ def extract_method(class_name, method_name):
 
 load_memory_method = extract_method("ClouzerBot", "load_memory")
 view_load_method = extract_method("ViewStateStore", "_load")
+redaction_filter_method = extract_method("SecretRedactionFilter", "filter")
 
 
 class MemoryHarness:
@@ -39,6 +41,10 @@ class MemoryHarness:
 
     def _scrub_loaded_scope(self, value):
         return value
+
+
+class RedactionHarness:
+    filter = redaction_filter_method
 
 
 class ViewHarness:
@@ -97,6 +103,24 @@ class MemoryLoadRegressionTests(unittest.TestCase):
         self.write(b"[]")
         with self.assertRaises(RuntimeError):
             self.harness.load_memory()
+
+
+class LogRedactionRegressionTests(unittest.TestCase):
+    def test_redaction_failure_does_not_emit_original_message_or_traceback(self):
+        method_globals = redaction_filter_method.__globals__
+        original_scrubber = method_globals["scrub_secrets"]
+        try:
+            method_globals["scrub_secrets"] = lambda value: (_ for _ in ()).throw(RuntimeError("simulated scrubber failure"))
+            record = logging.LogRecord("test", logging.ERROR, __file__, 1, "secret=DO_NOT_LEAK", (), None)
+            record.exc_info = (RuntimeError, RuntimeError("DO_NOT_LEAK_TRACE"), None)
+            record.stack_info = "DO_NOT_LEAK_STACK"
+            RedactionHarness().filter(record)
+            self.assertEqual(record.getMessage(), "[LOG MESSAGE REDACTED: redaction failure]")
+            self.assertIsNone(record.exc_info)
+            self.assertIsNone(record.exc_text)
+            self.assertIsNone(record.stack_info)
+        finally:
+            method_globals["scrub_secrets"] = original_scrubber
 
 
 class ViewStateLoadRegressionTests(unittest.TestCase):
