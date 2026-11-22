@@ -2956,9 +2956,19 @@ class ClouzerBot(commands.Bot):
             doc.close()
 
     def _compress_image_bytes_to_data_url(self, raw_bytes: bytes) -> str:
+        # Check dimensions before verify/decode/convert so a small compressed image
+        # cannot force a huge pixel allocation while it is being normalized.
         with Image.open(io.BytesIO(raw_bytes)) as probe:
+            width, height = probe.size
+            if width <= 0 or height <= 0 or (width * height) > MAX_IMAGE_PIXELS:
+                raise ValueError(
+                    f"Dimensi gambar melewati batas keamanan ({width}x{height}; maks {MAX_IMAGE_PIXELS:,} piksel)."
+                )
             probe.verify()
         with Image.open(io.BytesIO(raw_bytes)) as raw_img:
+            width, height = raw_img.size
+            if width <= 0 or height <= 0 or (width * height) > MAX_IMAGE_PIXELS:
+                raise ValueError("Dimensi gambar berubah/tidak valid saat decode.")
             img = raw_img.convert("RGB")
         img.thumbnail((800, 800))
         buf = io.BytesIO()
