@@ -28,6 +28,7 @@ def extract_method(class_name, method_name):
                         "OFFICE_DOC_EXTS": {".pdf", ".docx", ".pptx", ".xlsx", ".rtf", ".odt", ".ods", ".odp", ".epub", ".svg", ".eps", ".ai"},
                         "check_file_signature": lambda ext, data: None,
                         "scrub_secrets": lambda value: value,
+                        "discord": types.SimpleNamespace(Attachment=object),
                     }
                     exec(compile(module, str(SOURCE), "exec"), namespace)
                     return namespace[method_name]
