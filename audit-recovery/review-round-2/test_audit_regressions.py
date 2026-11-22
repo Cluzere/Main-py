@@ -1,5 +1,6 @@
 import ast
 import json
+import io
 import logging
 import os
 import types
@@ -322,6 +323,47 @@ class RateLimiterTests(unittest.TestCase):
         )
         self.assertTrue(limiter.acquire("chat", 42)[0])
         self.assertTrue(limiter.acquire("chat", 42)[0])
+
+
+class ImageCompressionSafetyTests(unittest.TestCase):
+    def test_oversized_dimensions_rejected_before_verify_or_convert(self):
+        method = extract_method("ClouzerBot", "_compress_image_bytes_to_data_url")
+
+        class FakeImage:
+            def __init__(self):
+                self.size = (6000, 6000)
+                self.verified = False
+                self.converted = False
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def verify(self):
+                self.verified = True
+            def convert(self, mode):
+                self.converted = True
+                return self
+            def thumbnail(self, size):
+                return None
+            def save(self, buffer, format, quality=None):
+                buffer.write(b"image")
+
+        class FakeImageAPI:
+            def __init__(self):
+                self.instances = []
+            def open(self, stream):
+                image = FakeImage()
+                self.instances.append(image)
+                return image
+
+        fake_api = FakeImageAPI()
+        method.__globals__["io"] = io
+        method.__globals__["Image"] = fake_api
+        method.__globals__["MAX_IMAGE_PIXELS"] = 25_000_000
+        with self.assertRaises(ValueError):
+            method(b"compressed-image")
+        self.assertFalse(fake_api.instances[0].verified)
+        self.assertFalse(fake_api.instances[0].converted)
 
 
 if __name__ == "__main__":
