@@ -15,11 +15,11 @@ File sumber asli audit-recovery/main_final.py tetap tidak disentuh. Semua peruba
 - Laporan ini diperbarui di tempat.
 
 CI terakhir:
-- Run: https://github.com/Cluzere/Main-py/actions/runs/45084865511
-- Commit kandidat + CI: d19ca6ad25d5967bf736454928b62e4e7f1b4c75
+- Run: https://github.com/Cluzere/Main-py/actions/runs/45085155614
+- Commit kandidat: c87f515cb6f63d9d235ee39f1eb6728fba0b1ce1\nCommit tes: def0a416ff8055608ca3930d163bfcb01ecb1b4b
 - CPython: 3.12.16
 - py_compile: PASS
-- Regression tests: **24/24 PASS**
+- Regression tests: **25/25 PASS**
 
 Tes adalah unit/regression terisolasi dan beberapa metode diekstrak via AST. Ini bukan live integration test Discord, Xingchi, Cloudflare, Pollinations, atau hosting. Tes view-state juga belum mencakup seluruh siklus persistensi dan interaksi Discord.
 
@@ -89,10 +89,10 @@ Severity: P2 / resource exhaustion
 - Queue gambar sebelumnya hanya mengunci per-user; banyak pengguna berbeda dapat memanggil provider gambar serentak.
 - Ditambahkan semaphore global terpisah untuk image dan audio, masing-masing default 2 operasi bersamaan dan dapat diatur melalui MAX_CONCURRENT_IMAGE_CALLS / MAX_CONCURRENT_AUDIO_CALLS.
 
-### F-09 — Regresi pengujian pembatas dan state belum cukup
+### F-09 — Gambar beresolusi tinggi dapat didekode sebelum batas piksel diperiksa\nSeverity: P2 / memory exhaustion\n- Helper kompresi gambar sebelumnya memanggil convert sebelum memeriksa jumlah piksel eksplisit. Gambar terkompresi kecil dengan dimensi besar dapat meningkatkan pemakaian RAM saat decode.\n- Sekarang dimensi dicek sebelum verify/decode/convert dan dicek ulang setelah dibuka kembali. Batas default 25.000.000 piksel.\n- Ditambahkan regresi yang memastikan gambar di atas batas ditolak sebelum verify maupun convert.\n\n### F-10 — Regresi pengujian pembatas dan state belum cukup
 Severity: P2 / test coverage
 - Ditambahkan tes langsung untuk cooldown, sliding window, kuota rolling 24 jam, pengecualian user, pembatas jumlah/retensi view-state, dan kuota global persisten.
-- CI sekarang menjalankan 24 tes dan seluruhnya lulus pada run terakhir.
+- CI sekarang menjalankan 25 tes dan seluruhnya lulus pada run terakhir.
 - Beberapa test harness masih terisolasi; kelulusan tidak membuktikan seluruh aplikasi berjalan benar saat terhubung ke Discord/provider.
 
 ## Limit aktual yang tertanam di kandidat
@@ -117,7 +117,7 @@ Semua angka di bawah adalah default; environment dapat mengubah nilai kategori y
 - Konkurensi image provider: 2 (MAX_CONCURRENT_IMAGE_CALLS=2).
 - Konkurensi audio provider: 2 (MAX_CONCURRENT_AUDIO_CALLS=2).
 - Konkurensi attachment: 2 (MAX_CONCURRENT_ATTACHMENTS=2).
-- Maksimum gambar vision per turn: 5.
+- Maksimum gambar vision per turn: 5.\n- Maksimum dimensi gambar: 25.000.000 piksel; output gambar default maksimal 12 MB.
 - Batas riwayat prompt: 240.000 karakter.
 - Batas Responses SSE: 20 MB total dan 1 MB per baris.
 
@@ -157,7 +157,7 @@ Static review:
 ## Klaim pengujian lama
 
 - Klaim suite lama 174/174 dan mutation test 51 tidak memiliki bukti yang cukup pada arsip yang diperiksa; tetap UNVERIFIED.
-- Tes terverifikasi pada CI saat ini: 24/24 PASS.
+- Tes terverifikasi pada CI saat ini: 25/25 PASS.
 - Tes tersebut tidak boleh disamakan dengan 24 skenario live Discord/provider.
 
 ## Langkah wajib sebelum deploy
