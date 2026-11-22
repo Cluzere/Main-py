@@ -229,9 +229,6 @@ class ViewStateLoadRegressionTests(unittest.TestCase):
         self.assertNotIn(1, self.harness._entries)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class GlobalDailyBudgetTests(unittest.TestCase):
     @classmethod
@@ -313,7 +310,7 @@ class RateLimiterTests(unittest.TestCase):
 
     def test_rolling_daily_limit(self):
         now = [10.0]
-        limiter = self.RateLimiter({}, daily_limit=1, clock=lambda: now[0])
+        limiter = self.RateLimiter({"chat": self.RateRule(0.0, 0, 60.0)}, daily_limit=1, clock=lambda: now[0])
         self.assertTrue(limiter.acquire("chat", 9)[0])
         self.assertFalse(limiter.acquire("chat", 9)[0])
         now[0] += 86400.0
@@ -325,3 +322,7 @@ class RateLimiterTests(unittest.TestCase):
         )
         self.assertTrue(limiter.acquire("chat", 42)[0])
         self.assertTrue(limiter.acquire("chat", 42)[0])
+
+
+if __name__ == "__main__":
+    unittest.main()
