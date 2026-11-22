@@ -22,6 +22,11 @@ def extract_method(class_name, method_name):
                     namespace = {
                         "os": os, "json": json, "logging": logging,
                         "MEMORY_FILE": "", "MAX_MEMORY_FILE_BYTES": 1024,
+                        "IMAGE_EXTS": {".png", ".jpg", ".jpeg", ".webp", ".gif"},
+                        "AUDIO_EXTS": {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".webm", ".aac", ".opus"},
+                        "FULL_CONTENT_EXTS": {".txt", ".py", ".js", ".ts", ".html", ".css", ".json", ".csv", ".md", ".xml", ".yml", ".yaml", ".ini", ".log", ".sql", ".sh", ".pdf", ".docx", ".pptx", ".xlsx", ".rtf", ".odt", ".ods", ".odp", ".epub", ".svg", ".eps", ".ai"},
+                        "OFFICE_DOC_EXTS": {".pdf", ".docx", ".pptx", ".xlsx", ".rtf", ".odt", ".ods", ".odp", ".epub", ".svg", ".eps", ".ai"},
+                        "check_file_signature": lambda ext, data: None,
                     }
                     exec(compile(module, str(SOURCE), "exec"), namespace)
                     return namespace[method_name]
@@ -31,6 +36,7 @@ def extract_method(class_name, method_name):
 load_memory_method = extract_method("ClouzerBot", "load_memory")
 view_load_method = extract_method("ViewStateStore", "_load")
 redaction_filter_method = extract_method("SecretRedactionFilter", "filter")
+read_attachment_method = extract_method("ClouzerBot", "_read_attachment_checked")
 
 
 class MemoryHarness:
@@ -45,6 +51,10 @@ class MemoryHarness:
 
 class RedactionHarness:
     filter = redaction_filter_method
+
+
+class AttachmentHarness:
+    _read_attachment_checked = read_attachment_method
 
 
 class ViewHarness:
@@ -103,6 +113,39 @@ class MemoryLoadRegressionTests(unittest.TestCase):
         self.write(b"[]")
         with self.assertRaises(RuntimeError):
             self.harness.load_memory()
+
+
+class AttachmentReadRegressionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_missing_declared_size_rejected_before_read(self):
+        class Attachment:
+            size = 0
+            called = False
+            async def read(self):
+                self.called = True
+                return b"content"
+        attachment = Attachment()
+        with self.assertRaises(ValueError):
+            await AttachmentHarness()._read_attachment_checked(attachment, ".txt")
+        self.assertFalse(attachment.called)
+
+    async def test_over_limit_declared_size_rejected_before_read(self):
+        class Attachment:
+            size = 3 * 1024 * 1024
+            called = False
+            async def read(self):
+                self.called = True
+                return b"content"
+        attachment = Attachment()
+        with self.assertRaises(ValueError):
+            await AttachmentHarness()._read_attachment_checked(attachment, ".txt")
+        self.assertFalse(attachment.called)
+
+    async def test_valid_small_attachment_is_read_and_signature_checked(self):
+        class Attachment:
+            size = 7
+            async def read(self):
+                return b"content"
+        self.assertEqual(await AttachmentHarness()._read_attachment_checked(Attachment(), ".txt"), b"content")
 
 
 class LogRedactionRegressionTests(unittest.TestCase):
