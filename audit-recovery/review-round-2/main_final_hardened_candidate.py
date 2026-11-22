@@ -1335,7 +1335,12 @@ class SecretRedactionFilter(logging.Filter):
             if record.stack_info:
                 record.stack_info = scrub_secrets(record.stack_info)
         except Exception:
-            pass
+            # Fail closed: jika redaksi gagal, jangan teruskan pesan/traceback mentah.
+            record.msg = "[LOG MESSAGE REDACTED: redaction failure]"
+            record.args = ()
+            record.exc_info = None
+            record.exc_text = None
+            record.stack_info = None
         return True
 
 
