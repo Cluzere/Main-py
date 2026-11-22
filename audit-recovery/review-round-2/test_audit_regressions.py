@@ -361,7 +361,7 @@ class ImageCompressionSafetyTests(unittest.TestCase):
         method.__globals__["Image"] = fake_api
         method.__globals__["MAX_IMAGE_PIXELS"] = 25_000_000
         with self.assertRaises(ValueError):
-            method(b"compressed-image")
+            method(None, b"compressed-image")
         self.assertFalse(fake_api.instances[0].verified)
         self.assertFalse(fake_api.instances[0].converted)
 
