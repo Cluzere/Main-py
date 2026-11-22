@@ -1,0 +1,688 @@
+--- main_revised_audited_patched (1)(2).py
++++ main_audited_fixed.py
+@@ -12,6 +12,7 @@
+ import asyncio
+ import math
+ import zipfile
++from collections import deque
+ import xml.etree.ElementTree as ET
+ from html.parser import HTMLParser
+ from collections import defaultdict, OrderedDict
+@@ -50,6 +51,9 @@
+ XINGCHI_API_KEY = os.getenv("XINGCHI_API_KEY")
+ XINGCHI_BASE_URL = os.getenv("XINGCHI_BASE_URL", "https://api.xingchiapi.com/v1").rstrip("/")
+ XINGCHI_MODEL = os.getenv("XINGCHI_MODEL", "gpt-6.1-sol")
++_provider_url = urllib.parse.urlsplit(XINGCHI_BASE_URL)
++if _provider_url.scheme.lower() != "https" or not _provider_url.hostname or _provider_url.username or _provider_url.password:
++    raise RuntimeError("XINGCHI_BASE_URL wajib berupa URL HTTPS yang valid tanpa kredensial di URL.")
+ XINGCHI_AUDIO_MODEL = os.getenv("XINGCHI_AUDIO_MODEL", "whisper-1").strip()
+ 
+ CF_COOLDOWN_SECONDS = float(os.getenv("CF_COOLDOWN_SECONDS", "45"))
+@@ -60,6 +64,17 @@
+ DISCORD_MSG_CHUNK_LIMIT = min(1990, max(500, int(os.getenv("DISCORD_MSG_CHUNK_LIMIT", "1900"))))
+ MEMORY_PROMPT_MAX_LEN = int(os.getenv("MEMORY_PROMPT_MAX_LEN", "160"))
+ MAX_VISION_IMAGES_PER_TURN = 5
++# Hard safety ceilings for user-controlled input and provider spend.
++MAX_ATTACHMENTS_PER_MESSAGE = 4
++MAX_TOTAL_ATTACHMENT_BYTES = 40 * 1024 * 1024
++MAX_EXTRACTED_TEXT_PER_TURN = 60_000
++MAX_AI_CONCURRENCY = 4
++MAX_FILE_READ_CONCURRENCY = 2
++MAX_IMAGE_CONCURRENCY = 2
++USER_RATE_LIMIT_PER_MINUTE = 10
++USER_DAILY_REQUEST_LIMIT = 400
++MAX_MEMORY_FILE_BYTES = 20 * 1024 * 1024
++MAX_RESPONSES_STREAM_BYTES = 20 * 1024 * 1024
+ # Defensive limits for ZIP-based office/e-book formats. These cap decompressed
+ # work, not just the uploaded compressed size.
+ ZIP_MAX_ENTRIES = 2000
+@@ -298,12 +313,53 @@
+     return True
+ 
+ 
++SECRET_ASSIGNMENT_RE = re.compile(
++    r"""(?im)(\b[A-Z0-9_]*(?:API[_-]?KEY|CLIENT[_-]?SECRET|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN|
++    AUTH[_-]?TOKEN|TOKEN|PASSWORD|PASSWD|SECRET|PRIVATE[_-]?KEY|ACCESS[_-]?KEY|ACCOUNT[_-]?KEY|SECRET[_-]?ACCESS[_-]?KEY)\b["']?\s*[:=]\s*)["']?([^\s,;"']{8,})["']?""",
++    re.IGNORECASE | re.MULTILINE | re.VERBOSE,
++)
++PRIVATE_KEY_BLOCK_RE = re.compile(
++    r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
++    re.DOTALL,
++)
++DISCORD_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z0-9_-]{24}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{20,})(?![A-Za-z0-9])")
++GITHUB_TOKEN_RE = re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{30,})\b")
++AWS_ACCESS_KEY_RE = re.compile(r"\bAKIA[0-9A-Z]{16}\b")
++BEARER_TOKEN_RE = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{20,}")
++OPENAI_STYLE_KEY_RE = re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b")
++
++
+ def scrub_base64_text(text: str) -> str:
+     if not text:
+         return ""
+     cleaned = DATA_URL_BASE64_RE.sub("[data-url-base64-dihapus]", text)
+     cleaned = LONG_BASE64_RE.sub("[base64-dihapus]", cleaned)
++    cleaned = PRIVATE_KEY_BLOCK_RE.sub("[PRIVATE KEY DIHAPUS]", cleaned)
++    cleaned = SECRET_ASSIGNMENT_RE.sub(r"\1[SECRET DIHAPUS]", cleaned)
++    cleaned = DISCORD_TOKEN_RE.sub("[DISCORD TOKEN DIHAPUS]", cleaned)
++    cleaned = GITHUB_TOKEN_RE.sub("[GITHUB TOKEN DIHAPUS]", cleaned)
++    cleaned = AWS_ACCESS_KEY_RE.sub("[AWS ACCESS KEY DIHAPUS]", cleaned)
++    cleaned = BEARER_TOKEN_RE.sub("Bearer [TOKEN DIHAPUS]", cleaned)
++    cleaned = OPENAI_STYLE_KEY_RE.sub("[API KEY DIHAPUS]", cleaned)
+     return cleaned
++
++
++def is_sensitive_attachment_name(filename: str) -> bool:
++    name = os.path.basename((filename or "").replace("\\", "/")).lower()
++    stem, ext = os.path.splitext(name)
++    blocked_exact = {
++        ".env", "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
++        "credentials", "credentials.json", "service-account.json", "secrets.json",
++        "token.json", "authorized_keys", "known_hosts", ".npmrc", ".pypirc",
++        ".netrc", ".git-credentials",
++    }
++    return (
++        name in blocked_exact
++        or name.endswith(".env")
++        or name.startswith(".env.")
++        or ext in {".pem", ".key", ".ppk", ".p12", ".pfx", ".keystore"}
++        or stem in {"id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"}
++    )
+ 
+ 
+ def scrub_nested_base64(value):
+@@ -374,6 +430,7 @@
+ 
+ def sanitize_image_prompt(prompt: str, max_len: int = 1500) -> str:
+     cleaned = re.sub(r"\s+", " ", prompt).strip()
++    cleaned = scrub_base64_text(cleaned)
+     return cleaned[:max_len].strip()
+ 
+ 
+@@ -432,7 +489,7 @@
+                 "call_id": call_id,
+                 "output": json.dumps({
+                     "success": False,
+-                    "reason": reason,
++                    "reason": scrub_base64_text(str(reason))[:1000],
+                 }, ensure_ascii=False),
+             })
+     return items
+@@ -475,6 +532,10 @@
+                 "⚠️ Tombol ini hanya bisa digunakan oleh pengguna yang memulai percakapan tersebut.",
+                 ephemeral=True,
+             )
++            return
++        admitted, deny_reason = self.bot_instance.admit_user_request(interaction.user.id)
++        if not admitted:
++            await interaction.response.send_message(f"⏳ {deny_reason}", ephemeral=True)
+             return
+         try:
+             await interaction.response.edit_message(content="🔄 *Sedang menyusun ulang jawaban...*", view=self)
+@@ -566,7 +627,7 @@
+                             except Exception:
+                                 args_dict = {}
+ 
+-                            img_prompt = (args_dict.get("prompt") or self.user_prompt_text or "Create a detailed image").strip()
++                            img_prompt = scrub_base64_text((args_dict.get("prompt") or self.user_prompt_text or "Create a detailed image").strip())
+                             use_attached = bool(args_dict.get("use_attached_image", False))
+                             req_ratio = args_dict.get("aspect_ratio") or extract_aspect_ratio_from_text(self.user_prompt_text)
+                             wants_edit = use_attached or any(k in (self.user_prompt_text or "").lower() for k in EDIT_INTENT_KEYWORDS)
+@@ -692,7 +753,7 @@
+                         except Exception as img_exc:
+                             if unresolved_img_calls:
+                                 fail_items = build_failure_tool_continuation(
+-                                    unresolved_img_calls, f"Proses gambar gagal: {img_exc}"
++                                    f"Proses gambar gagal ({type(img_exc).__name__})."
+                                 )
+                                 unresolved_img_calls = []
+                                 if fail_items:
+@@ -710,7 +771,7 @@
+                                     except Exception:
+                                         logging.exception("Continuation exception gambar gagal saat Regenerate (%s)", scope_key)
+                             if is_edit:
+-                                err_content = f"⚠️ Regenerate edit gambar gagal ({img_exc})."[:1990]
++                                err_content = f"⚠️ Regenerate edit gambar gagal (`{type(img_exc).__name__}`)."
+                                 if interaction.message is not None:
+                                     await interaction.message.edit(content=err_content, view=self)
+                                 else:
+@@ -725,7 +786,7 @@
+                 await interaction.edit_original_response(content=final_content, view=self)
+         except Exception as exc:
+             logging.exception("Regenerate gagal untuk scope %s", scope_key)
+-            err_content = f"⚠️ Regenerate gagal: `{type(exc).__name__}: {exc}`"[:1990]
++            err_content = f"⚠️ Regenerate gagal (`{type(exc).__name__}`). Detail tersimpan di log server."
+             if interaction.message is not None:
+                 await interaction.message.edit(content=err_content, view=self)
+             else:
+@@ -755,7 +816,7 @@
+     def __init__(self):
+         intents = discord.Intents.default()
+         intents.message_content = True
+-        super().__init__(command_prefix="!", intents=intents)
++        super().__init__(command_prefix="!", intents=intents, allowed_mentions=discord.AllowedMentions.none())
+         self.http_session: aiohttp.ClientSession | None = None
+         self.guild_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+         self.last_channel_images: OrderedDict[tuple[int, int, int], tuple[float, list[str]]] = OrderedDict()
+@@ -766,7 +827,43 @@
+         self.memory_lock = asyncio.Lock()
+         self.last_memory_save_error: str | None = None
+         self._sync_task: asyncio.Task | None = None
++        self.ai_semaphore = asyncio.Semaphore(MAX_AI_CONCURRENCY)
++        self.file_read_semaphore = asyncio.Semaphore(MAX_FILE_READ_CONCURRENCY)
++        self.image_semaphore = asyncio.Semaphore(MAX_IMAGE_CONCURRENCY)
++        self.download_semaphore = asyncio.Semaphore(2)
++        self.user_request_times: dict[int, deque] = defaultdict(deque)
++        self.user_daily_usage: dict[int, tuple[str, int]] = {}
+         self.memory_data = self.load_memory()
++
++    def admit_user_request(self, user_id: int) -> tuple[bool, str]:
++        """In-memory per-user rate and daily quota guard."""
++        now = time.time()
++        recent = self.user_request_times[int(user_id)]
++        cutoff = now - 60.0
++        while recent and recent[0] <= cutoff:
++            recent.popleft()
++
++        day_key = time.strftime("%Y-%m-%d", time.gmtime(now))
++        if len(self.user_request_times) > 5000:
++            stale_users = [uid for uid, queue in self.user_request_times.items() if not queue or queue[-1] <= cutoff]
++            for stale_uid in stale_users[:1000]:
++                self.user_request_times.pop(stale_uid, None)
++        if len(self.user_daily_usage) > 5000:
++            for stale_uid, (stored_key, _) in list(self.user_daily_usage.items()):
++                if stored_key != day_key:
++                    self.user_daily_usage.pop(stale_uid, None)
++        stored_day, daily_count = self.user_daily_usage.get(int(user_id), (day_key, 0))
++        if stored_day != day_key:
++            daily_count = 0
++        if daily_count >= USER_DAILY_REQUEST_LIMIT:
++            return False, f"Batas harian {USER_DAILY_REQUEST_LIMIT} permintaan sudah tercapai. Batas dihitung ulang pukul 00:00 UTC."
++        if len(recent) >= USER_RATE_LIMIT_PER_MINUTE:
++            wait_seconds = max(1, int(60 - (now - recent[0])))
++            return False, f"Terlalu banyak permintaan. Coba lagi dalam sekitar {wait_seconds} detik."
++
++        recent.append(now)
++        self.user_daily_usage[int(user_id)] = (day_key, daily_count + 1)
++        return True, ""
+ 
+     def is_user_image_busy(self, user_id: int) -> bool:
+         return user_id in self.image_busy_users
+@@ -943,8 +1040,18 @@
+         return {"guilds": sanitized_guilds}
+ 
+     def load_memory(self) -> dict:
++        if os.path.exists(MEMORY_FILE) and os.path.getsize(MEMORY_FILE) > MAX_MEMORY_FILE_BYTES:
++            # Fail closed: never start with empty state and later overwrite an
++            # oversized existing memory file.
++            raise RuntimeError(
++                "memory.json melewati batas 20 MB. Bot dihentikan agar data lama tidak tertimpa; backup dan periksa file tersebut."
++            )
+         if os.path.exists(MEMORY_FILE):
+             try:
++                try:
++                    os.chmod(MEMORY_FILE, 0o600)
++                except OSError:
++                    logging.warning("Tidak dapat mengatur permission memory.json ke 0600 saat load")
+                 with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+                     data = json.load(f)
+                 if isinstance(data, dict):
+@@ -965,9 +1072,23 @@
+             tmp_file = f"{MEMORY_FILE}.tmp"
+             try:
+                 disk_payload = self._sanitize_memory_for_disk()
+-                with open(tmp_file, "w", encoding="utf-8") as f:
+-                    json.dump(disk_payload, f, ensure_ascii=False, indent=2)
++                serialized = json.dumps(disk_payload, ensure_ascii=False, indent=2)
++                if len(serialized.encode("utf-8")) > MAX_MEMORY_FILE_BYTES:
++                    raise ValueError("memory.json melewati batas ukuran aman; file lama dipertahankan")
++                fd = os.open(tmp_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
++                try:
++                    os.chmod(tmp_file, 0o600)
++                except OSError:
++                    pass
++                with os.fdopen(fd, "w", encoding="utf-8") as f:
++                    f.write(serialized)
++                    f.flush()
++                    os.fsync(f.fileno())
+                 os.replace(tmp_file, MEMORY_FILE)
++                try:
++                    os.chmod(MEMORY_FILE, 0o600)
++                except OSError:
++                    logging.warning("Tidak dapat mengatur permission memory.json ke 0600")
+                 self.last_memory_save_error = None
+             except Exception as exc:
+                 self.last_memory_save_error = f"{type(exc).__name__}: {exc}"
+@@ -1171,6 +1292,7 @@
+         async with self.http_session.get(
+             image_url,
+             timeout=aiohttp.ClientTimeout(total=90),
++            allow_redirects=False,
+         ) as resp:
+             if resp.status != 200:
+                 raise RuntimeError(f"Pollinations FLUX HTTP {resp.status}")
+@@ -1179,6 +1301,15 @@
+         return valid_bytes, out_filename, out_mime
+ 
+     async def generate_or_edit_image(
++        self,
++        prompt: str,
++        source_images: list[str] | None = None,
++        aspect_ratio: str | None = None,
++    ) -> tuple[bytes, str, str, str]:
++        async with self.image_semaphore:
++            return await self._generate_or_edit_image_unlocked(prompt, source_images, aspect_ratio)
++
++    async def _generate_or_edit_image_unlocked(
+         self,
+         prompt: str,
+         source_images: list[str] | None = None,
+@@ -1402,7 +1533,7 @@
+             )
+             return warn, media_imgs
+ 
+-        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=True)
++        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=True)
+         try:
+             parts: list[str] = []
+             total_chars = 0
+@@ -1730,6 +1861,10 @@
+         return f"data:image/jpeg;base64,{b64}"
+ 
+     async def download_image_url_to_data_url(self, image_url: str) -> str | None:
++        async with self.download_semaphore:
++            return await self._download_image_url_to_data_url_unlocked(image_url)
++
++    async def _download_image_url_to_data_url_unlocked(self, image_url: str) -> str | None:
+         if not image_url or self.http_session is None:
+             return None
+         try:
+@@ -1753,7 +1888,9 @@
+                 pass
+ 
+             loop = asyncio.get_running_loop()
+-            resolved = await loop.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
++            resolved = await asyncio.wait_for(
++                loop.getaddrinfo(host, 443, type=socket.SOCK_STREAM), timeout=5
++            )
+             pinned_addresses: list[tuple[int, str]] = []
+             seen_addresses: set[str] = set()
+             for result in resolved:
+@@ -1807,6 +1944,12 @@
+             return None
+ 
+     async def encode_attachment(self, attachment: discord.Attachment) -> tuple[str | None, list[str], list[str], str]:
++        async with self.file_read_semaphore:
++            if is_sensitive_attachment_name(attachment.filename):
++                return f"\n\n[File {attachment.filename} ditolak karena nama file menunjukkan kemungkinan kredensial/secret. Jangan kirim file rahasia ke bot.]\n", [], [], "blocked_sensitive"
++            return await self._encode_attachment_unlocked(attachment)
++
++    async def _encode_attachment_unlocked(self, attachment: discord.Attachment) -> tuple[str | None, list[str], list[str], str]:
+         filename = attachment.filename.lower()
+         ext = os.path.splitext(filename)[1]
+ 
+@@ -1918,8 +2061,12 @@
+ 
+         local_imgs: list[str] = []
+         http_urls: list[str] = []
++        if len(replied_msg.attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
++            return [], []
++        if sum(max(0, int(att.size or 0)) for att in replied_msg.attachments) > MAX_TOTAL_ATTACHMENT_BYTES:
++            return [], []
+         for att in replied_msg.attachments:
+-            if os.path.splitext(att.filename.lower())[1] not in IMAGE_EXTS:
++            if att.size > 15 * 1024 * 1024 or os.path.splitext(att.filename.lower())[1] not in IMAGE_EXTS:
+                 continue
+             _, local_res, http_res, ftype = await self.encode_attachment(att)
+             if ftype == "image":
+@@ -2007,7 +2154,7 @@
+             if role == "assistant":
+                 input_items.append({
+                     "role": "assistant",
+-                    "content": [{"type": "output_text", "text": str(content)}],
++                    "content": [{"type": "output_text", "text": scrub_base64_text(str(content))}],
+                 })
+             else:
+                 if isinstance(content, list):
+@@ -2015,7 +2162,7 @@
+                     for block in content:
+                         btype = block.get("type")
+                         if btype == "text":
+-                            parts.append({"type": "input_text", "text": block.get("text", "")})
++                            parts.append({"type": "input_text", "text": scrub_base64_text(str(block.get("text", "")))})
+                         elif btype == "image_url":
+                             img_url = block.get("image_url", {}).get("url", "")
+                             if img_url and img_url.startswith(("http://", "https://", "data:image/")):
+@@ -2026,7 +2173,7 @@
+                 else:
+                     input_items.append({
+                         "role": "user",
+-                        "content": [{"type": "input_text", "text": str(content)}],
++                        "content": [{"type": "input_text", "text": scrub_base64_text(str(content))}],
+                     })
+         return instructions, input_items
+ 
+@@ -2037,13 +2184,15 @@
+         try:
+             await asyncio.sleep(1.5)
+             await self.tree.sync()
++            # Global commands are already registered above. Clear stale guild copies
++            # so the same slash command is not exposed twice in a server.
+             for guild in list(self.guilds):
+                 try:
+-                    self.tree.copy_global_to(guild=guild)
++                    self.tree.clear_commands(guild=guild)
+                     await self.tree.sync(guild=guild)
+                     await asyncio.sleep(0.35)
+                 except Exception:
+-                    logging.exception("Gagal sync command ke guild %s", getattr(guild, "id", "?"))
++                    logging.exception("Gagal membersihkan command duplikat di guild %s", getattr(guild, "id", "?"))
+         except Exception:
+             logging.exception("Gagal sinkronisasi slash commands di background")
+ 
+@@ -2064,6 +2213,24 @@
+         await super().close()
+ 
+     async def run_responses_ai(
++        self,
++        messages: list[dict],
++        target_msg: discord.Message | None,
++        mode: str = "fast",
++        *,
++        allow_tools: bool = True,
++        allow_image_tool: bool = True,
++        extra_input: list[dict] | None = None,
++    ) -> tuple[str, list[dict]]:
++        async with self.ai_semaphore:
++            return await self._run_responses_ai_unlocked(
++                messages, target_msg, mode,
++                allow_tools=allow_tools,
++                allow_image_tool=allow_image_tool,
++                extra_input=extra_input,
++            )
++
++    async def _run_responses_ai_unlocked(
+         self,
+         messages: list[dict],
+         target_msg: discord.Message | None,
+@@ -2183,10 +2350,14 @@
+                 err_text = err_bytes.decode("utf-8", errors="replace")
+                 raise RuntimeError(f"Responses HTTP {resp.status}: {err_text[:300]}")
+ 
++            stream_bytes = 0
+             while True:
+                 line = await resp.content.readline()
+                 if not line:
+                     break
++                stream_bytes += len(line)
++                if len(line) > 1024 * 1024 or stream_bytes > MAX_RESPONSES_STREAM_BYTES:
++                    raise RuntimeError("Responses stream melewati batas ukuran keamanan.")
+                 decoded = line.decode("utf-8", errors="ignore").strip()
+                 if not decoded.startswith("data: "):
+                     continue
+@@ -2267,10 +2438,16 @@
+         llm_image_urls: list[str] | None = None,
+         additional_file_text: str = "",
+         reply_to_message: discord.Message | None = None,
++        request_admitted: bool = False,
+     ):
+         channel_id = getattr(target_channel, "id", 0)
+         guild_id = guild.id if guild is not None else 0
+         scope_key = self.get_scope_key(guild, user.id, channel_id)
++        if not request_admitted:
++            admitted, deny_reason = self.admit_user_request(user.id)
++            if not admitted:
++                await target_channel.send(f"⏳ {deny_reason}", allowed_mentions=discord.AllowedMentions.none())
++                return
+         http_img_urls = [u for u in (llm_image_urls or []) if u.startswith(("http://", "https://"))]
+         current_turn_images: list[str] = []
+         for u in (image_data_urls or []) + http_img_urls:
+@@ -2293,9 +2470,10 @@
+             if image_data_urls and channel_id:
+                 self.set_last_user_image(guild_id, channel_id, user.id, image_data_urls)
+ 
+-            full_user_prompt = clean_content
++            full_user_prompt = scrub_base64_text(clean_content)
+             if additional_file_text:
+-                full_user_prompt += f"\n\n{additional_file_text}\n(Tolong baca dan analisis file serta gambar yang disertakan di atas!)"
++                safe_file_text = scrub_base64_text(additional_file_text)[:MAX_EXTRACTED_TEXT_PER_TURN]
++                full_user_prompt += f"\n\n{safe_file_text}\n(Tolong baca dan analisis file serta gambar yang disertakan di atas!)"
+ 
+             user_display_text = f"{user.display_name}: {full_user_prompt}"
+ 
+@@ -2409,7 +2587,7 @@
+                             except Exception:
+                                 args_dict = {}
+ 
+-                            img_prompt = (args_dict.get("prompt") or clean_content).strip()
++                            img_prompt = scrub_base64_text((args_dict.get("prompt") or clean_content).strip())
+                             use_attached = bool(args_dict.get("use_attached_image", False))
+                             req_ratio = args_dict.get("aspect_ratio") or extract_aspect_ratio_from_text(clean_content)
+ 
+@@ -2513,7 +2691,7 @@
+                                         reply_text = final_text
+                                 except Exception as follow_exc:
+                                     logging.exception("Continuation sukses gambar gagal (%s)", scope_key)
+-                                    reply_text = (reply_text + f"\n\nGambar berhasil diproses. (Catatan: model tidak menyelesaikan respons lanjutan: {follow_exc})").strip()
++                                    f"\n\nGambar berhasil diproses. (Catatan: respons lanjutan gagal: {type(follow_exc).__name__})"
+ 
+                             if channel_id:
+                                 context_image = await asyncio.to_thread(
+@@ -2555,7 +2733,7 @@
+                             if unresolved_img_calls:
+                                 fail_items = build_failure_tool_continuation(
+                                     unresolved_img_calls,
+-                                    f"Proses gambar gagal: {img_exc}",
++                                    f"Proses gambar gagal ({type(img_exc).__name__})."
+                                 )
+                                 unresolved_img_calls = []
+                                 if fail_items:
+@@ -2572,7 +2750,7 @@
+                                         logging.exception("Continuation exception gambar gagal (%s)", scope_key)
+                             if is_edit:
+                                 fail_msg = (
+-                                    f"⚠️ Edit gambar gagal dilakukan ({img_exc}). "
++                                    f"⚠️ Edit gambar gagal dilakukan (`{type(img_exc).__name__}`). "
+                                     f"Gambar tidak diubah dan tidak dialihkan ke generator gambar baru."
+                                 )[:1990]
+                                 history_msgs.append({"role": "assistant", "content": fail_msg})
+@@ -2603,8 +2781,9 @@
+             except Exception as e:
+                 if history_msgs:
+                     history_msgs.pop()
+-                err_msg = f"⚠️ Error: `{type(e).__name__}: {e}`"[:1990]
+-                await status_msg.edit(content=err_msg)
++                logging.exception("AI turn gagal untuk scope %s", scope_key)
++                err_msg = f"⚠️ Terjadi kesalahan saat memproses permintaan (`{type(e).__name__}`). Detail tersimpan di log server."
++                await status_msg.edit(content=err_msg[:1990])
+ 
+ 
+ bot = ClouzerBot()
+@@ -2666,6 +2845,13 @@
+     if not bot.is_channel_allowed(interaction.channel, interaction.guild):
+         await interaction.response.send_message(get_permission_warning(interaction.guild), ephemeral=True)
+         return
++    request_admitted = False
++    if prompt and prompt.strip():
++        admitted, deny_reason = bot.admit_user_request(interaction.user.id)
++        if not admitted:
++            await interaction.response.send_message(f"⏳ {deny_reason}", ephemeral=True)
++            return
++        request_admitted = True
+ 
+     await interaction.response.defer(thinking=True)
+     mode_badge = "🧠 **[Full Thinking]**" if mode == "full" else "⚡ **[Fast Mode]**"
+@@ -2685,7 +2871,7 @@
+             await interaction.followup.send(f"{mode_badge} Thread baru dibuat: {thread.mention}")
+             if prompt and prompt.strip():
+                 await thread.send(f"{mode_badge} **{interaction.user.display_name}:** {prompt.strip()}")
+-                await bot.process_ai_turn(target_channel=thread, guild=interaction.guild, user=interaction.user, clean_content=prompt.strip(), image_data_urls=[])
++                await bot.process_ai_turn(target_channel=thread, guild=interaction.guild, user=interaction.user, clean_content=prompt.strip(), image_data_urls=[], request_admitted=request_admitted)
+             return
+         except Exception:
+             pass
+@@ -2695,7 +2881,7 @@
+ 
+     if prompt and prompt.strip():
+         await interaction.followup.send(f"{mode_badge} **{interaction.user.display_name}:** {prompt.strip()}")
+-        await bot.process_ai_turn(target_channel=channel, guild=interaction.guild, user=interaction.user, clean_content=prompt.strip(), image_data_urls=[])
++        await bot.process_ai_turn(target_channel=channel, guild=interaction.guild, user=interaction.user, clean_content=prompt.strip(), image_data_urls=[], request_admitted=request_admitted)
+     else:
+         await interaction.followup.send(f"{mode_badge} Mode diubah ke **{mode.upper()}**.")
+ 
+@@ -2715,6 +2901,10 @@
+ async def summarize_cmd(interaction: discord.Interaction, limit: int = 30):
+     if not bot.is_channel_allowed(interaction.channel, interaction.guild):
+         await interaction.response.send_message(get_permission_warning(interaction.guild), ephemeral=True)
++        return
++    admitted, deny_reason = bot.admit_user_request(interaction.user.id)
++    if not admitted:
++        await interaction.response.send_message(f"⏳ {deny_reason}", ephemeral=True)
+         return
+ 
+     await interaction.response.defer(thinking=True)
+@@ -2780,6 +2970,10 @@
+     if not bot.is_channel_allowed(interaction.channel, interaction.guild):
+         await interaction.response.send_message(get_permission_warning(interaction.guild), ephemeral=True)
+         return
++    admitted, deny_reason = bot.admit_user_request(interaction.user.id)
++    if not admitted:
++        await interaction.response.send_message(f"⏳ {deny_reason}", ephemeral=True)
++        return
+ 
+     ch_id = getattr(interaction.channel, "id", 0)
+     g_id = interaction.guild.id if interaction.guild is not None else 0
+@@ -2817,7 +3011,7 @@
+                     if is_edit:
+                         await interaction.edit_original_response(
+                             content=(
+-                                f"⚠️ Edit gambar gagal dilakukan ({img_exc}). "
++                                    f"⚠️ Edit gambar gagal dilakukan (`{type(img_exc).__name__}`). "
+                                 f"Gambar tidak diubah dan tidak dialihkan ke generator gambar baru."
+                             )[:1990]
+                         )
+@@ -2833,7 +3027,7 @@
+                 file = discord.File(fp=io.BytesIO(img_bytes), filename=out_filename)
+ 
+                 embed_title = "🖌️ Clouzer AI Image Editor" if is_edit else "🎨 Clouzer AI Image Generator"
+-                embed_desc = f"**Prompt:** {prompt.strip()[:3600]}"
++                embed_desc = f"**Prompt:** {scrub_base64_text(prompt.strip())[:3600]}"
+                 if is_edit:
+                     embed_desc = f"{embed_desc[:3450]}\n\n{TEXT_EDIT_NOTE}"
+ 
+@@ -2848,7 +3042,8 @@
+                 await interaction.edit_original_response(content=None, embed=embed, attachments=[file])
+     except Exception as e:
+         try:
+-            err_txt = f"⚠️ Terjadi kesalahan saat memproses gambar: `{type(e).__name__}: {e}`"[:1990]
++            logging.exception("Perintah imagine gagal untuk scope %s", scope_key)
++            err_txt = f"⚠️ Terjadi kesalahan saat memproses gambar (`{type(e).__name__}`). Detail tersimpan di log server."
+             if interaction.response.is_done():
+                 await interaction.edit_original_response(content=err_txt)
+             else:
+@@ -2861,6 +3056,10 @@
+ async def cek_tool_cmd(interaction: discord.Interaction):
+     if not bot.is_channel_allowed(interaction.channel, interaction.guild):
+         await interaction.response.send_message(get_permission_warning(interaction.guild), ephemeral=True)
++        return
++    admitted, deny_reason = bot.admit_user_request(interaction.user.id)
++    if not admitted:
++        await interaction.response.send_message(f"⏳ {deny_reason}", ephemeral=True)
+         return
+ 
+     await interaction.response.defer(thinking=True)
+@@ -2875,17 +3074,19 @@
+ 
+     async def run_probe(payload: dict) -> tuple[int, dict | None, str]:
+         try:
+-            async with bot.http_session.post(
+-                url,
+-                headers=headers,
+-                json=payload,
+-                timeout=aiohttp.ClientTimeout(total=60),
+-            ) as resp:
+-                raw = await resp.text()
+-                try:
+-                    return resp.status, json.loads(raw), raw
+-                except Exception:
+-                    return resp.status, None, raw
++            async with bot.ai_semaphore:
++                async with bot.http_session.post(
++                    url,
++                    headers=headers,
++                    json=payload,
++                    timeout=aiohttp.ClientTimeout(total=60),
++                ) as resp:
++                    raw_bytes = await read_limited_stream(resp.content, 1024 * 1024)
++                    raw = raw_bytes.decode("utf-8", errors="replace")
++                    try:
++                        return resp.status, json.loads(raw), raw
++                    except Exception:
++                        return resp.status, None, raw
+         except Exception as exc:
+             return 0, None, f"{type(exc).__name__}: {exc}"
+ 
+@@ -2928,9 +3129,9 @@
+             call_info = f"`{fn_calls[0].get('name')}` args: `{fn_calls[0].get('arguments')}`"
+             fc_report = f"✅ **AKTIF (HTTP 200)**\nOutput types: `{types_fc}`\nCall: {call_info}"
+         else:
+-            fc_report = f"⚠️ **HTTP 200 (Tool Diabaikan)**\nOutput types: `{types_fc}`\nSnippet: ```json\n{raw_fc[:450]}\n```"
++            fc_report = f"⚠️ **HTTP 200 (Tool Diabaikan)**\nOutput types: `{types_fc}`\nSnippet: ```json\n{scrub_base64_text(raw_fc)[:450]}\n```"
+     else:
+-        fc_report = f"❌ **GAGAL (HTTP {status_fc})**\n```json\n{raw_fc[:500]}\n```"
++        fc_report = f"❌ **GAGAL (HTTP {status_fc})**\n```json\n{scrub_base64_text(raw_fc)[:500]}\n```"
+ 
+     if status_ws == 200 and isinstance(data_ws, dict):
+         outputs_ws = data_ws.get("output", [])
+@@ -2946,9 +3147,9 @@
+         if has_ws_call:
+             ws_report = f"✅ **AKTIF (HTTP 200)**\nOutput types: `{types_ws}`\nHasil: {text_preview[:450]}"
+         else:
+-            ws_report = f"⚠️ **HTTP 200 (Web Search Diabaikan)**\nOutput types: `{types_ws}`\nTeks: {text_preview[:400] or raw_ws[:400]}"
++            ws_report = f"⚠️ **HTTP 200 (Web Search Diabaikan)**\nOutput types: `{types_ws}`\nTeks: {scrub_base64_text(text_preview or raw_ws)[:400]}"
+     else:
+-        ws_report = f"❌ **GAGAL (HTTP {status_ws})**\n```json\n{raw_ws[:500]}\n```"
++        ws_report = f"❌ **GAGAL (HTTP {status_ws})**\n```json\n{scrub_base64_text(raw_ws)[:500]}\n```"
+ 
+     cf_status = f"Terpasang ({len(CF_ACCOUNTS)} akun)" if CF_ACCOUNTS else "Kosong"
+     embed = discord.Embed(
+@@ -2974,12 +3175,32 @@
+         return
+     if not bot.is_channel_allowed(message.channel, message.guild):
+         return
++    admitted, deny_reason = bot.admit_user_request(message.author.id)
++    if not admitted:
++        await message.reply(f"⏳ {deny_reason}", mention_author=False, allowed_mentions=discord.AllowedMentions.none())
++        return
+ 
+     clean_content = message.content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
+ 
+     image_data_urls: list[str] = []
+     llm_image_urls: list[str] = []
+     additional_file_text = ""
++
++    if len(message.attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
++        await message.reply(
++            f"⚠️ Maksimal {MAX_ATTACHMENTS_PER_MESSAGE} lampiran per pesan.",
++            mention_author=False,
++            allowed_mentions=discord.AllowedMentions.none(),
++        )
++        return
++    total_attachment_bytes = sum(max(0, int(att.size or 0)) for att in message.attachments)
++    if total_attachment_bytes > MAX_TOTAL_ATTACHMENT_BYTES:
++        await message.reply(
++            f"⚠️ Total ukuran lampiran melewati batas {MAX_TOTAL_ATTACHMENT_BYTES // (1024 * 1024)} MB per pesan.",
++            mention_author=False,
++            allowed_mentions=discord.AllowedMentions.none(),
++        )
++        return
+ 
+     for att in message.attachments:
+         text_res, local_res, http_res, ftype = await bot.encode_attachment(att)
+@@ -3014,6 +3235,7 @@
+         llm_image_urls=llm_image_urls,
+         additional_file_text=additional_file_text,
+         reply_to_message=message,
++        request_admitted=True,
+     )
+ 
+ 
