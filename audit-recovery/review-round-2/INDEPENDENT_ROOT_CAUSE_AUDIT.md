@@ -16,7 +16,8 @@ File sumber asli audit-recovery/main_final.py tetap tidak disentuh. Semua peruba
 
 CI terakhir:
 - Run: https://github.com/Cluzere/Main-py/actions/runs/45085155614
-- Commit kandidat: c87f515cb6f63d9d235ee39f1eb6728fba0b1ce1\nCommit tes: def0a416ff8055608ca3930d163bfcb01ecb1b4b
+- Commit kandidat: c87f515cb6f63d9d235ee39f1eb6728fba0b1ce1
+Commit tes: def0a416ff8055608ca3930d163bfcb01ecb1b4b
 - CPython: 3.12.16
 - py_compile: PASS
 - Regression tests: **25/25 PASS**
@@ -89,7 +90,13 @@ Severity: P2 / resource exhaustion
 - Queue gambar sebelumnya hanya mengunci per-user; banyak pengguna berbeda dapat memanggil provider gambar serentak.
 - Ditambahkan semaphore global terpisah untuk image dan audio, masing-masing default 2 operasi bersamaan dan dapat diatur melalui MAX_CONCURRENT_IMAGE_CALLS / MAX_CONCURRENT_AUDIO_CALLS.
 
-### F-09 — Gambar beresolusi tinggi dapat didekode sebelum batas piksel diperiksa\nSeverity: P2 / memory exhaustion\n- Helper kompresi gambar sebelumnya memanggil convert sebelum memeriksa jumlah piksel eksplisit. Gambar terkompresi kecil dengan dimensi besar dapat meningkatkan pemakaian RAM saat decode.\n- Sekarang dimensi dicek sebelum verify/decode/convert dan dicek ulang setelah dibuka kembali. Batas default 25.000.000 piksel.\n- Ditambahkan regresi yang memastikan gambar di atas batas ditolak sebelum verify maupun convert.\n\n### F-10 — Regresi pengujian pembatas dan state belum cukup
+### F-09 — Gambar beresolusi tinggi dapat didekode sebelum batas piksel diperiksa
+Severity: P2 / memory exhaustion
+- Helper kompresi gambar sebelumnya memanggil convert sebelum memeriksa jumlah piksel eksplisit. Gambar terkompresi kecil dengan dimensi besar dapat meningkatkan pemakaian RAM saat decode.
+- Sekarang dimensi dicek sebelum verify/decode/convert dan dicek ulang setelah dibuka kembali. Batas default 25.000.000 piksel.
+- Ditambahkan regresi yang memastikan gambar di atas batas ditolak sebelum verify maupun convert.
+
+### F-10 — Regresi pengujian pembatas dan state belum cukup
 Severity: P2 / test coverage
 - Ditambahkan tes langsung untuk cooldown, sliding window, kuota rolling 24 jam, pengecualian user, pembatas jumlah/retensi view-state, dan kuota global persisten.
 - CI sekarang menjalankan 25 tes dan seluruhnya lulus pada run terakhir.
@@ -117,7 +124,8 @@ Semua angka di bawah adalah default; environment dapat mengubah nilai kategori y
 - Konkurensi image provider: 2 (MAX_CONCURRENT_IMAGE_CALLS=2).
 - Konkurensi audio provider: 2 (MAX_CONCURRENT_AUDIO_CALLS=2).
 - Konkurensi attachment: 2 (MAX_CONCURRENT_ATTACHMENTS=2).
-- Maksimum gambar vision per turn: 5.\n- Maksimum dimensi gambar: 25.000.000 piksel; output gambar default maksimal 12 MB.
+- Maksimum gambar vision per turn: 5.
+- Maksimum dimensi gambar: 25.000.000 piksel; output gambar default maksimal 12 MB.
 - Batas riwayat prompt: 240.000 karakter.
 - Batas Responses SSE: 20 MB total dan 1 MB per baris.
 
