@@ -203,3 +203,54 @@ class ViewStateLoadRegressionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GlobalDailyBudgetTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import ast
+        import threading
+        import time
+        source = SOURCE.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(SOURCE))
+        node = next(
+            item for item in tree.body
+            if isinstance(item, ast.ClassDef) and item.name == "GlobalDailyBudget"
+        )
+        module = ast.Module(body=[node], type_ignores=[])
+        ast.fix_missing_locations(module)
+        namespace = {"os": os, "json": json, "time": time, "threading": threading}
+        exec(compile(module, str(SOURCE), "exec"), namespace)
+        cls.budget_class = namespace["GlobalDailyBudget"]
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.path = os.path.join(self.temp.name, "global_usage.json")
+        self.budget = self.budget_class(self.path, {"responses": 2, "images": 1})
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_global_limit_is_enforced(self):
+        self.assertEqual(self.budget.acquire("responses"), (True, 0.0))
+        self.assertEqual(self.budget.acquire("responses"), (True, 0.0))
+        allowed, wait = self.budget.acquire("responses")
+        self.assertFalse(allowed)
+        self.assertGreater(wait, 0)
+
+    def test_budget_survives_new_instance(self):
+        self.assertTrue(self.budget.acquire("images")[0])
+        restarted = self.budget_class(self.path, {"images": 1})
+        allowed, wait = restarted.acquire("images")
+        self.assertFalse(allowed)
+        self.assertGreater(wait, 0)
+
+    def test_corrupt_budget_fails_closed(self):
+        with open(self.path, "w", encoding="utf-8") as handle:
+            handle.write("{")
+        with self.assertRaises(RuntimeError):
+            self.budget.acquire("responses")
+
+    def test_unknown_category_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.budget.acquire("unknown")
