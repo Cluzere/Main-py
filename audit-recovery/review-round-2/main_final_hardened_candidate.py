@@ -2753,9 +2753,6 @@ class ClouzerBot(commands.Bot):
         return self._wrap_doc_content(ext.lstrip(".").upper(), filename, body[:25000])
 
     async def transcribe_audio_bytes(self, audio_bytes: bytes, filename: str) -> str:
-        allowed, wait = self.global_budget.acquire("audio")
-        if not allowed:
-            raise RuntimeError(f"Anggaran transkripsi audio global harian tercapai; coba lagi sekitar {format_wait(wait)}.")
         if not audio_bytes:
             return f"\n\n[File audio {filename} kosong.]\n"
         if not CF_ACCOUNTS or self.http_session is None:
@@ -2772,6 +2769,10 @@ class ClouzerBot(commands.Bot):
                 f"\n\n[File audio {filename} terdeteksi, tetapi semua akun Cloudflare sedang cooldown. "
                 f"Coba lagi sekitar {wait_left:.0f} detik.]\n"
             )
+
+        allowed, wait = self.global_budget.acquire("audio")
+        if not allowed:
+            raise RuntimeError(f"Anggaran transkripsi audio global harian tercapai; coba lagi sekitar {format_wait(wait)}.")
 
         audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
         payload = {"audio": audio_b64}
