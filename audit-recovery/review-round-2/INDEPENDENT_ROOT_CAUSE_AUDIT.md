@@ -85,7 +85,8 @@ Severity: P1 / cost-abuse exposure
 **Batas penting:** ini adalah kuota jumlah operasi/request, bukan batas uang dalam rupiah/USD atau batas token. Biaya per request bisa berbeda. Lock/file ini ditujukan untuk satu proses bot aktif pada satu host; jangan jalankan beberapa instance bersamaan dengan file yang sama karena lock tidak lintas proses. Menghapus global_usage.json akan mengatur ulang penghitung.
 
 ### F-08 — Konkurensi image/audio sebelumnya belum dibatasi lintas pengguna
-Severity: P2 / resource exhaustion\n- Queue gambar sebelumnya hanya mengunci per-user; banyak pengguna berbeda dapat memanggil provider gambar serentak.
+Severity: P2 / resource exhaustion
+- Queue gambar sebelumnya hanya mengunci per-user; banyak pengguna berbeda dapat memanggil provider gambar serentak.
 - Ditambahkan semaphore global terpisah untuk image dan audio, masing-masing default 2 operasi bersamaan dan dapat diatur melalui MAX_CONCURRENT_IMAGE_CALLS / MAX_CONCURRENT_AUDIO_CALLS.
 
 ### F-09 — Regresi pengujian pembatas dan state belum cukup
