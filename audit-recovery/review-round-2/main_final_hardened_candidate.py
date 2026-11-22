@@ -114,8 +114,10 @@ MAX_CONCURRENT_ATTACHMENTS = _env_int("MAX_CONCURRENT_ATTACHMENTS", 2, minimum=1
 ATTACHMENT_QUEUE_TIMEOUT_SECONDS = _env_float("ATTACHMENT_QUEUE_TIMEOUT_SECONDS", 45.0, minimum=1.0)
 MAX_TEXT_FILE_CHARS = _env_int("MAX_TEXT_FILE_CHARS", 60_000, minimum=1_000)
 
-# Pemakaian API: panggilan Xingchi paralel + anggaran panjang prompt riwayat.
+# Pemakaian API: konkurensi provider dan anggaran panjang prompt riwayat.
 MAX_CONCURRENT_AI_CALLS = _env_int("MAX_CONCURRENT_AI_CALLS", 4, minimum=1)
+MAX_CONCURRENT_IMAGE_CALLS = _env_int("MAX_CONCURRENT_IMAGE_CALLS", 2, minimum=1)
+MAX_CONCURRENT_AUDIO_CALLS = _env_int("MAX_CONCURRENT_AUDIO_CALLS", 2, minimum=1)
 PROMPT_HISTORY_MAX_CHARS = _env_int("PROMPT_HISTORY_MAX_CHARS", 240_000, minimum=20_000)
 
 # Deteksi secret: file dengan >= N secret berbeda ditolak total (bukan hanya disensor).
@@ -1899,6 +1901,8 @@ class ClouzerBot(commands.Bot):
         )
         self.attachment_semaphore = asyncio.Semaphore(MAX_CONCURRENT_ATTACHMENTS)
         self.ai_semaphore = asyncio.Semaphore(MAX_CONCURRENT_AI_CALLS)
+        self.image_semaphore = asyncio.Semaphore(MAX_CONCURRENT_IMAGE_CALLS)
+        self.audio_semaphore = asyncio.Semaphore(MAX_CONCURRENT_AUDIO_CALLS)
         self.view_states = ViewStateStore(
             VIEW_STATE_FILE,
             max_entries=VIEW_STATE_MAX_ENTRIES,
@@ -2397,6 +2401,15 @@ class ClouzerBot(commands.Bot):
         source_images: list[str] | None = None,
         aspect_ratio: str | None = None,
     ) -> tuple[bytes, str, str, str]:
+        async with self.image_semaphore:
+            return await self._generate_or_edit_image_impl(prompt, source_images, aspect_ratio)
+
+    async def _generate_or_edit_image_impl(
+        self,
+        prompt: str,
+        source_images: list[str] | None = None,
+        aspect_ratio: str | None = None,
+    ) -> tuple[bytes, str, str, str]:
         allowed, wait = self.global_budget.acquire("images")
         if not allowed:
             raise RuntimeError(f"Anggaran gambar global harian tercapai; coba lagi sekitar {format_wait(wait)}.")
@@ -2753,6 +2766,10 @@ class ClouzerBot(commands.Bot):
         return self._wrap_doc_content(ext.lstrip(".").upper(), filename, body[:25000])
 
     async def transcribe_audio_bytes(self, audio_bytes: bytes, filename: str) -> str:
+        async with self.audio_semaphore:
+            return await self._transcribe_audio_bytes_impl(audio_bytes, filename)
+
+    async def _transcribe_audio_bytes_impl(self, audio_bytes: bytes, filename: str) -> str:
         if not audio_bytes:
             return f"\n\n[File audio {filename} kosong.]\n"
         if not CF_ACCOUNTS or self.http_session is None:
