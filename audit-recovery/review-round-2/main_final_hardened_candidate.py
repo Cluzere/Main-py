@@ -1309,9 +1309,12 @@ class ViewStateStore:
             for _, mid, entry in sorted(loaded, key=lambda item: item[0]):
                 self._entries[mid] = entry
             self._enforce_limits()
-        except Exception:
-            logging.exception("Gagal memuat %s; memulai dengan state tombol kosong", self.path)
-            self._entries.clear()
+        except Exception as exc:
+            # Jangan mengosongkan state lalu menimpa file yang rusak pada save berikutnya.
+            # Hentikan startup agar file asli tetap utuh untuk pemulihan manual.
+            raise RuntimeError(
+                f"view_state file ada tetapi gagal dimuat; startup dihentikan agar state tidak tertimpa: {type(exc).__name__}: {exc}"
+            ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -2038,6 +2041,8 @@ class ClouzerBot(commands.Bot):
                     logging.warning("Tidak dapat mengatur permission memory.json ke 0600 saat load")
                 with open(MEMORY_FILE, "r", encoding="utf-8") as f:
                     data = json.load(f)
+                if not isinstance(data, dict):
+                    raise ValueError("root memory.json harus berupa object")
                 if isinstance(data, dict):
                     if "guilds" in data:
                         raw_guilds = data.get("guilds")
