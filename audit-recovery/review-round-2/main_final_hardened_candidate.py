@@ -2942,8 +2942,30 @@ class ClouzerBot(commands.Bot):
     async def _read_attachment_checked(self, attachment: discord.Attachment, ext: str) -> bytes:
         """Baca lampiran ke RAM (ukuran sudah dicek per-jenis oleh pemanggil) + validasi signature & ukuran nyata."""
         declared = int(getattr(attachment, "size", 0) or 0)
+        max_by_ext = {
+            **{item: 15 * 1024 * 1024 for item in IMAGE_EXTS},
+            ".pdf": 20 * 1024 * 1024,
+            ".docx": 15 * 1024 * 1024,
+            ".pptx": 20 * 1024 * 1024,
+            ".xlsx": 20 * 1024 * 1024,
+            ".rtf": 10 * 1024 * 1024,
+            ".odt": 20 * 1024 * 1024,
+            ".ods": 20 * 1024 * 1024,
+            ".odp": 20 * 1024 * 1024,
+            ".epub": 20 * 1024 * 1024,
+            ".svg": 20 * 1024 * 1024,
+            ".eps": 20 * 1024 * 1024,
+            ".ai": 20 * 1024 * 1024,
+            **{item: 25 * 1024 * 1024 for item in AUDIO_EXTS},
+            **{item: 2 * 1024 * 1024 for item in (FULL_CONTENT_EXTS - OFFICE_DOC_EXTS)},
+        }
+        max_allowed = max_by_ext.get(ext)
+        if declared <= 0:
+            raise ValueError("metadata ukuran lampiran tidak valid")
+        if max_allowed is None or declared > max_allowed:
+            raise ValueError("ukuran lampiran melewati batas per jenis file")
         data = await attachment.read()
-        if declared and len(data) > declared + 4096:
+        if len(data) > declared + 4096:
             raise ValueError("ukuran file tidak sesuai metadata Discord")
         problem = check_file_signature(ext, data)
         if problem:
