@@ -134,6 +134,7 @@ Semua angka di bawah adalah default; environment dapat mengubah nilai kategori y
 Kebijakan mengikuti keputusan pemilik: **bot publik**.
 - DM terbuka untuk semua pengguna Discord yang dapat menghubungi bot.
 - Di server, bot hanya merespons channel yang diizinkan admin melalui /channel.
+- **Semua pesan non-bot di channel yang diizinkan memicu AI, bukan hanya pesan yang mention bot.** Pesan teks biasa, attachment, dan reply dapat memakan kuota. Jangan izinkan channel umum kecuali memang ingin bot auto-reply di seluruh percakapan channel itu.
 - /channel memeriksa Manage Channels atau Administrator.
 - /cek-tool admin-only secara default dan memeriksa Manage Server atau Administrator.
 - Command chat, summarize, dan imagine dapat digunakan oleh anggota pada channel server yang sudah diizinkan.
