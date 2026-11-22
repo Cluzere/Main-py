@@ -5,6 +5,9 @@ import os
 import types
 import tempfile
 import unittest
+import time
+import math
+from collections import deque
 from collections import OrderedDict
 from pathlib import Path
 
@@ -37,6 +40,7 @@ def extract_method(class_name, method_name):
 
 load_memory_method = extract_method("ClouzerBot", "load_memory")
 view_load_method = extract_method("ViewStateStore", "_load")
+view_enforce_method = extract_method("ViewStateStore", "_enforce_limits")
 redaction_filter_method = extract_method("SecretRedactionFilter", "filter")
 read_attachment_method = extract_method("ClouzerBot", "_read_attachment_checked")
 
@@ -61,13 +65,17 @@ class AttachmentHarness:
 
 class ViewHarness:
     _load = view_load_method
+    _enforce_limits = view_enforce_method
 
     def __init__(self, path):
         self.path = path
         self._entries = OrderedDict()
-
-    def _enforce_limits(self):
-        pass
+        self.max_entries = 100
+        self.max_snapshots = 10
+        self.live_media = 5
+        self.retention_seconds = 3600
+        self.snapshot_chars = 1000
+        self._clock = time.monotonic
 
 
 class MemoryLoadRegressionTests(unittest.TestCase):
@@ -174,6 +182,7 @@ class ViewStateLoadRegressionTests(unittest.TestCase):
         self.path = os.path.join(self.temp.name, "view_state.json")
         self.harness = ViewHarness(self.path)
         self.harness._load.__globals__["MAX_VIEW_STATE_FILE_BYTES"] = 1024
+        self.harness._enforce_limits.__globals__["compact_messages_for_disk"] = lambda messages, limit: messages
 
     def tearDown(self):
         self.temp.cleanup()
@@ -199,6 +208,25 @@ class ViewStateLoadRegressionTests(unittest.TestCase):
             json.dump([], handle)
         with self.assertRaises(RuntimeError):
             self.harness._load()
+
+
+    def test_enforce_limits_drops_oldest_entries(self):
+        self.harness.max_entries = 2
+        self.harness._entries = OrderedDict([
+            (1, {"ts": time.monotonic(), "messages": [], "source_images": [], "had_images": False}),
+            (2, {"ts": time.monotonic(), "messages": [], "source_images": [], "had_images": False}),
+            (3, {"ts": time.monotonic(), "messages": [], "source_images": [], "had_images": False}),
+        ])
+        self.harness._enforce_limits()
+        self.assertEqual(list(self.harness._entries), [2, 3])
+
+    def test_enforce_limits_expires_old_entries(self):
+        self.harness.retention_seconds = 1
+        self.harness._entries[1] = {
+            "ts": time.monotonic() - 10, "messages": [], "source_images": [], "had_images": False,
+        }
+        self.harness._enforce_limits()
+        self.assertNotIn(1, self.harness._entries)
 
 
 if __name__ == "__main__":
@@ -254,3 +282,46 @@ class GlobalDailyBudgetTests(unittest.TestCase):
     def test_unknown_category_is_rejected(self):
         with self.assertRaises(ValueError):
             self.budget.acquire("unknown")
+
+
+class RateLimiterTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        tree = ast.parse(SOURCE.read_text(encoding="utf-8"), filename=str(SOURCE))
+        wanted = {"RateRule", "RateLimiter"}
+        nodes = [item for item in tree.body if isinstance(item, (ast.ClassDef, ast.FunctionDef)) and item.name in wanted]
+        module = ast.Module(body=nodes, type_ignores=[])
+        ast.fix_missing_locations(module)
+        namespace = {"NamedTuple": __import__("typing").NamedTuple, "deque": deque, "time": time, "math": math}
+        exec(compile(module, str(SOURCE), "exec"), namespace)
+        cls.RateRule = namespace["RateRule"]
+        cls.RateLimiter = namespace["RateLimiter"]
+
+    def test_cooldown_and_sliding_window(self):
+        now = [100.0]
+        limiter = self.RateLimiter({"chat": self.RateRule(4.0, 2, 60.0)}, clock=lambda: now[0])
+        self.assertTrue(limiter.acquire("chat", 7)[0])
+        allowed, wait = limiter.acquire("chat", 7)
+        self.assertFalse(allowed)
+        self.assertEqual(wait, 4.0)
+        now[0] += 4.0
+        self.assertTrue(limiter.acquire("chat", 7)[0])
+        now[0] += 4.0
+        allowed, wait = limiter.acquire("chat", 7)
+        self.assertFalse(allowed)
+        self.assertEqual(wait, 52.0)
+
+    def test_rolling_daily_limit(self):
+        now = [10.0]
+        limiter = self.RateLimiter({}, daily_limit=1, clock=lambda: now[0])
+        self.assertTrue(limiter.acquire("chat", 9)[0])
+        self.assertFalse(limiter.acquire("chat", 9)[0])
+        now[0] += 86400.0
+        self.assertTrue(limiter.acquire("chat", 9)[0])
+
+    def test_exempt_user_bypasses_user_limiter(self):
+        limiter = self.RateLimiter(
+            {"chat": self.RateRule(10.0, 1, 60.0)}, daily_limit=1, exempt_ids={42}
+        )
+        self.assertTrue(limiter.acquire("chat", 42)[0])
+        self.assertTrue(limiter.acquire("chat", 42)[0])
