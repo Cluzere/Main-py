@@ -15,8 +15,8 @@ File sumber asli audit-recovery/main_final.py tetap tidak disentuh. Semua peruba
 - Laporan ini diperbarui di tempat.
 
 CI terakhir:
-- Run: https://github.com/Cluzere/Main-py/actions/runs/45084617517
-- Commit pengujian: 19304fea5c24d351529b6df0b8ffc134940cda94
+- Run: https://github.com/Cluzere/Main-py/actions/runs/45084865511
+- Commit kandidat + CI: d19ca6ad25d5967bf736454928b62e4e7f1b4c75
 - CPython: 3.12.16
 - py_compile: PASS
 - Regression tests: **24/24 PASS**
@@ -84,7 +84,7 @@ Severity: P1 / cost-abuse exposure
 
 **Batas penting:** ini adalah kuota jumlah operasi/request, bukan batas uang dalam rupiah/USD atau batas token. Biaya per request bisa berbeda. Lock/file ini ditujukan untuk satu proses bot aktif pada satu host; jangan jalankan beberapa instance bersamaan dengan file yang sama karena lock tidak lintas proses. Menghapus global_usage.json akan mengatur ulang penghitung.
 
-### F-08 — Regresi pengujian pembatas dan state belum cukup
+### F-08 — Konkurensi image/audio sebelumnya belum dibatasi lintas pengguna\nSeverity: P2 / resource exhaustion\n- Queue gambar sebelumnya hanya mengunci per-user; banyak pengguna berbeda dapat memanggil provider gambar serentak.\n- Ditambahkan semaphore global terpisah untuk image dan audio, masing-masing default 2 operasi bersamaan dan dapat diatur melalui MAX_CONCURRENT_IMAGE_CALLS / MAX_CONCURRENT_AUDIO_CALLS.\n\n### F-09 — Regresi pengujian pembatas dan state belum cukup
 Severity: P2 / test coverage
 - Ditambahkan tes langsung untuk cooldown, sliding window, kuota rolling 24 jam, pengecualian user, pembatas jumlah/retensi view-state, dan kuota global persisten.
 - CI sekarang menjalankan 24 tes dan seluruhnya lulus pada run terakhir.
@@ -109,7 +109,7 @@ Semua angka di bawah adalah default; environment dapat mengubah nilai kategori y
 - Kuota per-user ini masih di RAM: restart meresetnya. RATE_LIMIT_EXEMPT_USER_IDS dapat mengecualikan ID tertentu dari rate limiter per-user; kuota global tetap berlaku.
 - RATE_LIMIT_ENABLED=0 menonaktifkan rate limiter per-user, bukan kuota global.
 - Konkurensi panggilan AI: 4 (MAX_CONCURRENT_AI_CALLS=4).
-- Konkurensi attachment: 2 (MAX_CONCURRENT_ATTACHMENTS=2).
+- Konkurensi image provider: 2 (MAX_CONCURRENT_IMAGE_CALLS=2).\n- Konkurensi audio provider: 2 (MAX_CONCURRENT_AUDIO_CALLS=2).\n- Konkurensi attachment: 2 (MAX_CONCURRENT_ATTACHMENTS=2).
 - Maksimum gambar vision per turn: 5.
 - Batas riwayat prompt: 240.000 karakter.
 - Batas Responses SSE: 20 MB total dan 1 MB per baris.
