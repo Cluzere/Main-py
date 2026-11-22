@@ -12,6 +12,7 @@ import socket
 import asyncio
 import math
 import copy
+import threading
 import zipfile
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
@@ -137,6 +138,10 @@ VIEW_STATE_LIVE_MEDIA = _env_int("VIEW_STATE_LIVE_MEDIA", 20, minimum=0)
 VIEW_STATE_SNAPSHOT_CHARS = _env_int("VIEW_STATE_SNAPSHOT_CHARS", 48_000, minimum=2_000)
 VIEW_STATE_RETENTION_SECONDS = _env_int("VIEW_STATE_RETENTION_DAYS", 14, minimum=1) * 86400
 MAX_VIEW_STATE_FILE_BYTES = _env_int("MAX_VIEW_STATE_FILE_MB", 16, minimum=1) * 1024 * 1024
+GLOBAL_BUDGET_FILE = os.path.join(BASE_DIR, "global_usage.json")
+GLOBAL_DAILY_RESPONSES_LIMIT = _env_int("GLOBAL_DAILY_RESPONSES_LIMIT", 600, minimum=1)
+GLOBAL_DAILY_IMAGES_LIMIT = _env_int("GLOBAL_DAILY_IMAGES_LIMIT", 40, minimum=1)
+GLOBAL_DAILY_AUDIO_LIMIT = _env_int("GLOBAL_DAILY_AUDIO_LIMIT", 80, minimum=1)
 
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
@@ -1032,6 +1037,84 @@ def rate_limit_text(wait: float) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Anggaran API global persisten (satu instance bot per file data).
+# Berbeda dari rate limiter per-user, penghitung ini tetap ada setelah restart.
+# ---------------------------------------------------------------------------
+class GlobalDailyBudget:
+    MAX_FILE_BYTES = 1024 * 1024
+
+    def __init__(self, path: str, limits: dict[str, int]):
+        self.path = path
+        self.limits = {str(k): max(1, int(v)) for k, v in limits.items()}
+        self._lock = threading.Lock()
+
+    def acquire(self, category: str) -> tuple[bool, float]:
+        limit = self.limits.get(category)
+        if limit is None:
+            raise ValueError(f"Kategori anggaran global tidak dikenal: {category}")
+        now = time.time()
+        today = time.strftime("%Y-%m-%d", time.gmtime(now))
+        wait = 86400.0 - (now % 86400.0)
+        with self._lock:
+            data = {"day": today, "counts": {}}
+            if os.path.exists(self.path):
+                try:
+                    if os.path.getsize(self.path) > self.MAX_FILE_BYTES:
+                        raise RuntimeError("global_usage.json melewati batas ukuran; anggaran API ditutup.")
+                    with open(self.path, "r", encoding="utf-8") as handle:
+                        loaded = json.load(handle)
+                    if not isinstance(loaded, dict) or not isinstance(loaded.get("counts"), dict):
+                        raise ValueError("struktur global_usage.json tidak valid")
+                    if loaded.get("day") == today:
+                        data = loaded
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Anggaran API global tidak dapat dibaca; request ditolak demi keamanan: {type(exc).__name__}"
+                    ) from exc
+            counts = data["counts"]
+            try:
+                used = int(counts.get(category, 0))
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError("Penghitung anggaran API global rusak; request ditolak.") from exc
+            if used >= limit:
+                return False, wait
+            counts[category] = used + 1
+            tmp_path = self.path + ".tmp"
+            try:
+                parent = os.path.dirname(self.path)
+                if parent:
+                    os.makedirs(parent, exist_ok=True)
+                fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                try:
+                    os.fchmod(fd, 0o600)
+                    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                        json.dump(data, handle, ensure_ascii=False, separators=(",", ":"))
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    os.replace(tmp_path, self.path)
+                    try:
+                        os.chmod(self.path, 0o600)
+                    except OSError:
+                        pass
+                except Exception:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+                    raise
+            except Exception as exc:
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except OSError:
+                    pass
+                raise RuntimeError(
+                    f"Gagal menyimpan anggaran API global; request ditolak: {type(exc).__name__}"
+                ) from exc
+            return True, 0.0
+
+
+# ---------------------------------------------------------------------------
 # Penyimpanan state tombol AI (Regenerate / DM) - dibatasi & persisten.
 # ---------------------------------------------------------------------------
 def _content_to_text(content) -> tuple[str, int]:
@@ -1810,6 +1893,10 @@ class ClouzerBot(commands.Bot):
             exempt_ids=RATE_LIMIT_EXEMPT_USER_IDS,
             enabled=RATE_LIMIT_ENABLED,
         )
+        self.global_budget = GlobalDailyBudget(
+            GLOBAL_BUDGET_FILE,
+            {"responses": GLOBAL_DAILY_RESPONSES_LIMIT, "images": GLOBAL_DAILY_IMAGES_LIMIT, "audio": GLOBAL_DAILY_AUDIO_LIMIT},
+        )
         self.attachment_semaphore = asyncio.Semaphore(MAX_CONCURRENT_ATTACHMENTS)
         self.ai_semaphore = asyncio.Semaphore(MAX_CONCURRENT_AI_CALLS)
         self.view_states = ViewStateStore(
@@ -2310,6 +2397,9 @@ class ClouzerBot(commands.Bot):
         source_images: list[str] | None = None,
         aspect_ratio: str | None = None,
     ) -> tuple[bytes, str, str, str]:
+        allowed, wait = self.global_budget.acquire("images")
+        if not allowed:
+            raise RuntimeError(f"Anggaran gambar global harian tercapai; coba lagi sekitar {format_wait(wait)}.")
         if source_images:
             try:
                 return await self.generate_cloudflare_image(prompt, source_images=source_images, aspect_ratio=aspect_ratio)
@@ -2663,6 +2753,9 @@ class ClouzerBot(commands.Bot):
         return self._wrap_doc_content(ext.lstrip(".").upper(), filename, body[:25000])
 
     async def transcribe_audio_bytes(self, audio_bytes: bytes, filename: str) -> str:
+        allowed, wait = self.global_budget.acquire("audio")
+        if not allowed:
+            raise RuntimeError(f"Anggaran transkripsi audio global harian tercapai; coba lagi sekitar {format_wait(wait)}.")
         if not audio_bytes:
             return f"\n\n[File audio {filename} kosong.]\n"
         if not CF_ACCOUNTS or self.http_session is None:
@@ -3292,7 +3385,10 @@ class ClouzerBot(commands.Bot):
         allow_image_tool: bool = True,
         extra_input: list[dict] | None = None,
     ) -> tuple[str, list[dict]]:
-        """Pembungkus: batasi panggilan Xingchi paralel & sensor nilai rahasia bot pada output model."""
+        """Pembungkus: batasi anggaran global, konkurensi Xingchi, dan sensor output model."""
+        allowed, wait = self.global_budget.acquire("responses")
+        if not allowed:
+            raise RuntimeError(f"Anggaran API global harian tercapai; coba lagi sekitar {format_wait(wait)}.")
         async with self.ai_semaphore:
             text, calls = await self._run_responses_ai_impl(
                 messages, target_msg, mode,
@@ -4153,6 +4249,19 @@ async def cek_tool_cmd(interaction: discord.Interaction):
         await interaction.response.send_message(rate_limit_text(wait), ephemeral=True)
         return
 
+    global_allowed, global_wait = bot.global_budget.acquire("responses")
+    if not global_allowed:
+        await interaction.response.send_message(
+            f"⏳ Anggaran API global harian tercapai; coba lagi sekitar {format_wait(global_wait)}.", ephemeral=True
+        )
+        return
+    # Diagnostik menjalankan dua request Responses; hitung request kedua sebelum mengirimnya.
+    second_allowed, second_wait = bot.global_budget.acquire("responses")
+    if not second_allowed:
+        await interaction.response.send_message(
+            f"⏳ Anggaran API global hampir habis; diagnostik butuh dua request. Coba lagi sekitar {format_wait(second_wait)}.", ephemeral=True
+        )
+        return
     await interaction.response.defer(thinking=True)
 
     url = f"{XINGCHI_BASE_URL}/responses"
