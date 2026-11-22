@@ -27,6 +27,7 @@ def extract_method(class_name, method_name):
                         "FULL_CONTENT_EXTS": {".txt", ".py", ".js", ".ts", ".html", ".css", ".json", ".csv", ".md", ".xml", ".yml", ".yaml", ".ini", ".log", ".sql", ".sh", ".pdf", ".docx", ".pptx", ".xlsx", ".rtf", ".odt", ".ods", ".odp", ".epub", ".svg", ".eps", ".ai"},
                         "OFFICE_DOC_EXTS": {".pdf", ".docx", ".pptx", ".xlsx", ".rtf", ".odt", ".ods", ".odp", ".epub", ".svg", ".eps", ".ai"},
                         "check_file_signature": lambda ext, data: None,
+                        "scrub_secrets": lambda value: value,
                     }
                     exec(compile(module, str(SOURCE), "exec"), namespace)
                     return namespace[method_name]
