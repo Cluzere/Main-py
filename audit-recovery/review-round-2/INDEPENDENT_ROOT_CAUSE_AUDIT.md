@@ -174,6 +174,8 @@ Static review:
 
 - Klaim suite lama 174/174 dan mutation test 51 tidak memiliki bukti yang cukup pada arsip yang diperiksa; tetap UNVERIFIED.
 - Tes terverifikasi pada CI saat ini: 25/25 PASS.
+- Audit lanjutan setelah run tersebut menemukan kuota harian per-user sebelumnya memakai fixed window 24 jam, bukan sliding window. Implementasi kandidat dan satu regresi baru sudah diperbarui; hasil CI untuk commit pembaruan ini masih menunggu, sehingga angka 25/25 di atas hanya berlaku untuk commit CI yang disebutkan dan tidak boleh diklaim sebagai hasil tes terbaru.
+
 - Tes tersebut tidak boleh disamakan dengan 24 skenario live Discord/provider.
 
 ## Langkah wajib sebelum deploy
