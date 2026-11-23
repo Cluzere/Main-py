@@ -317,6 +317,27 @@ class RateLimiterTests(unittest.TestCase):
         now[0] += 86400.0
         self.assertTrue(limiter.acquire("chat", 9)[0])
 
+    def test_daily_limit_is_true_sliding_24_hours(self):
+        now = [0.0]
+        limiter = self.RateLimiter(
+            {"chat": self.RateRule(0.0, 0, 60.0)}, daily_limit=2, clock=lambda: now[0]
+        )
+        self.assertTrue(limiter.acquire("chat", 9)[0])
+        now[0] = 10.0
+        self.assertTrue(limiter.acquire("chat", 9)[0])
+        now[0] = 86399.0
+        allowed, wait = limiter.acquire("chat", 9)
+        self.assertFalse(allowed)
+        self.assertEqual(wait, 1.0)
+        now[0] = 86400.0
+        self.assertTrue(limiter.acquire("chat", 9)[0])
+        now[0] = 86409.0
+        allowed, wait = limiter.acquire("chat", 9)
+        self.assertFalse(allowed)
+        self.assertEqual(wait, 1.0)
+        now[0] = 86410.0
+        self.assertTrue(limiter.acquire("chat", 9)[0])
+
     def test_exempt_user_bypasses_user_limiter(self):
         limiter = self.RateLimiter(
             {"chat": self.RateRule(10.0, 1, 60.0)}, daily_limit=1, exempt_ids={42}
