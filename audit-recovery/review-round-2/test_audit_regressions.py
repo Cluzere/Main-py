@@ -10,6 +10,7 @@ import time
 import math
 import re
 import xml.etree.ElementTree as ET
+import zipfile
 from collections import deque
 from collections import OrderedDict
 from pathlib import Path
@@ -64,6 +65,15 @@ safe_xml_fromstring = extract_top_level_function(
     "safe_xml_fromstring", {"_XML_ENTITY_DECL_RE", "_XML_NESTED_ENTITY_RE"}
 )
 safe_xml_fromstring.__globals__["ET"] = ET
+validate_zip_archive_method = extract_method("ClouzerBot", "_validate_zip_archive")
+validate_zip_archive_method.__globals__.update({
+    "zipfile": zipfile,
+    "io": io,
+    "ZIP_MAX_ENTRIES": 2000,
+    "ZIP_MAX_ENTRY_UNCOMPRESSED": 25 * 1024 * 1024,
+    "ZIP_MAX_TOTAL_UNCOMPRESSED": 100 * 1024 * 1024,
+    "ZIP_MAX_COMPRESSION_RATIO": 200,
+})
 
 load_memory_method = extract_method("ClouzerBot", "load_memory")
 view_load_method = extract_method("ViewStateStore", "_load")
@@ -520,6 +530,48 @@ class SafeXMLRegressionTests(unittest.TestCase):
         payload = b'<!DOCTYPE root [<!ENTITY % ext SYSTEM "file:///etc/passwd">%ext;]><root />'
         with self.assertRaisesRegex(ValueError, "external/parameter entity"):
             safe_xml_fromstring(payload)
+
+
+class ZipArchivePreflightTests(unittest.TestCase):
+    @staticmethod
+    def make_zip(entries):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for name, payload in entries:
+                archive.writestr(name, payload)
+        return buffer.getvalue()
+
+    def test_valid_archive_is_accepted_and_readable(self):
+        raw = self.make_zip([("word/document.xml", b"<doc>ok</doc>")])
+        with validate_zip_archive_method(None, raw) as archive:
+            self.assertEqual(archive.read("word/document.xml"), b"<doc>ok</doc>")
+
+    def test_entry_count_limit_is_enforced(self):
+        raw = self.make_zip([("a", b"a"), ("b", b"b")])
+        validate_zip_archive_method.__globals__["ZIP_MAX_ENTRIES"] = 1
+        try:
+            with self.assertRaisesRegex(ValueError, "terlalu banyak entri"):
+                validate_zip_archive_method(None, raw)
+        finally:
+            validate_zip_archive_method.__globals__["ZIP_MAX_ENTRIES"] = 2000
+
+    def test_per_entry_uncompressed_limit_is_enforced(self):
+        raw = self.make_zip([("large.bin", b"12345")])
+        validate_zip_archive_method.__globals__["ZIP_MAX_ENTRY_UNCOMPRESSED"] = 4
+        try:
+            with self.assertRaisesRegex(ValueError, "entri ZIP terlalu besar"):
+                validate_zip_archive_method(None, raw)
+        finally:
+            validate_zip_archive_method.__globals__["ZIP_MAX_ENTRY_UNCOMPRESSED"] = 25 * 1024 * 1024
+
+    def test_total_uncompressed_limit_is_enforced(self):
+        raw = self.make_zip([("a.bin", b"123"), ("b.bin", b"456")])
+        validate_zip_archive_method.__globals__["ZIP_MAX_TOTAL_UNCOMPRESSED"] = 5
+        try:
+            with self.assertRaisesRegex(ValueError, "total ukuran hasil ekstraksi"):
+                validate_zip_archive_method(None, raw)
+        finally:
+            validate_zip_archive_method.__globals__["ZIP_MAX_TOTAL_UNCOMPRESSED"] = 100 * 1024 * 1024
 
 
 if __name__ == "__main__":
