@@ -39,6 +39,7 @@ def extract_method(class_name, method_name):
                         "discord": types.SimpleNamespace(Attachment=object),
                         "urllib": __import__("urllib"),
                         "read_discord_attachment_limited": read_discord_attachment_limited,
+                        "read_limited_stream": read_limited_stream,
                     }
                     exec(compile(module, str(SOURCE), "exec"), namespace)
                     return namespace[method_name]
@@ -68,6 +69,7 @@ read_discord_attachment_limited = extract_top_level_function(
     "read_discord_attachment_limited"
 )
 read_discord_attachment_limited.__globals__["urllib"] = __import__("urllib")
+read_limited_stream = extract_top_level_function("read_limited_stream")
 read_bounded_sse_line = extract_top_level_function(
     "read_bounded_sse_line", {"MAX_RESPONSES_LINE_BYTES", "MAX_RESPONSES_STREAM_BYTES"}
 )
@@ -112,6 +114,7 @@ class RedactionHarness:
 
 class AttachmentHarness:
     _read_attachment_checked = read_attachment_method
+    http_session = None
 
 
 class ViewHarness:
@@ -202,11 +205,26 @@ class AttachmentReadRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(attachment.called)
 
     async def test_valid_small_attachment_is_read_and_signature_checked(self):
+        class Content:
+            async def iter_chunked(self, size):
+                yield b"content"
+        class Response:
+            status = 200
+            content = Content()
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+        class Session:
+            def get(self, url, **kwargs):
+                self.url = url
+                self.kwargs = kwargs
+                return Response()
         class Attachment:
             size = 7
-            async def read(self):
-                return b"content"
+            url = "https://cdn.discordapp.com/attachments/1/2/test.txt"
+        session = Session()
+        AttachmentHarness.http_session = session
         self.assertEqual(await AttachmentHarness()._read_attachment_checked(Attachment(), ".txt"), b"content")
+        self.assertFalse(session.kwargs["allow_redirects"])
 
 
 class LogRedactionRegressionTests(unittest.TestCase):
