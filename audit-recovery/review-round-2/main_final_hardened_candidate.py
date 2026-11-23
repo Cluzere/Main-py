@@ -496,7 +496,7 @@ async def read_bounded_sse_line(content, state: dict) -> bytes:
             raise RuntimeError("Responses stream melewati batas ukuran keamanan.")
         return line
     while True:
-        newline = buffer.find(b"\\n")
+        newline = buffer.find(b"\n")
         if newline >= 0:
             line_size = newline + 1
             if line_size > MAX_RESPONSES_LINE_BYTES:
