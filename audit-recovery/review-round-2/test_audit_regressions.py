@@ -27,7 +27,7 @@ def extract_method(class_name, method_name):
                     module = ast.Module(body=[member], type_ignores=[])
                     ast.fix_missing_locations(module)
                     namespace = {
-                        "os": os, "json": json, "logging": logging,
+                        "os": os, "json": json, "logging": logging, "zipfile": zipfile,
                         "MEMORY_FILE": "", "MAX_MEMORY_FILE_BYTES": 1024,
                         "IMAGE_EXTS": {".png", ".jpg", ".jpeg", ".webp", ".gif"},
                         "AUDIO_EXTS": {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".webm", ".aac", ".opus"},
