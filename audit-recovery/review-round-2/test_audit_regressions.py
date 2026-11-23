@@ -47,9 +47,9 @@ def extract_top_level_function(function_name, constant_names=()):
             isinstance(target, ast.Name) and target.id in wanted for target in node.targets
         ):
             nodes.append(node)
-        elif isinstance(node, ast.FunctionDef) and node.name == function_name:
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name:
             nodes.append(node)
-    if not any(isinstance(node, ast.FunctionDef) and node.name == function_name for node in nodes):
+    if not any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == function_name for node in nodes):
         raise AssertionError(f"top-level function not found: {function_name}")
     module = ast.Module(body=nodes, type_ignores=[])
     ast.fix_missing_locations(module)
