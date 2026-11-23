@@ -642,11 +642,11 @@ class BoundedSSELineTests(unittest.IsolatedAsyncioTestCase):
     async def test_fragmented_line_is_reassembled(self):
         class Stream:
             def __init__(self):
-                self.parts = [b"data:", b" hello", b"\\n", b""]
+                self.parts = [b"data:", b" hello", b"\n", b""]
             async def read(self, size):
                 return self.parts.pop(0)
         state = {"buffer": bytearray(), "total": 0, "eof": False}
-        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"data: hello\\n")
+        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"data: hello\n")
         self.assertEqual(await read_bounded_sse_line(Stream(), state), b"")
 
     async def test_oversized_line_is_rejected(self):
