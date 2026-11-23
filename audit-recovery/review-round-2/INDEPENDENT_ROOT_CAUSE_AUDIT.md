@@ -185,11 +185,18 @@ Perubahan dilakukan hanya pada kandidat hardened dan suite regresi di branch aud
 7. **Dependency hosting belum diuji penuh.** CI tidak memasang seluruh dependency produksi dan tidak menguji versi library yang terpasang di Termux/hosting.
 8. **Kebijakan DM publik meningkatkan exposure biaya.** Ini sesuai keputusan pemilik, tetapi siapa pun dapat mengonsumsi kuota global.
 
+## Temuan tambahan dan penutupan regresi — 23 November 2026
+
+- Pengujian pembacaan respons HTTP menemukan bahwa satu kali `content.read(n)` tidak menjamin body lengkap jika stream datang dalam beberapa potongan. Helper diagnostik diperbaiki agar memakai pembaca stream berbatas yang membaca sampai EOF, menolak byte ke-(limit+1), dan tetap membatasi memori.
+- Penghitung anggaran global sekarang menolak nilai tersimpan yang negatif, boolean, atau bukan integer; sebelumnya konversi `int(...)` dapat menerima nilai yang malformed.
+- Regression suite ditambah untuk XML external entity/parameter entity/nested entity expansion dan ZIP archive preflight. Batas ZIP diuji untuk jumlah entry, ukuran hasil ekstraksi per entry, dan total ukuran hasil ekstraksi.
+- CI terbaru menjalankan 48 test methods; seluruhnya lulus pada Python 3.12 dan kandidat lolos compile. Ini bukti unit/regression, bukan bukti live provider atau deployment.
+
 ## Klaim pengujian lama
 
 - Klaim suite lama 174/174 dan mutation test 51 tidak memiliki bukti yang cukup pada arsip yang diperiksa; tetap UNVERIFIED.
 - Sebelum putaran hardening terakhir, CI terverifikasi menjalankan 26 regression tests dan semuanya PASS pada run #21. Run tersebut tidak mencakup perubahan prompt-injection defense-in-depth dan batas respons diagnostik yang ditambahkan pada putaran ini.
-- Putaran audit ini menambahkan 7 regression tests: 3 untuk klasifikasi nama file sensitif, 1 untuk kebijakan konten eksternal tidak tepercaya, dan 3 untuk pembacaan respons diagnostik berbatas. Suite hasil discovery pada run terakhir menghitung 30 test methods. Run #23 untuk revisi test harness terakhir masih queued saat laporan ini diperbarui; hasilnya belum boleh diklaim PASS.
+- Putaran audit lanjutan menambahkan 22 regression tests: klasifikasi nama file sensitif, kebijakan konten eksternal tidak tepercaya, pembacaan respons diagnostik terfragmentasi dan berbatas, penolakan counter budget persisten yang negatif/non-integer/bool, XML external/parameter entity dan nested expansion, serta ZIP entry count/per-entry/total decompressed size. Latest CI run #27: **48/48 tests PASS**, compile kandidat PASS. Bukti: https://github.com/Cluzere/Main-py/actions/runs/45091958777.
 
 - Tes tersebut tidak boleh disamakan dengan 24 skenario live Discord/provider.
 
@@ -207,5 +214,5 @@ Perubahan dilakukan hanya pada kandidat hardened dan suite regresi di branch aud
 - Kandidat hardened: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/main_final_hardened_candidate.py
 - Tes regresi: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/test_audit_regressions.py
 - Workflow CI: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/.github/workflows/audit-recovery.yml
-- CI terakhir: https://github.com/Cluzere/Main-py/actions/runs/45091345939
+- CI terakhir: https://github.com/Cluzere/Main-py/actions/runs/45091958777
 - File asli yang tidak diubah: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/main_final.py
