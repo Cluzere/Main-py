@@ -466,6 +466,22 @@ async def read_limited_stream(content, max_bytes: int, chunk_size: int = 65536) 
     return bytes(data)
 
 
+async def read_discord_attachment_limited(session, url: str, declared_size: int, max_bytes: int) -> bytes:
+    """Fetch attachment dengan allowlist CDN dan hard cap saat streaming, bukan setelah read()."""
+    parsed = urllib.parse.urlsplit(str(url or ""))
+    allowed_hosts = {"cdn.discordapp.com", "media.discordapp.net"}
+    if (parsed.scheme.lower() != "https" or parsed.hostname not in allowed_hosts
+            or parsed.username or parsed.password or parsed.port not in (None, 443)):
+        raise ValueError("URL lampiran Discord tidak aman")
+    if declared_size <= 0 or max_bytes <= 0:
+        raise ValueError("Ukuran lampiran tidak valid")
+    hard_cap = min(max_bytes, declared_size + 4096)
+    async with session.get(url, allow_redirects=False, timeout=60) as response:
+        if response.status != 200:
+            raise ValueError(f"CDN Discord menolak lampiran (HTTP {response.status})")
+        return await read_limited_stream(response.content, hard_cap)
+
+
 async def read_bounded_sse_line(content, state: dict) -> bytes:
     """Baca satu baris SSE dengan batas sebelum buffer baris dapat tumbuh tanpa batas."""
     if not isinstance(state, dict) or not isinstance(state.get("buffer"), bytearray):
@@ -3155,9 +3171,9 @@ class ClouzerBot(commands.Bot):
             raise ValueError("metadata ukuran lampiran tidak valid")
         if max_allowed is None or declared > max_allowed:
             raise ValueError("ukuran lampiran melewati batas per jenis file")
-        data = await attachment.read()
-        if len(data) > declared + 4096:
-            raise ValueError("ukuran file tidak sesuai metadata Discord")
+        data = await read_discord_attachment_limited(
+            self.http_session, attachment.url, declared, max_allowed
+        )
         problem = check_file_signature(ext, data)
         if problem:
             raise ValueError(problem)
