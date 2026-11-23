@@ -868,12 +868,10 @@ def safe_exc_text(exc: BaseException, limit: int = 300) -> str:
 
 
 async def read_limited_response_text(response, max_bytes: int = 64 * 1024) -> str:
-    """Baca respons HTTP tanpa pernah buffer lebih dari max_bytes + 1 byte."""
+    """Baca seluruh respons sampai EOF dengan batas byte keras."""
     if max_bytes < 1:
         raise ValueError("batas respons harus positif")
-    raw = await response.content.read(max_bytes + 1)
-    if len(raw) > max_bytes:
-        raise ValueError(f"respons diagnostik melebihi batas {max_bytes} byte")
+    raw = await read_limited_stream(response.content, max_bytes=max_bytes)
     charset = getattr(response, "charset", None) or "utf-8"
     return raw.decode(charset, errors="replace")
 
