@@ -466,6 +466,47 @@ async def read_limited_stream(content, max_bytes: int, chunk_size: int = 65536) 
     return bytes(data)
 
 
+async def read_bounded_sse_line(content, state: dict) -> bytes:
+    """Baca satu baris SSE dengan batas sebelum buffer baris dapat tumbuh tanpa batas."""
+    if not isinstance(state, dict) or not isinstance(state.get("buffer"), bytearray):
+        raise ValueError("State pembaca SSE tidak valid")
+    buffer = state["buffer"]
+    if state.get("eof"):
+        if not buffer:
+            return b""
+        line = bytes(buffer)
+        buffer.clear()
+        if len(line) > MAX_RESPONSES_LINE_BYTES:
+            raise RuntimeError("Responses stream melewati batas ukuran keamanan.")
+        return line
+    while True:
+        newline = buffer.find(b"\\n")
+        if newline >= 0:
+            line_size = newline + 1
+            if line_size > MAX_RESPONSES_LINE_BYTES:
+                raise RuntimeError("Responses stream melewati batas ukuran keamanan.")
+            line = bytes(buffer[:line_size])
+            del buffer[:line_size]
+            return line
+        if len(buffer) > MAX_RESPONSES_LINE_BYTES:
+            raise RuntimeError("Responses stream melewati batas ukuran keamanan.")
+        chunk = await content.read(65536)
+        if not chunk:
+            state["eof"] = True
+            if not buffer:
+                return b""
+            line = bytes(buffer)
+            buffer.clear()
+            if len(line) > MAX_RESPONSES_LINE_BYTES:
+                raise RuntimeError("Responses stream melewati batas ukuran keamanan.")
+            return line
+        total = int(state.get("total", 0)) + len(chunk)
+        if total > MAX_RESPONSES_STREAM_BYTES:
+            raise RuntimeError("Responses stream melewati batas ukuran keamanan.")
+        state["total"] = total
+        buffer.extend(chunk)
+
+
 def sanitize_image_prompt(prompt: str, max_len: int = 1500) -> str:
     cleaned = re.sub(r"\s+", " ", prompt).strip()
     return cleaned[:max_len].strip()
@@ -3571,13 +3612,11 @@ class ClouzerBot(commands.Bot):
                 err_text = err_bytes.decode("utf-8", errors="replace")
                 raise RuntimeError(f"Responses HTTP {resp.status}: {err_text[:300]}")
 
-            stream_bytes = 0
+            sse_state = {"buffer": bytearray(), "total": 0, "eof": False}
             while True:
-                line = await resp.content.readline()
+                line = await read_bounded_sse_line(resp.content, sse_state)
                 if not line:
                     break
-                stream_bytes += len(line)
-                check_responses_stream_limits(len(line), stream_bytes)
                 decoded = line.decode("utf-8", errors="ignore").strip()
                 if not decoded.startswith("data: "):
                     continue
