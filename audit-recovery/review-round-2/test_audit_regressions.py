@@ -9,6 +9,7 @@ import unittest
 import time
 import math
 import re
+import asyncio
 import urllib.parse
 import xml.etree.ElementTree as ET
 import zipfile
@@ -92,6 +93,7 @@ validate_zip_archive_method.__globals__.update({
 })
 
 load_memory_method = extract_method("ClouzerBot", "load_memory")
+save_memory_method = extract_method("ClouzerBot", "save_memory")
 view_load_method = extract_method("ViewStateStore", "_load")
 view_enforce_method = extract_method("ViewStateStore", "_enforce_limits")
 redaction_filter_method = extract_method("SecretRedactionFilter", "filter")
@@ -748,5 +750,35 @@ class BoundedDiscordAttachmentFetchTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result, b"safe")
 
-if __name__ == "__main__":
+
+
+class SaveMemoryHarness:
+    save_memory = save_memory_method
+    def __init__(self):
+        self.memory_lock = asyncio.Lock()
+        self.last_memory_save_error = None
+    def _sanitize_memory_for_disk(self):
+        return {"guilds": {}}
+
+
+class MemorySaveRegressionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_failed_persistence_is_raised_not_silently_swallowed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            method = SaveMemoryHarness.save_memory
+            globals_ = method.__globals__
+            old_path = globals_["MEMORY_FILE"]
+            old_limit = globals_["MAX_MEMORY_FILE_BYTES"]
+            globals_["MEMORY_FILE"] = os.path.join(temp, "memory.json")
+            globals_["MAX_MEMORY_FILE_BYTES"] = 1
+            harness = SaveMemoryHarness()
+            try:
+                with self.assertRaisesRegex(ValueError, "melewati batas"):
+                    await harness.save_memory()
+                self.assertIsNotNone(harness.last_memory_save_error)
+                self.assertFalse(os.path.exists(globals_["MEMORY_FILE"]))
+            finally:
+                globals_["MEMORY_FILE"] = old_path
+                globals_["MAX_MEMORY_FILE_BYTES"] = old_limit
+
+\nif __name__ == "__main__":
     unittest.main()
