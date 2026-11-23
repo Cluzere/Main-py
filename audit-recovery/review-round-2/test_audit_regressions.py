@@ -74,7 +74,7 @@ read_bounded_sse_line = extract_top_level_function(
     "read_bounded_sse_line", {"MAX_RESPONSES_LINE_BYTES", "MAX_RESPONSES_STREAM_BYTES"}
 )
 read_bounded_sse_line.__globals__.update({
-    "MAX_RESPONSES_LINE_BYTES": 8,
+    "MAX_RESPONSES_LINE_BYTES": 16,
     "MAX_RESPONSES_STREAM_BYTES": 32,
 })
 safe_xml_fromstring = extract_top_level_function(
@@ -652,7 +652,7 @@ class BoundedSSELineTests(unittest.IsolatedAsyncioTestCase):
     async def test_oversized_line_is_rejected(self):
         class Stream:
             def __init__(self):
-                self.parts = [b"12345678", b"9"]
+                self.parts = [b"1234567890123456", b"7"]
             async def read(self, size):
                 return self.parts.pop(0)
         state = {"buffer": bytearray(), "total": 0, "eof": False}
@@ -727,7 +727,7 @@ class BoundedDiscordAttachmentFetchTests(unittest.IsolatedAsyncioTestCase):
             def get(self, url, **kwargs): return Response()
         with self.assertRaisesRegex(ValueError, "melewati batas"):
             await read_discord_attachment_limited(
-                Session(), "https://cdn.discordapp.com/a", 4, 100
+                Session(), "https://cdn.discordapp.com/a", 4, 4
             )
 
     async def test_valid_cdn_body_within_cap_is_returned(self):
