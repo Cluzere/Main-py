@@ -656,8 +656,6 @@ class BoundedSSELineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await read_bounded_sse_line(Stream(), state), b"data: end")
         self.assertEqual(await read_bounded_sse_line(Stream(), state), b"")
 
-\n
-
 class BoundedDiscordAttachmentFetchTests(unittest.IsolatedAsyncioTestCase):
     async def test_rejects_non_cdn_and_non_https_urls_before_request(self):
         class Session:
