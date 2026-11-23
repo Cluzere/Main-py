@@ -196,7 +196,7 @@ Perubahan dilakukan hanya pada kandidat hardened dan suite regresi di branch aud
 
 - Klaim suite lama 174/174 dan mutation test 51 tidak memiliki bukti yang cukup pada arsip yang diperiksa; tetap UNVERIFIED.
 - Sebelum putaran hardening terakhir, CI terverifikasi menjalankan 26 regression tests dan semuanya PASS pada run #21. Run tersebut tidak mencakup perubahan prompt-injection defense-in-depth dan batas respons diagnostik yang ditambahkan pada putaran ini.
-- Putaran audit lanjutan menambahkan 22 regression tests: klasifikasi nama file sensitif, kebijakan konten eksternal tidak tepercaya, pembacaan respons diagnostik terfragmentasi dan berbatas, penolakan counter budget persisten yang negatif/non-integer/bool, XML external/parameter entity dan nested expansion, serta ZIP entry count/per-entry/total decompressed size. Latest CI run #27: **48/48 tests PASS**, compile kandidat PASS. Bukti: https://github.com/Cluzere/Main-py/actions/runs/45091958777.
+- Putaran audit lanjutan menambahkan 23 regression tests: klasifikasi nama file sensitif, kebijakan konten eksternal tidak tepercaya, pembacaan respons diagnostik terfragmentasi dan berbatas, penolakan counter budget persisten yang negatif/non-integer/bool, XML external/parameter entity dan nested expansion, serta ZIP entry count/per-entry/total decompressed size. Latest CI terverifikasi: **49/49 tests PASS**, compile kandidat PASS. Run: https://github.com/Cluzere/Main-py/actions/runs/45092041454.
 
 - Tes tersebut tidak boleh disamakan dengan 24 skenario live Discord/provider.
 
@@ -214,5 +214,5 @@ Perubahan dilakukan hanya pada kandidat hardened dan suite regresi di branch aud
 - Kandidat hardened: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/main_final_hardened_candidate.py
 - Tes regresi: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/test_audit_regressions.py
 - Workflow CI: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/.github/workflows/audit-recovery.yml
-- CI terakhir: https://github.com/Cluzere/Main-py/actions/runs/45091958777
+- CI terakhir: https://github.com/Cluzere/Main-py/actions/runs/45092041454
 - File asli yang tidak diubah: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/main_final.py
