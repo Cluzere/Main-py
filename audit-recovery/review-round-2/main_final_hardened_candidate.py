@@ -964,7 +964,7 @@ class RateLimiter:
         self.enabled = bool(enabled)
         self._clock = clock
         self._events: dict[tuple[str, int], deque] = {}
-        self._daily: dict[int, list] = {}  # uid -> [awal_jendela, jumlah]  (O(1) memori per pengguna)
+        self._daily: dict[int, deque] = {}  # uid -> timestamp request dalam 24 jam terakhir
         self._notified: dict[int, float] = {}
 
     def acquire(self, category: str, user_id: int, *, counts_daily: bool = True) -> tuple[bool, float]:
@@ -993,23 +993,30 @@ class RateLimiter:
             if age < rule.window:
                 wait = max(wait, rule.window - age)
 
-        daily = None
+        daily_events = None
         if counts_daily and self.daily_limit > 0:
-            daily = self._daily.get(uid)
-            if daily is None or (now - daily[0]) >= self.DAILY_WINDOW:
-                daily = [now, 0]  # jendela harian baru dimulai pada request pertama
-                self._daily[uid] = daily
-            if daily[1] >= self.daily_limit:
-                wait = max(wait, self.DAILY_WINDOW - (now - daily[0]))
+            daily_events = self._daily.get(uid)
+            if daily_events is None:
+                daily_events = deque()
+                self._daily[uid] = daily_events
+            # True sliding window: setiap request keluar tepat 24 jam setelah
+            # timestamp-nya, bukan reset massal 24 jam setelah request pertama.
+            cutoff = now - self.DAILY_WINDOW
+            while daily_events and daily_events[0] <= cutoff:
+                daily_events.popleft()
+            if len(daily_events) >= self.daily_limit:
+                wait = max(wait, self.DAILY_WINDOW - (now - daily_events[0]))
 
         if wait > 0:
+            if daily_events is not None and not daily_events:
+                self._daily.pop(uid, None)
             if len(self._events) > self._PRUNE_THRESHOLD:
                 self._prune(now)
             return False, wait
 
         events.append(now)
-        if daily is not None:
-            daily[1] += 1
+        if daily_events is not None:
+            daily_events.append(now)
         if len(self._events) > self._PRUNE_THRESHOLD:
             self._prune(now)
         return True, 0.0
@@ -1028,8 +1035,12 @@ class RateLimiter:
         longest = max([r.window for r in self.rules.values()] + [1.0])
         for key in [k for k, dq in self._events.items() if not dq or (now - dq[-1]) > longest]:
             self._events.pop(key, None)
-        for uid in [u for u, (start, _count) in self._daily.items() if (now - start) >= self.DAILY_WINDOW]:
-            self._daily.pop(uid, None)
+        for uid, timestamps in list(self._daily.items()):
+            cutoff = now - self.DAILY_WINDOW
+            while timestamps and timestamps[0] <= cutoff:
+                timestamps.popleft()
+            if not timestamps:
+                self._daily.pop(uid, None)
         for uid in [u for u, ts in self._notified.items() if (now - ts) > 300.0]:
             self._notified.pop(uid, None)
 
