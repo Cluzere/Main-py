@@ -102,6 +102,13 @@ Severity: P2 / test coverage
 - CI sekarang menjalankan 25 tes dan seluruhnya lulus pada run terakhir.
 - Beberapa test harness masih terisolasi; kelulusan tidak membuktikan seluruh aplikasi berjalan benar saat terhubung ke Discord/provider.
 
+### F-11 — Kuota harian per pengguna sebelumnya bukan sliding window
+Severity: P2 / akurasi rate limit
+- Audit lanjutan menemukan implementasi lama menghitung 24 jam dari request pertama, lalu mereset seluruh hitungan sekaligus. Itu fixed window, bukan rolling/sliding 24 jam seperti yang dinyatakan.
+- Kandidat sekarang menyimpan timestamp request dan mengeluarkan setiap hitungan setelah tepat 24 jam; request yang lebih baru tidak ikut ter-reset lebih awal.
+- Ditambahkan regresi yang menguji batas tepat 24 jam untuk tiap request.
+- Dampak memori: timestamp dibatasi oleh kuota per pengguna; konfigurasi default tetap 400 hitungan per pengguna per sliding 24 jam.
+
 ## Limit aktual yang tertanam di kandidat
 
 Semua angka di bawah adalah default; environment dapat mengubah nilai kategori yang mendukung override.
@@ -116,7 +123,7 @@ Semua angka di bawah adalah default; environment dapat mengubah nilai kategori y
 | Diagnostic | 120 detik | 3 / 3.600 detik |
 | DM copy button | 5 detik | 5 / 120 detik |
 
-- Kuota per pengguna: 400 hitungan per rolling 24 jam (RATE_DAILY_LIMIT_PER_USER=400).
+- Kuota per pengguna: 400 hitungan per sliding 24 jam yang sebenarnya (RATE_DAILY_LIMIT_PER_USER=400); setiap hitungan kedaluwarsa 24 jam setelah request masing-masing.
 - File dan DM copy tidak mengurangi kuota harian user (counts_daily=False), tetapi tetap terkena cooldown/jendela kategori.
 - Kuota per-user ini masih di RAM: restart meresetnya. RATE_LIMIT_EXEMPT_USER_IDS dapat mengecualikan ID tertentu dari rate limiter per-user; kuota global tetap berlaku.
 - RATE_LIMIT_ENABLED=0 menonaktifkan rate limiter per-user, bukan kuota global.
