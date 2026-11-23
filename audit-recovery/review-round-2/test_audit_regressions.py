@@ -9,6 +9,7 @@ import unittest
 import time
 import math
 import re
+import urllib.parse
 import xml.etree.ElementTree as ET
 import zipfile
 from collections import deque
@@ -36,6 +37,8 @@ def extract_method(class_name, method_name):
                         "check_file_signature": lambda ext, data: None,
                         "scrub_secrets": lambda value: value,
                         "discord": types.SimpleNamespace(Attachment=object),
+                        "urllib": __import__("urllib"),
+                        "read_discord_attachment_limited": read_discord_attachment_limited,
                     }
                     exec(compile(module, str(SOURCE), "exec"), namespace)
                     return namespace[method_name]
@@ -64,7 +67,7 @@ def extract_top_level_function(function_name, constant_names=()):
 read_discord_attachment_limited = extract_top_level_function(
     "read_discord_attachment_limited"
 )
-read_discord_attachment_limited.__globals__["urllib"] = __import__("urllib.parse", fromlist=["urlsplit"])
+read_discord_attachment_limited.__globals__["urllib"] = __import__("urllib")
 read_bounded_sse_line = extract_top_level_function(
     "read_bounded_sse_line", {"MAX_RESPONSES_LINE_BYTES", "MAX_RESPONSES_STREAM_BYTES"}
 )
