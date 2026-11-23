@@ -159,6 +159,21 @@ Static review:
 - Secret scrub diterapkan pada prompt, lampiran, log, dan pesan error di sejumlah jalur.
 - Bot menggunakan AllowedMentions.none() agar respons tidak memicu mention massal.
 
+## Putaran audit tambahan — 23 November 2026
+
+Perubahan dilakukan hanya pada kandidat hardened dan suite regresi di branch audit; file sumber asli/produksi tidak diubah.
+
+1. **Instruksi berbahaya di dalam dokumen (mitigasi prompt injection):** system prompt sekarang menandai lampiran, dokumen, OCR, transkrip, halaman web, metadata, dan output tool sebagai data tidak tepercaya serta melarang mengikuti instruksi yang tertanam di dalamnya. Ini defense-in-depth, bukan jaminan bahwa prompt injection mustahil; integrasi tool tetap perlu prinsip least privilege dan validasi di sisi kode.
+2. **Respons `/cek-tool` tidak dibatasi:** probe HTTP sekarang membaca maksimal 64 KiB + 1 byte dan menolak respons yang melewati batas sebelum decode/JSON parse. Ini mencegah `resp.text()` membuffer body diagnostik tak terbatas.
+3. **Regresi baru:** 7 tes ditambahkan untuk nama file environment/kredensial, file konfigurasi biasa, instruksi konten eksternal, batas byte respons, respons tepat pada batas, dan batas invalid.
+
+### Batas audit yang tetap terbuka
+
+- Secret scanning masih heuristik dan tidak dapat menjamin deteksi seluruh kredensial atau data rahasia.
+- Prompt-injection guard adalah instruksi model; jangan menganggapnya sebagai sandbox. Tool calls dan operasi sensitif tetap harus dibatasi oleh kode dan otorisasi.
+- Tidak ada live staging karena kredensial provider aktif dan akses Wispbyte belum diverifikasi dalam sesi audit ini.
+- CI unit/regression tidak membuktikan keberhasilan runtime Discord Gateway, Xingchi SSE, Cloudflare media, Pollinations fallback, persistent view setelah restart, atau shutdown.
+
 ## Risiko yang masih terbuka
 
 1. **Belum ada live integration test.** Belum dibuktikan pada runtime hosting bahwa Discord gateway, permission, command sync, tombol persistent, Xingchi SSE, Cloudflare image/edit/audio, Pollinations fallback, dan shutdown berjalan end-to-end.
@@ -173,8 +188,8 @@ Static review:
 ## Klaim pengujian lama
 
 - Klaim suite lama 174/174 dan mutation test 51 tidak memiliki bukti yang cukup pada arsip yang diperiksa; tetap UNVERIFIED.
-- Tes terverifikasi pada CI saat ini: 25/25 PASS.
-- Audit lanjutan setelah run tersebut menemukan kuota harian per-user sebelumnya memakai fixed window 24 jam, bukan sliding window. Implementasi kandidat dan satu regresi baru sudah diperbarui; hasil CI untuk commit pembaruan ini masih menunggu, sehingga angka 25/25 di atas hanya berlaku untuk commit CI yang disebutkan dan tidak boleh diklaim sebagai hasil tes terbaru.
+- Sebelum putaran hardening terakhir, CI terverifikasi menjalankan 26 regression tests dan semuanya PASS pada run #21. Run tersebut tidak mencakup perubahan prompt-injection defense-in-depth dan batas respons diagnostik yang ditambahkan pada putaran ini.
+- Putaran audit ini menambahkan 7 regression tests: 3 untuk klasifikasi nama file sensitif, 1 untuk kebijakan konten eksternal tidak tepercaya, dan 3 untuk pembacaan respons diagnostik berbatas. Total yang diharapkan pada suite sekarang 33; status final harus mengikuti run CI terbaru, bukan klaim lokal.
 
 - Tes tersebut tidak boleh disamakan dengan 24 skenario live Discord/provider.
 
@@ -192,5 +207,5 @@ Static review:
 - Kandidat hardened: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/main_final_hardened_candidate.py
 - Tes regresi: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/test_audit_regressions.py
 - Workflow CI: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/.github/workflows/audit-recovery.yml
-- CI terakhir: https://github.com/Cluzere/Main-py/actions/runs/45084617517
+- CI terakhir: https://github.com/Cluzere/Main-py/actions/runs/45091237552
 - File asli yang tidak diubah: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/main_final.py
