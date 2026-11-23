@@ -64,7 +64,7 @@ def extract_top_level_function(function_name, constant_names=()):
 read_discord_attachment_limited = extract_top_level_function(
     "read_discord_attachment_limited"
 )
-read_discord_attachment_limited.__globals__["urllib"] = __import__("urllib")
+read_discord_attachment_limited.__globals__["urllib"] = __import__("urllib.parse", fromlist=["urlsplit"])
 read_bounded_sse_line = extract_top_level_function(
     "read_bounded_sse_line", {"MAX_RESPONSES_LINE_BYTES", "MAX_RESPONSES_STREAM_BYTES"}
 )
