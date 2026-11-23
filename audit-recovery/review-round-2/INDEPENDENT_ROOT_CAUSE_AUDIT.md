@@ -256,3 +256,14 @@ Perubahan berikut dibuat hanya pada kandidat audit dan suite regresi; `main.py` 
 4. Prompt injection guard tetap defense-in-depth, bukan sandbox; tool execution wajib divalidasi dan diberi least privilege di kode.
 5. Secret scanning tetap heuristik, bukan DLP/antivirus.
 6. Penyimpanan persisten dan environment hosting perlu diuji terhadap permission, backup, dan restart; jangan commit `.env`, token, atau file runtime.
+
+### F-15 — Provider output dan metadata tool call belum dibatasi secara khusus
+- Output Responses sekarang memiliki hard cap karakter default 65.536 (dapat diatur lewat `MAX_RESPONSES_OUTPUT_CHARS`). Batas ini terpisah dari batas byte SSE sehingga output yang lolos parser stream tidak bisa tumbuh tanpa batas sebelum dikirim ke Discord/memori.
+- Function call Responses dinormalisasi dan dibatasi: maksimal 8 panggilan per giliran, ID maksimal 256 karakter, nama maksimal 128 karakter, dan argumen maksimal 16 KiB per panggilan.
+- JSON SSE yang valid tetapi bukan object diabaikan dengan aman, bukan diproses seolah-olah event object.
+- Ditambahkan 9 regresi untuk output tepat batas/overflow/tipe salah, function call valid/duplikat konflik, jumlah panggilan, ukuran argumen, dan panjang ID.
+- Kandidat dan suite tes telah diperbarui pada branch audit. Commit kandidat: `7b35b6856d11173b7eaa7c9e29681d7174914791`. Commit tes: `6a172f559d08c8d1892a7d15ec043f822462fdb5`.
+- CI baru dipicu oleh push branch; hasil CI untuk dua commit ini belum terverifikasi pada saat laporan ini diperbarui. Jangan deploy sampai compile dan seluruh regression suite kembali PASS.
+
+### Catatan
+Batas karakter output adalah pengaman resource, bukan batas biaya provider yang sesungguhnya. Provider dapat tetap mengenakan biaya sebelum respons dibatasi; kuota global dan billing alert tetap diperlukan.
