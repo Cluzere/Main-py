@@ -189,7 +189,7 @@ Perubahan dilakukan hanya pada kandidat hardened dan suite regresi di branch aud
 
 - Klaim suite lama 174/174 dan mutation test 51 tidak memiliki bukti yang cukup pada arsip yang diperiksa; tetap UNVERIFIED.
 - Sebelum putaran hardening terakhir, CI terverifikasi menjalankan 26 regression tests dan semuanya PASS pada run #21. Run tersebut tidak mencakup perubahan prompt-injection defense-in-depth dan batas respons diagnostik yang ditambahkan pada putaran ini.
-- Putaran audit ini menambahkan 7 regression tests: 3 untuk klasifikasi nama file sensitif, 1 untuk kebijakan konten eksternal tidak tepercaya, dan 3 untuk pembacaan respons diagnostik berbatas. Total yang diharapkan pada suite sekarang 33; status final harus mengikuti run CI terbaru, bukan klaim lokal.
+- Putaran audit ini menambahkan 7 regression tests: 3 untuk klasifikasi nama file sensitif, 1 untuk kebijakan konten eksternal tidak tepercaya, dan 3 untuk pembacaan respons diagnostik berbatas. Suite hasil discovery pada run terakhir menghitung 30 test methods. Run #23 untuk revisi test harness terakhir masih queued saat laporan ini diperbarui; hasilnya belum boleh diklaim PASS.
 
 - Tes tersebut tidak boleh disamakan dengan 24 skenario live Discord/provider.
 
@@ -207,5 +207,5 @@ Perubahan dilakukan hanya pada kandidat hardened dan suite regresi di branch aud
 - Kandidat hardened: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/main_final_hardened_candidate.py
 - Tes regresi: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/test_audit_regressions.py
 - Workflow CI: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/.github/workflows/audit-recovery.yml
-- CI terakhir: https://github.com/Cluzere/Main-py/actions/runs/45091237552
+- CI terakhir: https://github.com/Cluzere/Main-py/actions/runs/45091345939
 - File asli yang tidak diubah: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/main_final.py
