@@ -594,6 +594,15 @@ class ZipArchivePreflightTests(unittest.TestCase):
         finally:
             validate_zip_archive_method.__globals__["ZIP_MAX_TOTAL_UNCOMPRESSED"] = 100 * 1024 * 1024
 
+    def test_compression_ratio_limit_is_enforced(self):
+        raw = self.make_zip([("compressed.bin", b"A" * (1024 * 1024 + 1))])
+        validate_zip_archive_method.__globals__["ZIP_MAX_COMPRESSION_RATIO"] = 2
+        try:
+            with self.assertRaisesRegex(ValueError, "rasio kompresi ZIP mencurigakan"):
+                validate_zip_archive_method(None, raw)
+        finally:
+            validate_zip_archive_method.__globals__["ZIP_MAX_COMPRESSION_RATIO"] = 200
+
 
 if __name__ == "__main__":
     unittest.main()
