@@ -411,10 +411,10 @@ class ImageCompressionSafetyTests(unittest.TestCase):
 class SensitiveFilenamePolicyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.classify = extract_top_level_function(
+        cls.classify = staticmethod(extract_top_level_function(
             "classify_sensitive_filename",
             {"_SENSITIVE_EXACT_NAMES", "_SENSITIVE_EXTENSIONS", "_ENV_FILENAME_RE", "_SENSITIVE_NAME_WORDS_RE"},
-        )
+        ))
 
     def test_environment_variants_are_blocked(self):
         for name in (".env", ".env.production", "env.staging", "config.env.local"):
@@ -443,7 +443,7 @@ class ExternalContentPromptPolicyTests(unittest.TestCase):
 class BoundedDiagnosticResponseTests(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
-        cls.reader = extract_top_level_function("read_limited_response_text")
+        cls.reader = staticmethod(extract_top_level_function("read_limited_response_text"))
 
     async def test_response_at_limit_is_decoded(self):
         class Content:
