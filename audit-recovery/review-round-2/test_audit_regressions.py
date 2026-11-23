@@ -475,7 +475,7 @@ class BoundedDiagnosticResponseTests(unittest.IsolatedAsyncioTestCase):
         response = self.FakeResponse([b"123", b"456"])
         with self.assertRaisesRegex(ValueError, "melewati batas"):
             await self.reader(response, max_bytes=5)
-        self.assertEqual(response.content.requested, [5])
+        self.assertEqual(response.content.requested, [6])
 
     async def test_non_positive_limit_is_rejected_without_read(self):
         response = self.FakeResponse([b"unused"])
