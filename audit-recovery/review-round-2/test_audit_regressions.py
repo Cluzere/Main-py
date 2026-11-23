@@ -61,6 +61,10 @@ def extract_top_level_function(function_name, constant_names=()):
     return namespace[function_name]
 
 
+read_discord_attachment_limited = extract_top_level_function(
+    "read_discord_attachment_limited"
+)
+read_discord_attachment_limited.__globals__["urllib"] = __import__("urllib")
 read_bounded_sse_line = extract_top_level_function(
     "read_bounded_sse_line", {"MAX_RESPONSES_LINE_BYTES", "MAX_RESPONSES_STREAM_BYTES"}
 )
@@ -651,6 +655,77 @@ class BoundedSSELineTests(unittest.IsolatedAsyncioTestCase):
         state = {"buffer": bytearray(), "total": 0, "eof": False}
         self.assertEqual(await read_bounded_sse_line(Stream(), state), b"data: end")
         self.assertEqual(await read_bounded_sse_line(Stream(), state), b"")
+
+\n
+
+class BoundedDiscordAttachmentFetchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_rejects_non_cdn_and_non_https_urls_before_request(self):
+        class Session:
+            called = False
+            def get(self, *args, **kwargs):
+                self.called = True
+                raise AssertionError("request must not be made")
+        session = Session()
+        for url in ("http://cdn.discordapp.com/a", "https://example.com/a",
+                    "https://user:pass@cdn.discordapp.com/a",
+                    "https://127.0.0.1/a"):
+            with self.subTest(url=url):
+                with self.assertRaises(ValueError):
+                    await read_discord_attachment_limited(session, url, 10, 100)
+        self.assertFalse(session.called)
+
+    async def test_rejects_redirect_instead_of_following_it(self):
+        class Content:
+            async def iter_chunked(self, size):
+                yield b"ignored"
+        class Response:
+            status = 302
+            content = Content()
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+        class Session:
+            def get(self, url, **kwargs):
+                self.kwargs = kwargs
+                return Response()
+        session = Session()
+        with self.assertRaisesRegex(ValueError, "HTTP 302"):
+            await read_discord_attachment_limited(
+                session, "https://cdn.discordapp.com/a", 7, 100
+            )
+        self.assertFalse(session.kwargs["allow_redirects"])
+
+    async def test_body_is_bounded_while_streaming(self):
+        class Content:
+            async def iter_chunked(self, size):
+                yield b"1234"
+                yield b"5678"
+        class Response:
+            status = 200
+            content = Content()
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+        class Session:
+            def get(self, url, **kwargs): return Response()
+        with self.assertRaisesRegex(ValueError, "melewati batas"):
+            await read_discord_attachment_limited(
+                Session(), "https://cdn.discordapp.com/a", 4, 100
+            )
+
+    async def test_valid_cdn_body_within_cap_is_returned(self):
+        class Content:
+            async def iter_chunked(self, size):
+                yield b"safe"
+        class Response:
+            status = 200
+            content = Content()
+            async def __aenter__(self): return self
+            async def __aexit__(self, *args): return False
+        class Session:
+            def get(self, url, **kwargs): return Response()
+        result = await read_discord_attachment_limited(
+            Session(), "https://media.discordapp.net/a", 4, 100
+        )
+        self.assertEqual(result, b"safe")
 
 \nif __name__ == "__main__":
     unittest.main()
