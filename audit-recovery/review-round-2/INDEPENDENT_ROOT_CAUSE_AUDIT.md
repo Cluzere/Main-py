@@ -216,3 +216,43 @@ Perubahan dilakukan hanya pada kandidat hardened dan suite regresi di branch aud
 - Workflow CI: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/.github/workflows/audit-recovery.yml
 - CI terakhir: https://github.com/Cluzere/Main-py/actions/runs/45092041454
 - File asli yang tidak diubah: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/main_final.py
+
+
+## Putaran hardening berlapis — 23 November 2026 (lanjutan)
+
+Perubahan berikut dibuat hanya pada kandidat audit dan suite regresi; `main.py` produksi serta file sumber asli tidak disentuh.
+
+### F-12 — SSE baris tunggal dapat dialokasikan sebelum batas diperiksa
+- Jalur Responses SSE tidak lagi memakai `resp.content.readline()` yang baru diperiksa setelah satu baris lengkap dialokasikan.
+- Ditambahkan pembaca baris SSE inkremental dengan buffer per baris, batas 1 MiB, dan batas total stream 20 MiB.
+- Pembaca menangani baris terfragmentasi, baris akhir tanpa newline, batas total, dan menolak baris oversized ketika buffer melewati batas.
+
+### F-13 — Attachment dibaca penuh sebelum ukuran aktual dibatasi
+- `attachment.read()` diganti dengan fetch streaming melalui sesi HTTP bot.
+- URL harus HTTPS dan host harus tepat `cdn.discordapp.com` atau `media.discordapp.net`; URL dengan kredensial, IP literal, host lain, atau port non-443 ditolak.
+- Redirect dimatikan; hanya HTTP 200 diterima.
+- Body dibaca melalui `read_limited_stream` dengan hard cap terkecil antara batas ekstensi dan ukuran metadata + 4 KiB.
+- Signature file tetap diperiksa setelah byte dibaca.
+- Regression test mencakup URL host tak diizinkan, HTTP, kredensial URL, IP literal, redirect, body oversized, dan body valid.
+- Catatan kompatibilitas: jalur ini perlu live staging Discord untuk memastikan semua bentuk URL CDN yang benar-benar dikirim Discord sesuai allowlist pada versi library/attachment yang digunakan.
+
+### F-14 — Kegagalan simpan memori sebelumnya disembunyikan
+- `save_memory()` kini mencatat kegagalan lalu melempar `RuntimeError`; caller tidak lagi dapat menganggap operasi persistensi berhasil secara diam-diam.
+- Perintah `/channel` mengembalikan perubahan in-memory jika penyimpanan gagal dan mengirim status gagal kepada admin.
+- Shutdown tetap melanjutkan penutupan resource lain meskipun penyimpanan memory gagal.
+- Regression test memastikan kegagalan penyimpanan dilaporkan sebagai exception.
+
+### Verifikasi
+- CI: https://github.com/Cluzere/Main-py/actions/runs/45102668503
+- Python 3.12.16 compile: PASS.
+- Regression suite: **58/58 PASS**.
+- Candidate blob SHA: `37ed15ee05ca06151f5f89109493548bb3e96a18`.
+- Test blob SHA: `86e0733579310b1dc033011bcf38e4c6c302f95d`.
+
+### Risiko yang belum tertutup
+1. Belum ada live staging untuk Discord Gateway, attachment CDN aktual, Xingchi SSE/provider, Cloudflare, Pollinations, restart, dan shutdown.
+2. Global budget masih single-process/single-host; lock tidak lintas proses/replica dan bukan billing hard cap.
+3. Rate limit per-user masih in-memory dan reset saat restart.
+4. Prompt injection guard tetap defense-in-depth, bukan sandbox; tool execution wajib divalidasi dan diberi least privilege di kode.
+5. Secret scanning tetap heuristik, bukan DLP/antivirus.
+6. Penyimpanan persisten dan environment hosting perlu diuji terhadap permission, backup, dan restart; jangan commit `.env`, token, atau file runtime.
