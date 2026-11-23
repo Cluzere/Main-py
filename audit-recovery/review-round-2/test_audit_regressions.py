@@ -462,7 +462,7 @@ class BoundedDiagnosticResponseTests(unittest.IsolatedAsyncioTestCase):
     async def test_response_at_limit_is_decoded_across_multiple_chunks(self):
         response = self.FakeResponse([b"he", b"ll", b"o"])
         self.assertEqual(await self.reader(response, max_bytes=5), "hello")
-        self.assertEqual(response.content.requested, [5])
+        self.assertEqual(response.content.requested, [6])
 
     async def test_response_over_limit_is_rejected(self):
         response = self.FakeResponse([b"123", b"456"])
