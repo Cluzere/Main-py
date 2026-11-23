@@ -445,47 +445,45 @@ class BoundedDiagnosticResponseTests(unittest.IsolatedAsyncioTestCase):
     def setUpClass(cls):
         cls.reader = staticmethod(extract_top_level_function("read_limited_response_text"))
 
-    async def test_response_at_limit_is_decoded(self):
-        class Content:
-            async def read(self, size):
-                self.requested = size
-                return b"hello"
-        class Response:
-            charset = "utf-8"
-            def __init__(self):
-                self.content = Content()
-        response = Response()
-        self.assertEqual(await self.reader(response, max_bytes=5), "hello")
-        self.assertEqual(response.content.requested, 6)
+    class FakeContent:
+        def __init__(self, chunks):
+            self.chunks = list(chunks)
+            self.requested = []
+        async def iter_chunked(self, size):
+            self.requested.append(size)
+            for chunk in self.chunks:
+                yield chunk
 
-    async def test_response_over_limit_is_rejected_after_bounded_read(self):
-        class Content:
-            async def read(self, size):
-                self.requested = size
-                return b"123456"
-        class Response:
-            charset = "utf-8"
-            def __init__(self):
-                self.content = Content()
-        response = Response()
-        with self.assertRaisesRegex(ValueError, "melebihi batas"):
+    class FakeResponse:
+        charset = "utf-8"
+        def __init__(self, chunks):
+            self.content = BoundedDiagnosticResponseTests.FakeContent(chunks)
+
+    async def test_response_at_limit_is_decoded_across_multiple_chunks(self):
+        response = self.FakeResponse([b"he", b"ll", b"o"])
+        self.assertEqual(await self.reader(response, max_bytes=5), "hello")
+        self.assertEqual(response.content.requested, [5])
+
+    async def test_response_over_limit_is_rejected(self):
+        response = self.FakeResponse([b"123", b"456"])
+        with self.assertRaisesRegex(ValueError, "melewati batas"):
             await self.reader(response, max_bytes=5)
-        self.assertEqual(response.content.requested, 6)
+        self.assertEqual(response.content.requested, [5])
 
     async def test_non_positive_limit_is_rejected_without_read(self):
-        class Content:
-            called = False
-            async def read(self, size):
-                self.called = True
-                return b""
-        class Response:
-            def __init__(self):
-                self.content = Content()
-        response = Response()
+        response = self.FakeResponse([b"unused"])
         with self.assertRaises(ValueError):
             await self.reader(response, max_bytes=0)
-        self.assertFalse(response.content.called)
+        self.assertEqual(response.content.requested, [])
 
+    async def test_empty_response_is_valid(self):
+        response = self.FakeResponse([])
+        self.assertEqual(await self.reader(response, max_bytes=5), "")
+
+    async def test_invalid_charset_falls_back_to_replacement_decode(self):
+        response = self.FakeResponse([b"hello\xff"])
+        response.charset = "utf-8"
+        self.assertEqual(await self.reader(response, max_bytes=6), "hello\ufffd")
 
 if __name__ == "__main__":
     unittest.main()
