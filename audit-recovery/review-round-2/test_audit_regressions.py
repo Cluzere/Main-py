@@ -317,6 +317,27 @@ class GlobalDailyBudgetTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.budget.acquire("unknown")
 
+    def test_negative_persisted_count_fails_closed(self):
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        with open(self.path, "w", encoding="utf-8") as handle:
+            json.dump({"day": today, "counts": {"responses": -1}}, handle)
+        with self.assertRaisesRegex(RuntimeError, "Penghitung anggaran"):
+            self.budget.acquire("responses")
+
+    def test_non_integer_persisted_count_fails_closed(self):
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        with open(self.path, "w", encoding="utf-8") as handle:
+            json.dump({"day": today, "counts": {"responses": 1.5}}, handle)
+        with self.assertRaisesRegex(RuntimeError, "Penghitung anggaran"):
+            self.budget.acquire("responses")
+
+    def test_boolean_persisted_count_fails_closed(self):
+        today = time.strftime("%Y-%m-%d", time.gmtime())
+        with open(self.path, "w", encoding="utf-8") as handle:
+            json.dump({"day": today, "counts": {"responses": True}}, handle)
+        with self.assertRaisesRegex(RuntimeError, "Penghitung anggaran"):
+            self.budget.acquire("responses")
+
 
 class RateLimiterTests(unittest.TestCase):
     @classmethod
