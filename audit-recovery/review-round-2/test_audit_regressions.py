@@ -538,7 +538,7 @@ class BoundedDiagnosticResponseTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_response_over_limit_is_rejected(self):
         response = self.FakeResponse([b"123", b"456"])
-        with self.assertRaisesRegex(ValueError, "melewati batas"):
+        with self.assertRaisesRegex(RuntimeError, "Perubahan memori tidak tersimpan"):
             await self.reader(response, max_bytes=5)
         self.assertEqual(response.content.requested, [6])
 
@@ -780,5 +780,5 @@ class MemorySaveRegressionTests(unittest.IsolatedAsyncioTestCase):
                 globals_["MEMORY_FILE"] = old_path
                 globals_["MAX_MEMORY_FILE_BYTES"] = old_limit
 
-\nif __name__ == "__main__":
+if __name__ == "__main__":
     unittest.main()
