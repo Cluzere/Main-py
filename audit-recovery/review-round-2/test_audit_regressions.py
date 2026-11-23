@@ -8,6 +8,8 @@ import tempfile
 import unittest
 import time
 import math
+import re
+import xml.etree.ElementTree as ET
 from collections import deque
 from collections import OrderedDict
 from pathlib import Path
@@ -57,6 +59,11 @@ def extract_top_level_function(function_name, constant_names=()):
     exec(compile(module, str(SOURCE), "exec"), namespace)
     return namespace[function_name]
 
+
+safe_xml_fromstring = extract_top_level_function(
+    "safe_xml_fromstring", {"_XML_ENTITY_DECL_RE", "_XML_NESTED_ENTITY_RE"}
+)
+safe_xml_fromstring.__globals__["ET"] = ET
 
 load_memory_method = extract_method("ClouzerBot", "load_memory")
 view_load_method = extract_method("ViewStateStore", "_load")
@@ -484,6 +491,36 @@ class BoundedDiagnosticResponseTests(unittest.IsolatedAsyncioTestCase):
         response = self.FakeResponse([b"hello\xff"])
         response.charset = "utf-8"
         self.assertEqual(await self.reader(response, max_bytes=6), "hello\ufffd")
+
+class SafeXMLRegressionTests(unittest.TestCase):
+    def test_normal_xml_is_accepted(self):
+        root = safe_xml_fromstring(b'<?xml version="1.0"?><root><name>hello</name></root>')
+        self.assertEqual(root.findtext("name"), "hello")
+
+    def test_simple_internal_entity_is_accepted(self):
+        simple = b'<!DOCTYPE root [<!ENTITY company "Example">]><root>&company;</root>'
+        self.assertEqual(safe_xml_fromstring(simple).text, "Example")
+
+    def test_external_system_entity_is_rejected(self):
+        payload = b'<!DOCTYPE root [<!ENTITY x SYSTEM "file:///etc/passwd">]><root>&x;</root>'
+        with self.assertRaisesRegex(ValueError, "external/parameter entity"):
+            safe_xml_fromstring(payload)
+
+    def test_external_public_entity_is_rejected(self):
+        payload = b'<!DOCTYPE root [<!ENTITY x PUBLIC "id" "https://example.invalid/x">]><root>&x;</root>'
+        with self.assertRaisesRegex(ValueError, "external/parameter entity"):
+            safe_xml_fromstring(payload)
+
+    def test_nested_entity_expansion_is_rejected(self):
+        payload = b'<!DOCTYPE root [<!ENTITY a "ha"><!ENTITY b "&a;&a;&a;">]><root>&b;</root>'
+        with self.assertRaisesRegex(ValueError, "entity bersarang"):
+            safe_xml_fromstring(payload)
+
+    def test_parameter_entity_is_rejected(self):
+        payload = b'<!DOCTYPE root [<!ENTITY % ext SYSTEM "file:///etc/passwd">%ext;]><root />'
+        with self.assertRaisesRegex(ValueError, "external/parameter entity"):
+            safe_xml_fromstring(payload)
+
 
 if __name__ == "__main__":
     unittest.main()
