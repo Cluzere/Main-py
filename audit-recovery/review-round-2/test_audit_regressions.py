@@ -646,8 +646,9 @@ class BoundedSSELineTests(unittest.IsolatedAsyncioTestCase):
             async def read(self, size):
                 return self.parts.pop(0)
         state = {"buffer": bytearray(), "total": 0, "eof": False}
-        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"data: hello\n")
-        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"")
+        stream = Stream()
+        self.assertEqual(await read_bounded_sse_line(stream, state), b"data: hello\n")
+        self.assertEqual(await read_bounded_sse_line(stream, state), b"")
 
     async def test_oversized_line_is_rejected(self):
         class Stream:
@@ -674,8 +675,9 @@ class BoundedSSELineTests(unittest.IsolatedAsyncioTestCase):
             async def read(self, size):
                 return self.parts.pop(0)
         state = {"buffer": bytearray(), "total": 0, "eof": False}
-        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"data: end")
-        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"")
+        stream = Stream()
+        self.assertEqual(await read_bounded_sse_line(stream, state), b"data: end")
+        self.assertEqual(await read_bounded_sse_line(stream, state), b"")
 
 class BoundedDiscordAttachmentFetchTests(unittest.IsolatedAsyncioTestCase):
     async def test_rejects_non_cdn_and_non_https_urls_before_request(self):
