@@ -61,6 +61,13 @@ def extract_top_level_function(function_name, constant_names=()):
     return namespace[function_name]
 
 
+read_bounded_sse_line = extract_top_level_function(
+    "read_bounded_sse_line", {"MAX_RESPONSES_LINE_BYTES", "MAX_RESPONSES_STREAM_BYTES"}
+)
+read_bounded_sse_line.__globals__.update({
+    "MAX_RESPONSES_LINE_BYTES": 8,
+    "MAX_RESPONSES_STREAM_BYTES": 32,
+})
 safe_xml_fromstring = extract_top_level_function(
     "safe_xml_fromstring", {"_XML_ENTITY_DECL_RE", "_XML_NESTED_ENTITY_RE"}
 )
@@ -604,5 +611,46 @@ class ZipArchivePreflightTests(unittest.TestCase):
             validate_zip_archive_method.__globals__["ZIP_MAX_COMPRESSION_RATIO"] = 200
 
 
-if __name__ == "__main__":
+
+
+class BoundedSSELineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_fragmented_line_is_reassembled(self):
+        class Stream:
+            def __init__(self):
+                self.parts = [b"data:", b" hello", b"\\n", b""]
+            async def read(self, size):
+                return self.parts.pop(0)
+        state = {"buffer": bytearray(), "total": 0, "eof": False}
+        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"data: hello\\n")
+        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"")
+
+    async def test_oversized_line_is_rejected(self):
+        class Stream:
+            def __init__(self):
+                self.parts = [b"12345678", b"9"]
+            async def read(self, size):
+                return self.parts.pop(0)
+        state = {"buffer": bytearray(), "total": 0, "eof": False}
+        with self.assertRaisesRegex(RuntimeError, "batas ukuran"):
+            await read_bounded_sse_line(Stream(), state)
+
+    async def test_total_stream_limit_is_enforced(self):
+        class Stream:
+            async def read(self, size):
+                return b"123456789012345678901234567890123"
+        state = {"buffer": bytearray(), "total": 0, "eof": False}
+        with self.assertRaisesRegex(RuntimeError, "batas ukuran"):
+            await read_bounded_sse_line(Stream(), state)
+
+    async def test_eof_returns_final_unterminated_line(self):
+        class Stream:
+            def __init__(self):
+                self.parts = [b"data: end", b""]
+            async def read(self, size):
+                return self.parts.pop(0)
+        state = {"buffer": bytearray(), "total": 0, "eof": False}
+        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"data: end")
+        self.assertEqual(await read_bounded_sse_line(Stream(), state), b"")
+
+\nif __name__ == "__main__":
     unittest.main()
