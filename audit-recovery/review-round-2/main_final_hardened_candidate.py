@@ -2278,6 +2278,9 @@ class ClouzerBot(commands.Bot):
                         os.remove(tmp_file)
                 except Exception:
                     pass
+                raise RuntimeError(
+                    "Perubahan memori tidak tersimpan ke disk; operasi dibatalkan agar status tidak dilaporkan berhasil."
+                ) from exc
 
     def get_scope_key(
         self,
@@ -3481,7 +3484,10 @@ class ClouzerBot(commands.Bot):
     async def close(self):
         if self._sync_task is not None and not self._sync_task.done():
             self._sync_task.cancel()
-        await self.save_memory()
+        try:
+            await self.save_memory()
+        except Exception:
+            logging.exception("Penyimpanan memory gagal saat shutdown; lanjut menutup resource")
         await self.view_states.save()
         if self.http_session and not self.http_session.closed:
             await self.http_session.close()
@@ -4119,12 +4125,28 @@ async def channel_perm_cmd(interaction: discord.Interaction, aksi: app_commands.
     if aksi.value == "izinkan":
         if ch.id not in guild_state["allowed_channels"]:
             guild_state["allowed_channels"].append(ch.id)
-            await bot.save_memory()
+            try:
+                await bot.save_memory()
+            except Exception:
+                guild_state["allowed_channels"].remove(ch.id)
+                await interaction.followup.send(
+                    "❌ Izin tidak diubah karena penyimpanan gagal. Coba lagi setelah storage diperbaiki.",
+                    ephemeral=True,
+                )
+                return
         await interaction.followup.send(f"✅ Izin diberikan di {ch.mention}!", ephemeral=True)
     elif aksi.value == "tolak":
         if ch.id in guild_state["allowed_channels"]:
             guild_state["allowed_channels"].remove(ch.id)
-            await bot.save_memory()
+            try:
+                await bot.save_memory()
+            except Exception:
+                guild_state["allowed_channels"].append(ch.id)
+                await interaction.followup.send(
+                    "❌ Izin tidak dicabut karena penyimpanan gagal. Status lama dipertahankan.",
+                    ephemeral=True,
+                )
+                return
         await interaction.followup.send(f"🚫 Izin dicabut di {ch.mention}!", ephemeral=True)
 
 
