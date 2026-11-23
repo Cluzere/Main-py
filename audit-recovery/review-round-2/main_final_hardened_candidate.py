@@ -1101,10 +1101,10 @@ class GlobalDailyBudget:
                         f"Anggaran API global tidak dapat dibaca; request ditolak demi keamanan: {type(exc).__name__}"
                     ) from exc
             counts = data["counts"]
-            try:
-                used = int(counts.get(category, 0))
-            except (TypeError, ValueError) as exc:
-                raise RuntimeError("Penghitung anggaran API global rusak; request ditolak.") from exc
+            raw_used = counts.get(category, 0)
+            if isinstance(raw_used, bool) or not isinstance(raw_used, int) or raw_used < 0:
+                raise RuntimeError("Penghitung anggaran API global rusak; request ditolak.")
+            used = raw_used
             if used >= limit:
                 return False, wait
             counts[category] = used + 1
