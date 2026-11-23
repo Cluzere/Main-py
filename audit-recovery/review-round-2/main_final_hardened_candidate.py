@@ -233,6 +233,9 @@ MEMORY_FILE = os.path.join(BASE_DIR, "memory.json")
 MAX_MEMORY_FILE_BYTES = 20 * 1024 * 1024
 MAX_RESPONSES_STREAM_BYTES = 20 * 1024 * 1024
 MAX_RESPONSES_LINE_BYTES = 1024 * 1024
+MAX_RESPONSES_OUTPUT_CHARS = _env_int("MAX_RESPONSES_OUTPUT_CHARS", 65536, minimum=1024)
+MAX_RESPONSES_FUNCTION_CALLS = 8
+MAX_RESPONSES_FUNCTION_ARGUMENT_CHARS = 16 * 1024
 MAX_RECENT_MESSAGES = 10
 IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 AUDIO_EXTS = (".mp3", ".wav", ".ogg", ".m4a", ".flac", ".webm", ".aac", ".opus")
@@ -568,6 +571,38 @@ def validate_and_normalize_image_bytes(raw_bytes: bytes) -> tuple[bytes, str, st
             return normalized, "clouzer_image.png", "image/png"
     except Exception as exc:
         raise RuntimeError(f"Gagal memverifikasi/menyiapkan gambar: {exc}") from exc
+
+
+def append_bounded_response_text(current: str, chunk: str) -> str:
+    """Append provider text only while the final response remains within a hard character cap."""
+    if not isinstance(current, str) or not isinstance(chunk, str):
+        raise RuntimeError("Responses mengirim teks dengan tipe tidak valid.")
+    if len(current) + len(chunk) > MAX_RESPONSES_OUTPUT_CHARS:
+        raise RuntimeError("Responses output melewati batas panjang keamanan.")
+    return current + chunk
+
+
+def validate_response_function_call(item: dict, existing_calls: list[dict]) -> dict | None:
+    """Validate and bound provider-supplied tool-call metadata before retaining it."""
+    if not isinstance(item, dict):
+        raise RuntimeError("Responses mengirim function_call dengan format tidak valid.")
+    call_id = str(item.get("call_id") or "").strip()
+    name = str(item.get("name") or "").strip()
+    if not call_id or len(call_id) > 256 or not name or len(name) > 128:
+        raise RuntimeError("Responses function_call memiliki ID/nama yang tidak valid.")
+    arguments = item.get("arguments", "{}")
+    if not isinstance(arguments, str):
+        arguments = json.dumps(arguments, ensure_ascii=False)
+    if len(arguments) > MAX_RESPONSES_FUNCTION_ARGUMENT_CHARS:
+        raise RuntimeError("Argumen function_call melewati batas ukuran keamanan.")
+    existing = next((fc for fc in existing_calls if fc.get("call_id") == call_id), None)
+    if existing is not None:
+        if existing.get("name") != name or existing.get("arguments", "{}") != arguments:
+            raise RuntimeError(f"Responses mengirim function_call duplikat dengan payload berbeda: {call_id}")
+        return None
+    if len(existing_calls) >= MAX_RESPONSES_FUNCTION_CALLS:
+        raise RuntimeError("Responses mengirim terlalu banyak function_call dalam satu giliran.")
+    return {"type": "function_call", "call_id": call_id, "name": name, "arguments": arguments}
 
 
 def build_failure_tool_continuation(calls: list[dict], reason: str) -> list[dict]:
@@ -3612,18 +3647,9 @@ class ClouzerBot(commands.Bot):
         response_completed = False
 
         def append_function_call(item: dict) -> None:
-            if not isinstance(item, dict):
-                raise RuntimeError("Responses mengirim function_call dengan format tidak valid.")
-            call_id = str(item.get("call_id") or "").strip()
-            name = str(item.get("name") or "").strip()
-            if not call_id or not name:
-                raise RuntimeError("Responses function_call tidak memiliki call_id atau name.")
-            existing = next((fc for fc in function_calls if fc.get("call_id") == call_id), None)
-            if existing is not None:
-                if existing.get("name") != name or existing.get("arguments", "{}") != item.get("arguments", "{}"):
-                    raise RuntimeError(f"Responses mengirim function_call duplikat dengan payload berbeda: {call_id}")
-                return
-            function_calls.append(item)
+            validated = validate_response_function_call(item, function_calls)
+            if validated is not None:
+                function_calls.append(validated)
 
         last_edit = asyncio.get_event_loop().time()
         web_badge_shown = False
@@ -3649,6 +3675,8 @@ class ClouzerBot(commands.Bot):
                     event = json.loads(data_str)
                 except Exception:
                     continue
+                if not isinstance(event, dict):
+                    continue
 
                 etype = event.get("type", "")
 
@@ -3663,7 +3691,7 @@ class ClouzerBot(commands.Bot):
                 elif etype == "response.output_text.delta":
                     delta = event.get("delta", "")
                     if delta and (raw_full_text or delta.strip()):
-                        raw_full_text += delta
+                        raw_full_text = append_bounded_response_text(raw_full_text, delta)
                         cleaned_live = clean_response_text(raw_full_text)
                         now = asyncio.get_event_loop().time()
                         if now - last_edit >= 0.8 and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT:
@@ -3681,7 +3709,7 @@ class ClouzerBot(commands.Bot):
                     elif item.get("type") == "message" and not raw_full_text:
                         for part in item.get("content", []):
                             if part.get("type") in ("output_text", "text"):
-                                raw_full_text += part.get("text", "")
+                                raw_full_text = append_bounded_response_text(raw_full_text, part.get("text", ""))
 
                 elif etype == "response.completed":
                     response_completed = True
@@ -3692,7 +3720,7 @@ class ClouzerBot(commands.Bot):
                         elif item.get("type") == "message" and not raw_full_text:
                             for part in item.get("content", []):
                                 if part.get("type") in ("output_text", "text"):
-                                    raw_full_text += part.get("text", "")
+                                    raw_full_text = append_bounded_response_text(raw_full_text, part.get("text", ""))
 
                 elif etype == "response.incomplete":
                     resp_obj = event.get("response", {})
