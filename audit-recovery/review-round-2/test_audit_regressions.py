@@ -725,5 +725,5 @@ class BoundedDiscordAttachmentFetchTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(result, b"safe")
 
-\nif __name__ == "__main__":
+if __name__ == "__main__":
     unittest.main()
