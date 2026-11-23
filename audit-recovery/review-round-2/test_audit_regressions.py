@@ -71,6 +71,14 @@ read_discord_attachment_limited = extract_top_level_function(
 )
 read_discord_attachment_limited.__globals__["urllib"] = __import__("urllib")
 read_limited_stream = extract_top_level_function("read_limited_stream")
+append_bounded_response_text = extract_top_level_function("append_bounded_response_text")
+append_bounded_response_text.__globals__["MAX_RESPONSES_OUTPUT_CHARS"] = 5
+validate_response_function_call = extract_top_level_function("validate_response_function_call")
+validate_response_function_call.__globals__.update({
+    "json": json,
+    "MAX_RESPONSES_FUNCTION_CALLS": 2,
+    "MAX_RESPONSES_FUNCTION_ARGUMENT_CHARS": 8,
+})
 read_bounded_sse_line = extract_top_level_function(
     "read_bounded_sse_line", {"MAX_RESPONSES_LINE_BYTES", "MAX_RESPONSES_STREAM_BYTES"}
 )
@@ -779,6 +787,67 @@ class MemorySaveRegressionTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 globals_["MEMORY_FILE"] = old_path
                 globals_["MAX_MEMORY_FILE_BYTES"] = old_limit
+
+class ResponsesOutputAndToolCallBoundsTests(unittest.TestCase):
+    def test_output_exact_limit_is_accepted(self):
+        self.assertEqual(append_bounded_response_text("ab", "cde"), "abcde")
+
+    def test_output_over_limit_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, "output melewati batas"):
+            append_bounded_response_text("abcd", "ef")
+
+    def test_non_string_output_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, "tipe tidak valid"):
+            append_bounded_response_text("", None)
+
+    def test_function_call_is_normalized_and_bounded(self):
+        call = validate_response_function_call(
+            {"call_id": "call-1", "name": "generate_image", "arguments": "{\"x\":1}"},
+            [],
+        )
+        self.assertEqual(call["call_id"], "call-1")
+        self.assertEqual(call["arguments"], "{\"x\":1}")
+
+    def test_identical_duplicate_function_call_is_ignored(self):
+        existing = [{"call_id": "call-1", "name": "generate_image", "arguments": "{}"}]
+        self.assertIsNone(validate_response_function_call(
+            {"call_id": "call-1", "name": "generate_image", "arguments": "{}"},
+            existing,
+        ))
+
+    def test_conflicting_duplicate_function_call_is_rejected(self):
+        existing = [{"call_id": "call-1", "name": "generate_image", "arguments": "{}"}]
+        with self.assertRaisesRegex(RuntimeError, "duplikat"):
+            validate_response_function_call(
+                {"call_id": "call-1", "name": "other_tool", "arguments": "{}"},
+                existing,
+            )
+
+    def test_function_call_argument_limit_is_enforced(self):
+        with self.assertRaisesRegex(RuntimeError, "Argumen function_call"):
+            validate_response_function_call(
+                {"call_id": "call-2", "name": "generate_image", "arguments": "123456789"},
+                [],
+            )
+
+    def test_function_call_count_limit_is_enforced(self):
+        existing = [
+            {"call_id": "a", "name": "x", "arguments": "{}"},
+            {"call_id": "b", "name": "x", "arguments": "{}"},
+        ]
+        with self.assertRaisesRegex(RuntimeError, "terlalu banyak"):
+            validate_response_function_call(
+                {"call_id": "c", "name": "x", "arguments": "{}"},
+                existing,
+            )
+
+    def test_function_call_identifier_lengths_are_enforced(self):
+        with self.assertRaisesRegex(RuntimeError, "ID/nama"):
+            validate_response_function_call(
+                {"call_id": "x" * 257, "name": "x", "arguments": "{}"},
+                [],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
