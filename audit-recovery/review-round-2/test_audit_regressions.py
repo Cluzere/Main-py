@@ -87,9 +87,11 @@ read_bounded_sse_line.__globals__.update({
     "MAX_RESPONSES_STREAM_BYTES": 32,
 })
 safe_xml_fromstring = extract_top_level_function(
-    "safe_xml_fromstring", {"_XML_ENTITY_DECL_RE", "_XML_NESTED_ENTITY_RE"}
+    "safe_xml_fromstring",
+    {"_XML_ENTITY_DECL_RE", "_XML_NESTED_ENTITY_RE", "_XML_EXTERNAL_DTD_RE"},
 )
-safe_xml_fromstring.__globals__["ET"] = ET
+from defusedxml import ElementTree as DefusedET
+safe_xml_fromstring.__globals__["DefusedET"] = DefusedET
 validate_zip_archive_method = extract_method("ClouzerBot", "_validate_zip_archive")
 validate_zip_archive_method.__globals__.update({
     "zipfile": zipfile,
