@@ -1592,7 +1592,7 @@ def check_file_signature(ext: str, data: bytes) -> str | None:
     if ext == ".pdf":
         return None if b"%PDF-" in data[:1024] else "isi file bukan PDF yang valid"
     if ext == ".7z":
-        return None if data.startswith(b"7z\\xbc\\xaf\\x27\\x1c") else "signature file bukan 7Z valid"
+        return None if data[:6] == bytes((55, 122, 188, 175, 39, 28)) else "signature file bukan 7Z valid"
     if ext in _ZIP_BASED_EXTS:
         return None if data[:4] in (b"PK\x03\x04", b"PK\x05\x06") else "isi file bukan arsip Office/EPUB yang valid"
     if ext == ".rtf":
@@ -4920,6 +4920,7 @@ async def on_message(message: discord.Message):
             "blocked": "BLOCKED: kredensial/rahasia terdeteksi",
             "busy": "FAILED: antrean pemrosesan timeout",
             "unsupported": "UNSUPPORTED: format tidak didukung",
+            "archive_unsupported": "UNSUPPORTED: parser 7Z belum tersedia",
             "none": "FAILED/EMPTY: konten tidak diekstrak",
             "error": "FAILED: exception pemrosesan",
         }
