@@ -703,6 +703,67 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("terenkripsi", text)
         self.assertEqual(images, [])
 
+
+    def test_same_scope_lock_processes_waiters_in_fifo_order(self):
+        import asyncio
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot.guild_locks = {}
+        bot.guild_lock_refs = {}
+
+        async def run():
+            order = []
+
+            async def worker(number):
+                async with bot.guild_lock("fifo-scope"):
+                    order.append(number)
+                    await asyncio.sleep(0.01)
+
+            await asyncio.gather(*(worker(number) for number in range(5)))
+            return order
+
+        order = asyncio.run(run())
+        self.assertEqual(order, [0, 1, 2, 3, 4])
+        self.assertEqual(bot.guild_lock_refs, {})
+        self.assertEqual(bot.guild_locks, {})
+
+    def test_different_user_scopes_can_run_concurrently(self):
+        import asyncio
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot.guild_locks = {}
+        bot.guild_lock_refs = {}
+
+        async def run():
+            active = 0
+            maximum = 0
+            both_entered = asyncio.Event()
+            release = asyncio.Event()
+
+            async def worker(scope):
+                nonlocal active, maximum
+                async with bot.guild_lock(scope):
+                    active += 1
+                    maximum = max(maximum, active)
+                    if active == 2:
+                        both_entered.set()
+                    await release.wait()
+                    active -= 1
+
+            tasks = [
+                asyncio.create_task(worker("guild:1:channel:2:user:10")),
+                asyncio.create_task(worker("guild:1:channel:2:user:11")),
+            ]
+            await asyncio.wait_for(both_entered.wait(), timeout=1)
+            release.set()
+            await asyncio.gather(*tasks)
+            return maximum
+
+        maximum = asyncio.run(run())
+        self.assertEqual(maximum, 2)
+        self.assertEqual(bot.guild_lock_refs, {})
+        self.assertEqual(bot.guild_locks, {})
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
