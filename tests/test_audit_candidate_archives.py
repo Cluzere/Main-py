@@ -664,6 +664,15 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("lampiran asli tidak bisa diperiksa", result)
         self.assertIn("Kirim ulang file sumber", result)
 
+
+    def test_mismatched_pdf_office_and_7z_signatures_are_rejected(self):
+        self.assertIn("bukan PDF", module.check_file_signature(".pdf", b"not a pdf"))
+        self.assertIn("bukan arsip", module.check_file_signature(".docx", b"not a zip"))
+        self.assertIn("bukan 7Z", module.check_file_signature(".7z", b"not a 7z"))
+        self.assertIsNone(
+            module.check_file_signature(".7z", bytes((55, 122, 188, 175, 39, 28)) + b"payload")
+        )
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
