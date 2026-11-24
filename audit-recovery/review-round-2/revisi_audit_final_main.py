@@ -14,7 +14,6 @@ import math
 import copy
 import threading
 import zipfile
-import xml.etree.ElementTree as ET
 from defusedxml import ElementTree as DefusedET
 from html.parser import HTMLParser
 from collections import defaultdict, OrderedDict, deque
