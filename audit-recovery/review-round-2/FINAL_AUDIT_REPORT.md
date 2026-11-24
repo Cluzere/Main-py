@@ -167,3 +167,12 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 Kandidat saat ini telah melewati compile, Bandit high-severity, 32 tes khusus kandidat, dan 74 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
 
 Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
+
+## Artefak audit
+
+- Kandidat: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/revisi_audit_final_main.py
+- Tes kandidat: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/tests/test_audit_candidate_archives.py
+- Tes regresi lama: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/test_audit_regressions.py
+- Dependensi staging: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/requirements-audit.txt
+- Perintah staging: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/STARTUP_COMMANDS.txt
+- Workflow CI: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-25/.github/workflows/audit-candidate-check.yml
