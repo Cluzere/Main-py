@@ -2883,6 +2883,64 @@ class ClouzerBot(commands.Bot):
                     parts.append(block)
                     total_chars += len(block) + 2
 
+            # openpyxl read_only mode intentionally avoids loading chart objects;
+            # parse bounded chart XML separately so chart titles and source ranges
+            # are still represented without loading a second full workbook.
+            with self._validate_zip_archive(xlsx_bytes) as chart_zip:
+                chart_names = sorted(
+                    name for name in chart_zip.namelist()
+                    if re.fullmatch(r"xl/charts/chart\d+\.xml", name)
+                )
+                for chart_name in chart_names[:20]:
+                    if total_chars >= max_chars:
+                        parts.append("[Grafik berikutnya dilewati karena batas teks dokumen tercapai.]")
+                        break
+                    try:
+                        chart_root = safe_xml_fromstring(chart_zip.read(chart_name))
+                        local = lambda element: element.tag.rsplit("}", 1)[-1]
+                        title_node = next((el for el in chart_root.iter() if local(el) == "title"), None)
+                        title_text = []
+                        if title_node is not None:
+                            title_text = [
+                                el.text.strip() for el in title_node.iter()
+                                if local(el) in {"t", "v"} and el.text and el.text.strip()
+                            ]
+                        chart_lines = ["[Grafik: %s]" % chart_name]
+                        if title_text:
+                            chart_lines.append("[Judul] " + " ".join(title_text)[:300])
+                        series_nodes = [el for el in chart_root.iter() if local(el) == "ser"]
+                        for series_idx, series_node in enumerate(series_nodes[:12], start=1):
+                            series_text = ["[Seri %d]" % series_idx]
+                            for field_name, label in (("tx", "nama"), ("cat", "kategori"), ("val", "nilai")):
+                                field_node = next(
+                                    (el for el in series_node if local(el) == field_name),
+                                    None,
+                                )
+                                if field_node is None:
+                                    continue
+                                formulas = [
+                                    el.text.strip() for el in field_node.iter()
+                                    if local(el) == "f" and el.text and el.text.strip()
+                                ]
+                                cached = [
+                                    el.text.strip() for el in field_node.iter()
+                                    if local(el) == "v" and el.text and el.text.strip()
+                                ][:20]
+                                details = cached or formulas
+                                if details:
+                                    series_text.append("[%s] %s" % (label, ", ".join(details)[:500]))
+                            chart_lines.append(" ".join(series_text))
+                        block = "\n".join(chart_lines)
+                        remaining = max_chars - total_chars
+                        parts.append(block[:remaining])
+                        total_chars += min(len(block), remaining)
+                    except Exception as chart_exc:
+                        logging.warning(
+                            "XLSX chart metadata skipped (%s): %s",
+                            filename,
+                            type(chart_exc).__name__,
+                        )
+
             extracted = "\n\n".join(parts).strip()
             if media_imgs:
                 note = f"\n[Terdapat {len(media_imgs)} gambar di dalam XLSX yang ikut dikirim sebagai lampiran visual.]"
