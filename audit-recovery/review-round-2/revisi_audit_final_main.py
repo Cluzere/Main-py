@@ -3605,14 +3605,32 @@ class ClouzerBot(commands.Bot):
         extra_input: list[dict] | None = None,
     ) -> tuple[str, list[dict]]:
         """Pembungkus: batasi anggaran global, konkurensi Xingchi, dan sensor output model."""
+        _diag_loop = asyncio.get_running_loop()
+        _diag_start = _diag_loop.time()
         allowed, wait = await asyncio.to_thread(self.global_budget.acquire, "responses")
+        _diag_budget_done = _diag_loop.time()
         if not allowed:
             raise RuntimeError(f"Anggaran API global harian tercapai; coba lagi sekitar {format_wait(wait)}.")
+        _diag_semaphore_start = _diag_loop.time()
         async with self.ai_semaphore:
+            _diag_semaphore_done = _diag_loop.time()
+            diag = {
+                "started": _diag_start,
+                "budget_seconds": _diag_budget_done - _diag_start,
+                "semaphore_seconds": _diag_semaphore_done - _diag_semaphore_start,
+            }
             text, calls = await self._run_responses_ai_impl(
                 messages, target_msg, mode,
                 allow_tools=allow_tools, allow_image_tool=allow_image_tool, extra_input=extra_input,
+                _diag_timing=diag,
             )
+        logging.info(
+            "[TTFT-DIAG] mode=%s budget=%.3fs semaphore=%.3fs request_to_first_event=%s request_to_first_text=%s total=%.3fs",
+            mode, diag["budget_seconds"], diag["semaphore_seconds"],
+            f'{diag["first_event_seconds"]:.3f}s' if "first_event_seconds" in diag else "n/a",
+            f'{diag["first_text_seconds"]:.3f}s' if "first_text_seconds" in diag else "n/a",
+            _diag_loop.time() - _diag_start,
+        )
         return scrub_own_secrets(text), calls
 
     async def _run_responses_ai_impl(
@@ -3624,6 +3642,7 @@ class ClouzerBot(commands.Bot):
         allow_tools: bool = True,
         allow_image_tool: bool = True,
         extra_input: list[dict] | None = None,
+        _diag_timing: dict | None = None,
     ) -> tuple[str, list[dict]]:
         url = f"{XINGCHI_BASE_URL}/responses"
         headers = {
@@ -3720,7 +3739,11 @@ class ClouzerBot(commands.Bot):
         last_edit = asyncio.get_event_loop().time()
         web_badge_shown = False
 
+        _diag_request_start = asyncio.get_running_loop().time()
         async with self.http_session.post(url, headers=headers, json=payload, timeout=timeout, allow_redirects=False) as resp:
+            _diag_response_headers = asyncio.get_running_loop().time()
+            if _diag_timing is not None:
+                _diag_timing["request_to_headers_seconds"] = _diag_response_headers - _diag_request_start
             if resp.status != 200:
                 err_bytes = await read_limited_stream(resp.content, 64 * 1024)
                 err_text = err_bytes.decode("utf-8", errors="replace")
@@ -3745,6 +3768,8 @@ class ClouzerBot(commands.Bot):
                     continue
 
                 etype = event.get("type", "")
+                if _diag_timing is not None and "first_event_seconds" not in _diag_timing:
+                    _diag_timing["first_event_seconds"] = asyncio.get_running_loop().time() - _diag_request_start
 
                 if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching") and not raw_full_text and not web_badge_shown:
                     web_badge_shown = True
@@ -3756,6 +3781,8 @@ class ClouzerBot(commands.Bot):
 
                 elif etype == "response.output_text.delta":
                     delta = event.get("delta", "")
+                    if delta and _diag_timing is not None and "first_text_seconds" not in _diag_timing:
+                        _diag_timing["first_text_seconds"] = asyncio.get_running_loop().time() - _diag_request_start
                     if delta and (raw_full_text or delta.strip()):
                         raw_full_text = append_bounded_response_text(raw_full_text, delta)
                         cleaned_live = clean_response_text(raw_full_text)
