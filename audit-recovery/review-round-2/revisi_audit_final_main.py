@@ -2164,23 +2164,23 @@ class ClouzerBot(commands.Bot):
                 yield False
                 return
 
-            try:
-                yield True
-            except asyncio.CancelledError:
-                if status_message is not None:
-                    try:
-                        edit_task = asyncio.create_task(
-                            status_message.edit(
-                                content=(
-                                    "⚠️ Proses dibatalkan karena bot berhenti atau tugas terputus. "
-                                    "Pesan ini belum dijamin selesai; kirim ulang setelah bot online."
-                                )
+            yield True
+        except asyncio.CancelledError:
+            # Juga mencakup pembatalan saat masih menunggu lock (mis. shutdown/restart).
+            if status_message is not None:
+                try:
+                    edit_task = asyncio.create_task(
+                        status_message.edit(
+                            content=(
+                                "⚠️ Proses dibatalkan karena bot berhenti atau tugas terputus. "
+                                "Pesan ini belum dijamin selesai; kirim ulang setelah bot online."
                             )
                         )
-                        await asyncio.shield(edit_task)
-                    except BaseException:
-                        logging.debug("Tidak dapat memperbarui status tugas yang dibatalkan", exc_info=True)
-                raise
+                    )
+                    await asyncio.shield(edit_task)
+                except BaseException:
+                    logging.debug("Tidak dapat memperbarui status tugas yang dibatalkan", exc_info=True)
+            raise
         finally:
             if acquired:
                 lock.release()
