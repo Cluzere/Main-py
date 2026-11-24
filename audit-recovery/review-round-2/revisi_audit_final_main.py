@@ -1684,12 +1684,18 @@ def safe_xml_fromstring(raw: bytes):
     if b"<!ENTITY" in raw:
         if raw.count(b"<!ENTITY") > 20:
             raise ValueError("XML ditolak: terlalu banyak deklarasi entity")
+        if raw.count(b"&") > 256:
+            raise ValueError("XML ditolak: terlalu banyak referensi entity")
         for match in _XML_ENTITY_DECL_RE.finditer(raw):
             if match.group(1) or match.group(2).upper() in (b"SYSTEM", b"PUBLIC"):
                 raise ValueError("XML ditolak: external/parameter entity tidak diizinkan")
+            if len(match.group(2)) > 514:
+                raise ValueError("XML ditolak: nilai entity terlalu panjang")
         if _XML_NESTED_ENTITY_RE.search(raw):
             raise ValueError("XML ditolak: entity bersarang (indikasi XML bomb)")
-    return DefusedET.fromstring(raw, forbid_dtd=False, forbid_entities=True, forbid_external=True)
+    # Internal literal entities remain supported for legacy SVG/Office XML;
+    # external references and excessive expansion are rejected above.
+    return DefusedET.fromstring(raw, forbid_dtd=False, forbid_entities=False, forbid_external=True)
 
 
 def message_char_len(message: dict) -> int:
