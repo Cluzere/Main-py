@@ -180,6 +180,46 @@ class ArchiveReaderTests(unittest.TestCase):
             asyncio.run(bot.run_responses_ai([], None))
         self.assertEqual(attempts, 1)
 
+
+    def test_docx_header_and_footer_are_extracted(self):
+        from docx import Document
+        doc = Document()
+        doc.add_paragraph("BODY TEXT")
+        doc.sections[0].header.paragraphs[0].text = "HEADER AUDIT TEXT"
+        doc.sections[0].footer.paragraphs[0].text = "FOOTER AUDIT TEXT"
+        out = io.BytesIO()
+        doc.save(out)
+        text, _ = self.bot.extract_docx_content(out.getvalue(), "header-footer.docx")
+        self.assertIn("HEADER AUDIT TEXT", text)
+        self.assertIn("FOOTER AUDIT TEXT", text)
+
+    def test_pptx_speaker_notes_and_chart_data_are_extracted(self):
+        from pptx import Presentation
+        from pptx.chart.data import CategoryChartData
+        from pptx.enum.chart import XL_CHART_TYPE
+        from pptx.util import Inches
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        slide.notes_slide.notes_text_frame.text = "SPEAKER NOTES AUDIT"
+        data = CategoryChartData()
+        data.categories = ["Q1", "Q2"]
+        data.add_series("Revenue", (10, 20))
+        chart = slide.shapes.add_chart(
+            XL_CHART_TYPE.COLUMN_CLUSTERED,
+            Inches(1), Inches(1), Inches(5), Inches(3), data
+        ).chart
+        chart.has_title = True
+        chart.chart_title.text_frame.text = "Quarterly Revenue"
+        out = io.BytesIO()
+        prs.save(out)
+
+        text, _ = self.bot.extract_pptx_content(out.getvalue(), "notes-chart.pptx")
+        self.assertIn("SPEAKER NOTES AUDIT", text)
+        self.assertIn("Quarterly Revenue", text)
+        self.assertIn("Revenue", text)
+        self.assertIn("10", text)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
