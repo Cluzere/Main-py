@@ -1633,6 +1633,28 @@ def check_file_signature(ext: str, data: bytes) -> str | None:
         return None if data[:4] in (b"PK\x03\x04", b"PK\x05\x06") else "isi file bukan arsip Office/EPUB yang valid"
     if ext == ".rtf":
         return None if data.lstrip()[:5] == b"{\\rtf" else "isi file bukan RTF yang valid"
+    if ext in AUDIO_EXTS:
+        if ext == ".wav":
+            valid = len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WAVE"
+        elif ext in (".ogg", ".opus"):
+            valid = data.startswith(b"OggS")
+        elif ext == ".flac":
+            valid = data.startswith(b"fLaC")
+        elif ext == ".webm":
+            valid = data.startswith(bytes((0x1A, 0x45, 0xDF, 0xA3)))
+        elif ext == ".m4a":
+            valid = len(data) >= 8 and data[4:8] == b"ftyp"
+        elif ext == ".aac":
+            valid = data.startswith(b"ADIF") or (
+                len(data) >= 2 and data[0] == 0xFF and (data[1] & 0xF6) == 0xF0
+            )
+        elif ext == ".mp3":
+            valid = data.startswith(b"ID3") or (
+                len(data) >= 2 and data[0] == 0xFF and (data[1] & 0xE0) == 0xE0
+            )
+        else:
+            valid = True
+        return None if valid else "signature file tidak cocok dengan format audio"
     return None
 
 
