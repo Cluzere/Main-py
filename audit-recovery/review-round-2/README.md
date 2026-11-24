@@ -1,26 +1,37 @@
 # Audit Recovery — Review Round 2
 
-## Hasil pekerjaan independen
+## Kandidat aktif
 
-Kandidat hardened dibuat dan diperiksa tanpa menimpa sumber asli.
+- Branch: `audit-recovery-gpt-2026-11-23`
+- File kandidat yang sedang diaudit: `revisi_audit_final_main.py`
+- File produksi `main.py` tidak diubah.
+- `test_audit_regressions.py`: 74 regression tests yang sudah ada.
+- `tests/test_audit_candidate_archives.py`: tes tambahan khusus parser arsip, antrean lampiran, retry stream, dan alur pesan Discord yang dimock.
+- `FINAL_AUDIT_REPORT.md`: status gerbang CI dan pekerjaan staging yang belum dapat dibuktikan lewat CI.
 
-- `main_final_hardened_candidate.py` — kandidat perbaikan; jangan deploy sebelum checklist staging selesai.
-- `test_audit_regressions.py` — 15 regression tests terfokus.
-- `INDEPENDENT_ROOT_CAUSE_AUDIT.md` — temuan akar masalah, perubahan, status bukti, risiko tersisa, dan deployment gate.
-- `../main_final.py` — sumber asli, tidak diubah.
-- `../../FINAL_AUDIT_REPORT.md` dan diff sebelumnya tetap merupakan bukti historis; klaim 174/174 dan mutation GPT belum terverifikasi ulang.
+## Perubahan putaran audit
 
-## Hasil CI terakhir
+- Batas pesan lampiran dinaikkan menjadi 10 dengan laporan per file.
+- Pembacaan ZIP dan 7Z dibatasi ukuran, jumlah anggota, rasio kompresi, kedalaman arsip, dan jumlah visual; ekstraksi dilakukan di memori tanpa menulis path arsip ke disk.
+- DOCX/PDF/PPTX/XLSX di dalam arsip diparse menggunakan parser dokumen yang sudah tersedia.
+- DOCX header/footer dan PPTX speaker notes/chart data ikut diekstrak.
+- Teks gabungan lampiran dibatasi agar tidak diam-diam membanjiri konteks model.
+- Dokumen dari pesan yang di-reply dibaca bersama lampiran baru dengan sisa anggaran ukuran/teks.
+- Antrean semaphore lampiran menunggu giliran, bukan langsung meminta pengguna mengunggah ulang.
+- Retry Responses hanya untuk HTTP gateway 502/503/504 sebelum event stream pertama; tidak mengulang stream yang sudah mulai mengirim event.
 
-GitHub Actions: https://github.com/Cluzere/Main-py/actions/runs/45081946460
+## Dependensi tambahan
 
-- Python 3.12.16
-- py_compile: PASS
-- Regression tests: 15/15 PASS
+Parser 7Z memerlukan `py7zr`. Untuk staging Wispbyte, pasang:
 
-## Catatan penting
+```bash
+pip install --no-cache-dir "py7zr>=1.0,<2"
+```
 
-- Jangan mengganti file produksi/hosting dari branch audit ini sebelum uji staging.
-- File asli tetap immutable.
-- Artifact mutation Clouzer/HydroGemini bukan bukti untuk GPT bot.
-- Bukti 174/174 dan 51 mutation GPT tidak tersedia untuk pemeriksaan independen.
+Lihat `requirements-audit.txt` untuk daftar dependensi audit. Jika `py7zr` tidak terpasang, file 7Z ditandai unsupported dan tidak diklaim sudah dibaca.
+
+## Gerbang verifikasi
+
+CI memeriksa Python 3.12, kompilasi, Bandit high-severity, tes arsip kandidat, dan 74 tes regresi yang sudah ada. CI bukan pengganti tes staging Discord/Wispbyte.
+
+Jangan mengganti file produksi sebelum checklist staging di `FINAL_AUDIT_REPORT.md` selesai.
