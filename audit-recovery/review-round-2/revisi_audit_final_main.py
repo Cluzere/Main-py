@@ -5525,12 +5525,14 @@ async def on_message(message: discord.Message):
         except Exception:
             logging.debug("Gagal mengirim notifikasi lampiran", exc_info=True)
 
-    if not image_data_urls and message.reference is not None:
+    if message.reference is not None:
         rep_local, rep_http = await bot.resolve_replied_images(message)
-        if rep_local:
-            image_data_urls.extend(rep_local)
-        if rep_http:
-            llm_image_urls.extend(rep_http)
+        for image_url in rep_local:
+            if image_url not in image_data_urls:
+                image_data_urls.append(image_url)
+        for image_url in rep_http:
+            if image_url not in llm_image_urls:
+                llm_image_urls.append(image_url)
 
     if not clean_content:
         if has_usable_attachment and additional_file_text:
