@@ -3500,6 +3500,36 @@ class ClouzerBot(commands.Bot):
 
         return (f"\\n\\n[Format file {scrub_secrets(attachment.filename)[:120]} tidak didukung. Ekstensi: {ext or 'tanpa ekstensi'}; MIME: {getattr(attachment, 'content_type', None) or 'tidak diketahui'}.]\\n", [], [], "unsupported")
 
+    async def resolve_replied_files(self, message: discord.Message) -> str:
+        """Read document/text attachments from the message being replied to."""
+        ref = message.reference
+        if not ref or not ref.message_id:
+            return ""
+        replied_msg = ref.resolved if isinstance(ref.resolved, discord.Message) else None
+        if replied_msg is None and hasattr(message.channel, "fetch_message"):
+            try:
+                replied_msg = await message.channel.fetch_message(ref.message_id)
+            except Exception:
+                logging.warning("Tidak dapat mengambil pesan sumber reply %s", ref.message_id, exc_info=True)
+                return ""
+        if replied_msg is None:
+            return ""
+        chunks: list[str] = []
+        for att in list(replied_msg.attachments)[:MAX_ATTACHMENTS_PER_MESSAGE]:
+            ext = os.path.splitext((att.filename or "").lower())[1]
+            if ext in IMAGE_EXTS:
+                continue
+            try:
+                text_part, _, _, file_type = await self.encode_attachment(att)
+                if text_part:
+                    chunks.append(text_part)
+                if file_type in ("none", "unsupported", "busy"):
+                    chunks.append(f"[Lampiran pada pesan yang di-reply tidak berhasil dibaca: {scrub_secrets(att.filename or 'file')[:100]} ({file_type}).]")
+            except Exception as exc:
+                logging.exception("Gagal membaca dokumen pada pesan reply")
+                chunks.append(f"[Gagal membaca lampiran reply {scrub_secrets(att.filename or 'file')[:100]}: {type(exc).__name__}.]")
+        return "\\n\\n".join(chunks)
+
     async def resolve_replied_images(self, message: discord.Message) -> tuple[list[str], list[str]]:
         ref = message.reference
         if not ref or not ref.message_id:
@@ -4908,6 +4938,15 @@ async def on_message(message: discord.Message):
 
     if attachment_manifest:
         additional_file_text += "\\n\\n--- MANIFEST LAMPIRAN ---\\n" + "\\n".join(attachment_manifest) + "\\n--- AKHIR MANIFEST ---\\n"
+
+    if not attachments and message.reference is not None:
+        try:
+            replied_file_text = await bot.resolve_replied_files(message)
+            if replied_file_text:
+                additional_file_text += "\\n\\n--- DOKUMEN DARI PESAN YANG DI-REPLY ---\\n" + replied_file_text
+                has_usable_attachment = True
+        except Exception:
+            logging.exception("Gagal memproses dokumen dari pesan reply")
 
     notices: list[str] = []
     if blocked_files:
