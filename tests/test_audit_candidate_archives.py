@@ -386,6 +386,66 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertEqual(len(bot.processed), 10)
         self.assertIn("1 lampiran dilewati", message.notice)
 
+
+    def test_replied_documents_are_joined_with_real_newlines(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeAttachment:
+            def __init__(self, filename):
+                self.filename = filename
+                self.size = 1
+
+        class FakeMessage:
+            attachments = [FakeAttachment("a.txt"), FakeAttachment("b.txt")]
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+        async def fake_encode(attachment):
+            return "CONTENT-" + attachment.filename, [], [], "text"
+
+        bot.encode_attachment = fake_encode
+        message = SimpleNamespace(
+            reference=SimpleNamespace(message_id=1, resolved=FakeMessage()),
+            channel=SimpleNamespace(),
+        )
+        with patch.object(module.discord, "Message", FakeMessage):
+            result = asyncio.run(bot.resolve_replied_files(
+                message, remaining_bytes=100, remaining_chars=100
+            ))
+        self.assertIn("\n\n", result)
+        self.assertNotIn("\\n\\n", result)
+
+    def test_replied_document_context_is_explicitly_truncated(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeAttachment:
+            filename = "large.txt"
+            size = 1
+
+        class FakeMessage:
+            attachments = [FakeAttachment()]
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+        async def fake_encode(attachment):
+            return "0123456789", [], [], "text"
+
+        bot.encode_attachment = fake_encode
+        message = SimpleNamespace(
+            reference=SimpleNamespace(message_id=1, resolved=FakeMessage()),
+            channel=SimpleNamespace(),
+        )
+        with patch.object(module.discord, "Message", FakeMessage):
+            result = asyncio.run(bot.resolve_replied_files(
+                message, remaining_bytes=100, remaining_chars=5
+            ))
+        self.assertIn("01234", result)
+        self.assertIn("dipotong", result.lower())
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
