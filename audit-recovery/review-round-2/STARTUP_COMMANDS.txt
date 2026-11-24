@@ -1,0 +1,7 @@
+STARTUP LAMA — ORIGINAL
+pip install --no-cache-dir -r /home/container/requirements.txt && /usr/local/bin/python /home/container/main.py
+
+STARTUP AUDIT FINAL — STAGING
+pip install --no-cache-dir -r /home/container/requirements.txt && /usr/local/bin/python /home/container/revisi_audit_final_main.py
+
+Catatan: Perintah staging hanya mengganti file Python yang dijalankan. Jangan hapus atau timpa main.py produksi.
