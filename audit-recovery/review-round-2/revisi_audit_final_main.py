@@ -3430,14 +3430,9 @@ class ClouzerBot(commands.Bot):
         if reason:
             return self._blocked_attachment_result(filename, reason)
 
-        try:
-            await asyncio.wait_for(self.attachment_semaphore.acquire(), timeout=ATTACHMENT_QUEUE_TIMEOUT_SECONDS)
-        except asyncio.TimeoutError:
-            return (
-                f"\n\n[File {scrub_secrets(filename)[:120]} dilewati: bot sedang sibuk memproses lampiran lain. "
-                f"Minta pengguna mengirim ulang sebentar lagi.]\n",
-                [], [], "busy",
-            )
+        # Wait in the semaphore's FIFO waiter queue instead of dropping the
+        # user's attachment and asking them to upload it again.
+        await self.attachment_semaphore.acquire()
         try:
             text, local_imgs, http_urls, ftype = await self._encode_attachment_impl(attachment)
         finally:
@@ -3824,11 +3819,38 @@ class ClouzerBot(commands.Bot):
                 "budget_seconds": _diag_budget_done - _diag_start,
                 "semaphore_seconds": _diag_semaphore_done - _diag_semaphore_start,
             }
-            text, calls = await self._run_responses_ai_impl(
-                messages, target_msg, mode,
-                allow_tools=allow_tools, allow_image_tool=allow_image_tool, extra_input=extra_input,
-                _diag_timing=diag,
-            )
+            text = ""
+            calls: list[dict] = []
+            for attempt in range(2):
+                attempt_diag = dict(diag)
+                attempt_diag["attempt"] = attempt + 1
+                try:
+                    text, calls = await self._run_responses_ai_impl(
+                        messages, target_msg, mode,
+                        allow_tools=allow_tools, allow_image_tool=allow_image_tool, extra_input=extra_input,
+                        _diag_timing=attempt_diag,
+                    )
+                    diag.update(attempt_diag)
+                    break
+                except Exception as exc:
+                    # Retry only explicit upstream gateway failures before any
+                    # SSE event. Never replay a stream that may have emitted text
+                    # or a function call; that could duplicate visible output or
+                    # a tool operation.
+                    safe_gateway_failure = (
+                        isinstance(exc, RuntimeError)
+                        and re.match(r"^Responses HTTP (?:502|503|504):", str(exc)) is not None
+                        and "first_event_seconds" not in attempt_diag
+                    )
+                    if attempt == 0 and safe_gateway_failure:
+                        logging.warning(
+                            "[RESPONSES-RETRY] request_id=%s status=upstream_gateway_failure attempt=1",
+                            diag.get("request_id"),
+                        )
+                        await asyncio.sleep(0.5)
+                        continue
+                    diag.update(attempt_diag)
+                    raise
         logging.warning(
             "[TTFT-DIAG] request_id=%s mode=%s budget=%.3fs semaphore=%.3fs request_to_first_event=%s request_to_first_text=%s total=%.3fs",
             diag.get("request_id"), mode, diag["budget_seconds"], diag["semaphore_seconds"],
