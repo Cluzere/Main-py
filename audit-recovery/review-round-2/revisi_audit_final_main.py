@@ -120,6 +120,8 @@ MAX_ATTACHMENT_TOTAL_BYTES = _env_int("MAX_ATTACHMENT_TOTAL_MB", 100, minimum=1)
 MAX_CONCURRENT_ATTACHMENTS = _env_int("MAX_CONCURRENT_ATTACHMENTS", 3, minimum=1)
 ATTACHMENT_QUEUE_TIMEOUT_SECONDS = _env_float("ATTACHMENT_QUEUE_TIMEOUT_SECONDS", 120.0, minimum=1.0)
 MAX_TEXT_FILE_CHARS = _env_int("MAX_TEXT_FILE_CHARS", 60_000, minimum=1_000)
+MAX_DOCUMENT_TEXT_CHARS = _env_int("MAX_DOCUMENT_TEXT_CHARS", 50_000, minimum=5_000)
+MAX_ATTACHMENT_CONTEXT_CHARS = _env_int("MAX_ATTACHMENT_CONTEXT_CHARS", 100_000, minimum=10_000)
 
 # Pemakaian API: konkurensi provider dan anggaran panjang prompt riwayat.
 MAX_CONCURRENT_AI_CALLS = _env_int("MAX_CONCURRENT_AI_CALLS", 4, minimum=1)
@@ -2688,7 +2690,7 @@ class ClouzerBot(commands.Bot):
         doc = docx.Document(io.BytesIO(docx_bytes))
         parts: list[str] = []
         total_chars = 0
-        max_chars = 25000
+        max_chars = MAX_DOCUMENT_TEXT_CHARS
 
         for p in doc.paragraphs:
             txt = (p.text or "").strip()
@@ -2719,6 +2721,25 @@ class ClouzerBot(commands.Bot):
                     parts.append(tbl_block)
                     total_chars += len(tbl_block) + 2
 
+        if total_chars < max_chars:
+            seen_header_footer: set[str] = set()
+            for section_idx, section in enumerate(doc.sections, start=1):
+                for part_name, part in (("Header", section.header), ("Footer", section.footer)):
+                    lines = [p.text.strip() for p in part.paragraphs if p.text and p.text.strip()]
+                    block_text = "\n".join(lines).strip()
+                    if not block_text or block_text in seen_header_footer:
+                        continue
+                    seen_header_footer.add(block_text)
+                    block = "[%s section %s]\n%s" % (part_name, section_idx, block_text)
+                    remaining = max_chars - total_chars
+                    if remaining <= 0:
+                        break
+                    parts.append(block[:remaining])
+                    total_chars += min(len(block), remaining)
+                    if len(block) > remaining:
+                        parts.append("[Header/footer dipotong karena batas teks dokumen.]")
+                        break
+
         extracted = "\n\n".join(parts).strip()
         if media_imgs:
             note = f"\n[Terdapat {len(media_imgs)} gambar di dalam DOCX yang ikut dikirim sebagai lampiran visual.]"
@@ -2735,7 +2756,7 @@ class ClouzerBot(commands.Bot):
         except Exception as exc:
             return f"\n\n[PPTX {filename} ditolak: arsip tidak valid atau melewati batas keamanan ({type(exc).__name__}: {exc}).]\n", []
         media_imgs = self._extract_zip_media_images(pptx_bytes, ("ppt/media/",))
-        max_chars = 25000
+        max_chars = MAX_DOCUMENT_TEXT_CHARS
         parts: list[str] = []
         total_chars = 0
 
@@ -2753,6 +2774,30 @@ class ClouzerBot(commands.Bot):
                             cells = [re.sub(r"\s+", " ", (c.text or "").strip()) for c in row.cells]
                             if any(cells):
                                 slide_lines.append(" | ".join(cells))
+                    if getattr(shape, "has_chart", False):
+                        try:
+                            chart = shape.chart
+                            if getattr(chart, "has_title", False):
+                                chart_title = (chart.chart_title.text_frame.text or "").strip()
+                                if chart_title:
+                                    slide_lines.append("[Judul grafik] " + chart_title)
+                            for series in list(chart.series)[:12]:
+                                values = list(series.values)[:30]
+                                slide_lines.append(
+                                    "[Seri grafik] %s: %s" % (
+                                        str(series.name)[:100],
+                                        ", ".join(str(value) for value in values),
+                                    )
+                                )
+                        except Exception as chart_exc:
+                            logging.warning("PPTX chart extraction skipped (%s): %s", filename, type(chart_exc).__name__)
+                if getattr(slide, "has_notes_slide", False):
+                    try:
+                        notes = (slide.notes_slide.notes_text_frame.text or "").strip()
+                        if notes:
+                            slide_lines.append("[Catatan pembicara] " + notes)
+                    except Exception as notes_exc:
+                        logging.warning("PPTX notes extraction skipped (%s): %s", filename, type(notes_exc).__name__)
                 if slide_lines:
                     block = f"[Slide {s_idx}]\n" + "\n".join(slide_lines)
                     if total_chars + len(block) + 2 > max_chars:
@@ -2811,7 +2856,7 @@ class ClouzerBot(commands.Bot):
         try:
             parts: list[str] = []
             total_chars = 0
-            max_chars = 25000
+            max_chars = MAX_DOCUMENT_TEXT_CHARS
 
             for sheet_name in wb.sheetnames[:15]:
                 ws = wb[sheet_name]
@@ -3201,13 +3246,13 @@ class ClouzerBot(commands.Bot):
                 # to consider the page fully represented; send that page visually.
                 if len(page_text) >= 40:
                     block = f"[Halaman {i + 1}]\n{page_text}"
-                    remaining = 25000 - total_chars
+                    remaining = MAX_DOCUMENT_TEXT_CHARS - total_chars
                     if remaining <= 0:
                         skipped_render_pages += max_text_pages - i
                         break
                     if len(block) > remaining:
                         text_parts.append(block[:remaining] + "\n...(teks dipotong karena panjang)")
-                        total_chars = 25000
+                        total_chars = MAX_DOCUMENT_TEXT_CHARS
                         skipped_render_pages += max_text_pages - i - 1
                         break
                     text_parts.append(block)
@@ -3598,6 +3643,7 @@ class ClouzerBot(commands.Bot):
             return ""
         chunks: list[str] = []
         total_declared_bytes = 0
+        total_text_chars = 0
         for att in list(replied_msg.attachments)[:MAX_ATTACHMENTS_PER_MESSAGE]:
             ext = os.path.splitext((att.filename or "").lower())[1]
             if ext in IMAGE_EXTS:
@@ -3613,7 +3659,13 @@ class ClouzerBot(commands.Bot):
             try:
                 text_part, _, _, file_type = await self.encode_attachment(att)
                 if text_part:
-                    chunks.append(text_part)
+                    remaining_text = MAX_ATTACHMENT_CONTEXT_CHARS - total_text_chars
+                    if remaining_text > 0:
+                        chunks.append(text_part[:remaining_text])
+                        total_text_chars += min(len(text_part), remaining_text)
+                    if len(text_part) > remaining_text:
+                        chunks.append("[Konten dokumen reply dipotong karena batas gabungan karakter tercapai.]")
+                        break
                 if file_type in ("none", "unsupported", "busy"):
                     chunks.append(f"[Lampiran pada pesan yang di-reply tidak berhasil dibaca: {scrub_secrets(att.filename or 'file')[:100]} ({file_type}).]")
             except Exception as exc:
@@ -5012,6 +5064,7 @@ async def on_message(message: discord.Message):
     blocked_files: list[str] = []
     skipped_notes: list[str] = []
     has_usable_attachment = False
+    attachment_context_truncated = False
 
     attachments = list(message.attachments)
     if len(attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
@@ -5055,7 +5108,14 @@ async def on_message(message: discord.Message):
         elif ftype not in ("none", "busy", "unsupported", "error") and (text_res or local_res or http_res):
             has_usable_attachment = True
         if text_res:
-            additional_file_text += text_res
+            remaining_context = MAX_ATTACHMENT_CONTEXT_CHARS - len(additional_file_text)
+            if remaining_context > 0:
+                additional_file_text += text_res[:remaining_context]
+                if len(text_res) > remaining_context:
+                    additional_file_text += "\n[Konten lampiran dipotong: batas gabungan seluruh file per pesan tercapai.]\n"
+                    attachment_context_truncated = True
+            else:
+                attachment_context_truncated = True
         if local_res:
             image_data_urls.extend(local_res)
         if http_res:
