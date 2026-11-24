@@ -3218,6 +3218,7 @@ class ClouzerBot(commands.Bot):
 
         try:
             factory = _MemoryFactory()
+            parts_out: list[str] = []
             with py7zr.SevenZipFile(
                 io.BytesIO(raw_bytes),
                 mode="r",
@@ -3262,7 +3263,6 @@ class ClouzerBot(commands.Bot):
                 if selected:
                     archive.extract(targets=selected, recursive=False, factory=factory)
 
-            parts_out: list[str] = []
             images: list[str] = []
             total_chars = 0
             max_chars = 30000
