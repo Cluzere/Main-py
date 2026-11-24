@@ -21,6 +21,8 @@ jobs:
           python-version: "3.12"
       - name: Install candidate runtime dependencies
         run: python -m pip install --upgrade pip && python -m pip install discord.py aiohttp pillow python-dotenv 'PyMuPDF<2' python-docx python-pptx openpyxl 'py7zr>=1.0,<2'
+      - name: Verify dependency consistency
+        run: python -m pip check
       - name: Compile candidate without running the bot
         run: python -m py_compile audit-recovery/review-round-2/revisi_audit_final_main.py
       - name: Install Bandit security scanner
