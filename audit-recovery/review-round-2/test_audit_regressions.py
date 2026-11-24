@@ -593,7 +593,7 @@ class SafeXMLRegressionTests(unittest.TestCase):
 
     def test_parameter_entity_is_rejected(self):
         payload = b'<!DOCTYPE root [<!ENTITY % ext SYSTEM "file:///etc/passwd">%ext;]><root />'
-        with self.assertRaisesRegex(ValueError, "external/parameter entity"):
+        with self.assertRaisesRegex(ValueError, "external DTD|external/parameter entity"):
             safe_xml_fromstring(payload)
 
 
