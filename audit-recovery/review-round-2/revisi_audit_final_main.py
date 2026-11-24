@@ -967,6 +967,31 @@ def scrub_own_secrets(text: str) -> str:
     return text
 
 
+class ResponsesStreamInterrupted(RuntimeError):
+    def __init__(self, message: str, partial_text: str = ""):
+        super().__init__(message)
+        self.partial_text = partial_text
+
+
+def preserve_failed_turn_history(
+    history_messages: list[dict],
+    user_turn_entry: dict | None,
+    assistant_error: str,
+) -> None:
+    """Keep the user's request and an explicit failure marker; discard partial assistant history."""
+    if user_turn_entry is None:
+        return
+    user_index = next(
+        (index for index, entry in enumerate(history_messages) if entry is user_turn_entry),
+        None,
+    )
+    if user_index is None:
+        history_messages.append(user_turn_entry)
+    else:
+        del history_messages[user_index + 1:]
+    history_messages.append({"role": "assistant", "content": assistant_error})
+
+
 def safe_exc_text(exc: BaseException, limit: int = 300) -> str:
     """Teks exception yang aman ditampilkan ke Discord / dikirim ke model."""
     return scrub_secrets(f"{type(exc).__name__}: {exc}")[:limit]
@@ -4267,93 +4292,83 @@ class ClouzerBot(commands.Bot):
                 raise RuntimeError(f"Responses HTTP {resp.status}: {err_text[:300]}")
 
             sse_state = {"buffer": bytearray(), "total": 0, "eof": False}
-            while True:
-                line = await read_bounded_sse_line(resp.content, sse_state)
-                if not line:
-                    break
-                decoded = line.decode("utf-8", errors="ignore").strip()
-                if not decoded.startswith("data: "):
-                    continue
-                data_str = decoded[6:]
-                if data_str == "[DONE]":
-                    break
-                try:
-                    event = json.loads(data_str)
-                except Exception:
-                    continue
-                if not isinstance(event, dict):
-                    continue
-
-                etype = event.get("type", "")
-                _diag_now = asyncio.get_running_loop().time()
-                if _diag_timing is not None and "first_event_seconds" not in _diag_timing:
-                    _diag_timing["first_event_seconds"] = _diag_now - _diag_request_start
-
-                # Catat durasi web search dari event SSE provider; tidak mengubah alur tool.
-                if _diag_timing is not None and etype.startswith("response.web_search_call."):
-                    _diag_timing.setdefault("web_event_types", []).append(etype)
-                    _diag_timing.setdefault("web_calls", [])
-                    _diag_timing.setdefault("web_active", {})
-                    if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching"):
-                        item_key = str(event.get("item_id") or event.get("output_index") or "web-unknown")
-                        active = _diag_timing["web_active"]
-                        if item_key not in active:
-                            if "web_first_start_seconds" not in _diag_timing:
-                                _diag_timing["web_first_start_seconds"] = _diag_now - _diag_request_start
-                            elif "web_last_completed_at" in _diag_timing:
-                                _diag_timing.setdefault("web_inter_search_gaps", []).append(
-                                    max(0.0, _diag_now - _diag_timing["web_last_completed_at"])
-                                )
-                            active[item_key] = _diag_now
-                    elif etype in ("response.web_search_call.completed", "response.web_search_call.failed"):
-                        item_key = str(event.get("item_id") or event.get("output_index") or "web-unknown")
-                        started_at = _diag_timing["web_active"].pop(item_key, None)
-                        duration = (_diag_now - started_at) if started_at is not None else None
-                        _diag_timing["web_calls"].append({
-                            "item": item_key,
-                            "status": "completed" if etype.endswith(".completed") else "failed",
-                            "seconds": duration,
-                        })
-                        _diag_timing["web_last_completed_at"] = _diag_now
-
-                if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching") and not raw_full_text and not web_badge_shown:
-                    web_badge_shown = True
+            try:
+                while True:
+                    line = await read_bounded_sse_line(resp.content, sse_state)
+                    if not line:
+                        break
+                    decoded = line.decode("utf-8", errors="ignore").strip()
+                    if not decoded.startswith("data: "):
+                        continue
+                    data_str = decoded[6:]
+                    if data_str == "[DONE]":
+                        break
                     try:
-                        if target_msg is not None:
-                            await target_msg.edit(content="🌐 *Sedang menelusuri web secara live...*")
+                        event = json.loads(data_str)
                     except Exception:
-                        pass
+                        continue
+                    if not isinstance(event, dict):
+                        continue
 
-                elif etype == "response.output_text.delta":
-                    delta = event.get("delta", "")
-                    if delta and _diag_timing is not None and "first_text_seconds" not in _diag_timing:
-                        _diag_timing["first_text_at"] = asyncio.get_running_loop().time()
-                        _diag_timing["first_text_seconds"] = _diag_timing["first_text_at"] - _diag_request_start
-                    if delta and (raw_full_text or delta.strip()):
-                        raw_full_text = append_bounded_response_text(raw_full_text, delta)
-                        cleaned_live = clean_response_text(raw_full_text)
-                        now = asyncio.get_event_loop().time()
-                        if now - last_edit >= 0.8 and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT:
-                            try:
-                                if target_msg is not None:
-                                    await target_msg.edit(content=cleaned_live + " ▌")
-                                last_edit = now
-                            except Exception:
-                                pass
+                    etype = event.get("type", "")
+                    _diag_now = asyncio.get_running_loop().time()
+                    if _diag_timing is not None and "first_event_seconds" not in _diag_timing:
+                        _diag_timing["first_event_seconds"] = _diag_now - _diag_request_start
 
-                elif etype == "response.output_item.done":
-                    item = event.get("item", {})
-                    if item.get("type") == "function_call":
-                        append_function_call(item)
-                    elif item.get("type") == "message" and not raw_full_text:
-                        for part in item.get("content", []):
-                            if part.get("type") in ("output_text", "text"):
-                                raw_full_text = append_bounded_response_text(raw_full_text, part.get("text", ""))
+                    # Catat durasi web search dari event SSE provider; tidak mengubah alur tool.
+                    if _diag_timing is not None and etype.startswith("response.web_search_call."):
+                        _diag_timing.setdefault("web_event_types", []).append(etype)
+                        _diag_timing.setdefault("web_calls", [])
+                        _diag_timing.setdefault("web_active", {})
+                        if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching"):
+                            item_key = str(event.get("item_id") or event.get("output_index") or "web-unknown")
+                            active = _diag_timing["web_active"]
+                            if item_key not in active:
+                                if "web_first_start_seconds" not in _diag_timing:
+                                    _diag_timing["web_first_start_seconds"] = _diag_now - _diag_request_start
+                                elif "web_last_completed_at" in _diag_timing:
+                                    _diag_timing.setdefault("web_inter_search_gaps", []).append(
+                                        max(0.0, _diag_now - _diag_timing["web_last_completed_at"])
+                                    )
+                                active[item_key] = _diag_now
+                        elif etype in ("response.web_search_call.completed", "response.web_search_call.failed"):
+                            item_key = str(event.get("item_id") or event.get("output_index") or "web-unknown")
+                            started_at = _diag_timing["web_active"].pop(item_key, None)
+                            duration = (_diag_now - started_at) if started_at is not None else None
+                            _diag_timing["web_calls"].append({
+                                "item": item_key,
+                                "status": "completed" if etype.endswith(".completed") else "failed",
+                                "seconds": duration,
+                            })
+                            _diag_timing["web_last_completed_at"] = _diag_now
 
-                elif etype == "response.completed":
-                    response_completed = True
-                    resp_obj = event.get("response", {})
-                    for item in resp_obj.get("output", []):
+                    if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching") and not raw_full_text and not web_badge_shown:
+                        web_badge_shown = True
+                        try:
+                            if target_msg is not None:
+                                await target_msg.edit(content="🌐 *Sedang menelusuri web secara live...*")
+                        except Exception:
+                            pass
+
+                    elif etype == "response.output_text.delta":
+                        delta = event.get("delta", "")
+                        if delta and _diag_timing is not None and "first_text_seconds" not in _diag_timing:
+                            _diag_timing["first_text_at"] = asyncio.get_running_loop().time()
+                            _diag_timing["first_text_seconds"] = _diag_timing["first_text_at"] - _diag_request_start
+                        if delta and (raw_full_text or delta.strip()):
+                            raw_full_text = append_bounded_response_text(raw_full_text, delta)
+                            cleaned_live = clean_response_text(raw_full_text)
+                            now = asyncio.get_event_loop().time()
+                            if now - last_edit >= 0.8 and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT:
+                                try:
+                                    if target_msg is not None:
+                                        await target_msg.edit(content=cleaned_live + " ▌")
+                                    last_edit = now
+                                except Exception:
+                                    pass
+
+                    elif etype == "response.output_item.done":
+                        item = event.get("item", {})
                         if item.get("type") == "function_call":
                             append_function_call(item)
                         elif item.get("type") == "message" and not raw_full_text:
@@ -4361,17 +4376,40 @@ class ClouzerBot(commands.Bot):
                                 if part.get("type") in ("output_text", "text"):
                                     raw_full_text = append_bounded_response_text(raw_full_text, part.get("text", ""))
 
-                elif etype == "response.incomplete":
-                    resp_obj = event.get("response", {})
-                    details = resp_obj.get("incomplete_details") or {}
-                    reason = details.get("reason") or resp_obj.get("status") or "unknown"
-                    raise RuntimeError(f"Responses stream incomplete: {reason}")
+                    elif etype == "response.completed":
+                        response_completed = True
+                        resp_obj = event.get("response", {})
+                        for item in resp_obj.get("output", []):
+                            if item.get("type") == "function_call":
+                                append_function_call(item)
+                            elif item.get("type") == "message" and not raw_full_text:
+                                for part in item.get("content", []):
+                                    if part.get("type") in ("output_text", "text"):
+                                        raw_full_text = append_bounded_response_text(raw_full_text, part.get("text", ""))
 
-                elif etype in ("error", "response.failed"):
-                    err_msg = event.get("error", {}).get("message") or str(event)[:250]
-                    raise RuntimeError(f"Responses Stream Error: {err_msg}")
+                    elif etype == "response.incomplete":
+                        resp_obj = event.get("response", {})
+                        details = resp_obj.get("incomplete_details") or {}
+                        reason = details.get("reason") or resp_obj.get("status") or "unknown"
+                        raise RuntimeError(f"Responses stream incomplete: {reason}")
 
+                    elif etype in ("error", "response.failed"):
+                        err_msg = event.get("error", {}).get("message") or str(event)[:250]
+                        raise RuntimeError(f"Responses Stream Error: {err_msg}")
+
+            except Exception as stream_exc:
+                if raw_full_text:
+                    raise ResponsesStreamInterrupted(
+                        "Responses stream terputus setelah sebagian teks diterima: %s" % type(stream_exc).__name__,
+                        partial_text=raw_full_text,
+                    ) from stream_exc
+                raise
         if not response_completed:
+            if raw_full_text:
+                raise ResponsesStreamInterrupted(
+                    "Responses stream berakhir sebelum response.completed; sebagian teks sudah diterima.",
+                    partial_text=raw_full_text,
+                )
             raise RuntimeError("Responses stream berakhir sebelum event response.completed diterima.")
 
         if _diag_timing is not None:
@@ -4466,6 +4504,7 @@ class ClouzerBot(commands.Bot):
             guild_state = self.get_guild_state(guild, user.id, channel_id)
             mode = guild_state["thread_modes"].get(str(target_channel.id), "fast")
             history_msgs = guild_state["messages"]
+            turn_user_message: dict | None = None
 
             if image_data_urls and channel_id:
                 self.set_last_user_image(guild_id, channel_id, user.id, image_data_urls)
@@ -4480,9 +4519,10 @@ class ClouzerBot(commands.Bot):
                 blocks = [{"type": "text", "text": user_display_text}] + [
                     {"type": "image_url", "image_url": {"url": u}} for u in http_img_urls[:MAX_VISION_IMAGES_PER_TURN]
                 ]
-                history_msgs.append({"role": "user", "content": blocks})
+                turn_user_message = {"role": "user", "content": blocks}
             else:
-                history_msgs.append({"role": "user", "content": user_display_text})
+                turn_user_message = {"role": "user", "content": user_display_text}
+            history_msgs.append(turn_user_message)
 
             for m in history_msgs[:-1]:
                 if isinstance(m.get("content"), list):
@@ -4815,9 +4855,23 @@ class ClouzerBot(commands.Bot):
                     _turn_diag["total_seconds"],
                 )
             except Exception as e:
-                if history_msgs:
-                    history_msgs.pop()
-                err_msg = f"⚠️ Error: `{safe_exc_text(e)}`"[:1990]
+                partial_text = getattr(e, "partial_text", "")
+                if partial_text:
+                    safe_partial = scrub_own_secrets(clean_response_text(partial_text))[:1400]
+                    err_msg = (
+                        safe_partial
+                        + "\n\n⚠️ Respons terputus sebelum selesai. Bagian di atas adalah teks parsial; "
+                        + "bot tidak mengulang operasi otomatis. Detail: `"
+                        + safe_exc_text(e)
+                        + "`"
+                    )[:1990]
+                else:
+                    err_msg = f"⚠️ Error: `{safe_exc_text(e)}`"[:1990]
+                preserve_failed_turn_history(history_msgs, turn_user_message, err_msg)
+                try:
+                    await self.save_memory()
+                except Exception:
+                    logging.exception("Gagal menyimpan konteks turn yang gagal (%s)", scope_key)
                 await status_msg.edit(content=err_msg)
                 _turn_diag["total_seconds"] = _turn_loop.time() - _turn_started_at
                 logging.warning(
