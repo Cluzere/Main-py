@@ -641,6 +641,29 @@ class ArchiveReaderTests(unittest.TestCase):
 
         asyncio.run(run())
 
+
+    def test_reply_source_fetch_failure_is_explained(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeMessage:
+            pass
+
+        class FakeChannel:
+            async def fetch_message(self, message_id):
+                raise LookupError("message unavailable")
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        message = SimpleNamespace(
+            reference=SimpleNamespace(message_id=555, resolved=None),
+            channel=FakeChannel(),
+        )
+        with patch.object(module.discord, "Message", FakeMessage):
+            result = asyncio.run(bot.resolve_replied_files(message))
+        self.assertIn("lampiran asli tidak bisa diperiksa", result)
+        self.assertIn("Kirim ulang file sumber", result)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
