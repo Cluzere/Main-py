@@ -5303,6 +5303,7 @@ async def on_message(message: discord.Message):
     skipped_notes: list[str] = []
     has_usable_attachment = False
     attachment_context_truncated = False
+    attachment_context_truncated_at: int | None = None
 
     attachments = list(message.attachments)
     if len(attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
@@ -5354,8 +5355,12 @@ async def on_message(message: discord.Message):
                 if len(text_res) > remaining_context:
                     additional_file_text += "\n[Konten lampiran dipotong: batas gabungan seluruh file per pesan tercapai.]\n"
                     attachment_context_truncated = True
+                    if attachment_context_truncated_at is None:
+                        attachment_context_truncated_at = max(0, len(attachment_manifest) - 1)
             else:
                 attachment_context_truncated = True
+                if attachment_context_truncated_at is None:
+                    attachment_context_truncated_at = max(0, len(attachment_manifest) - 1)
         if local_res:
             image_data_urls.extend(local_res)
         if http_res:
@@ -5365,8 +5370,9 @@ async def on_message(message: discord.Message):
         skipped_notes.append(
             "Konten gabungan lampiran dipotong pada batas %s karakter." % format(MAX_ATTACHMENT_CONTEXT_CHARS, ",")
         )
-        if attachment_manifest:
-            attachment_manifest[-1] += " [KONTEN TIDAK SEPENUHNYA MASUK KONTEKS AI]"
+        if attachment_context_truncated_at is not None:
+            for manifest_idx in range(attachment_context_truncated_at, len(attachment_manifest)):
+                attachment_manifest[manifest_idx] += " [KONTEN TIDAK SEPENUHNYA MASUK KONTEKS AI]"
 
     if attachment_manifest:
         additional_file_text += "\n\n--- MANIFEST LAMPIRAN ---\n" + "\n".join(attachment_manifest) + "\n--- AKHIR MANIFEST ---\n"
