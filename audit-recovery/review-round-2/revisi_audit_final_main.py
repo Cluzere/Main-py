@@ -3992,7 +3992,15 @@ class ClouzerBot(commands.Bot):
         for att in list(replied_msg.attachments)[:MAX_ATTACHMENTS_PER_MESSAGE]:
             if os.path.splitext(att.filename.lower())[1] not in IMAGE_EXTS:
                 continue
-            _, local_res, http_res, ftype = await self.encode_attachment(att)
+            try:
+                _, local_res, http_res, ftype = await self.encode_attachment(att)
+            except Exception as exc:
+                logging.warning(
+                    "Gagal membaca gambar dari pesan reply %s (%s)",
+                    scrub_secrets(att.filename)[:100],
+                    type(exc).__name__,
+                )
+                continue
             if ftype == "image":
                 local_imgs.extend(local_res)
                 http_urls.extend(http_res)
