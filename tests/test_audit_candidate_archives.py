@@ -764,6 +764,39 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertEqual(bot.guild_lock_refs, {})
         self.assertEqual(bot.guild_locks, {})
 
+
+    def test_7z_path_traversal_member_is_skipped_without_extract(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeArchive:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def needs_password(self):
+                return False
+
+            def list(self):
+                return [SimpleNamespace(
+                    filename="../outside.txt",
+                    is_directory=False,
+                    is_file=True,
+                    is_symlink=False,
+                    uncompressed=10,
+                    compressed=10,
+                )]
+
+            def extract(self, **kwargs):
+                raise AssertionError("unsafe member must never be extracted")
+
+        with patch.object(module.py7zr, "SevenZipFile", return_value=FakeArchive()):
+            text, images = self.bot.extract_7z_content(b"archive bytes", "unsafe.7z")
+        self.assertIn("path tidak aman", text)
+        self.assertEqual(images, [])
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
