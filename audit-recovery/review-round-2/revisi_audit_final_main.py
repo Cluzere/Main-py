@@ -1584,13 +1584,15 @@ def check_runtime_config() -> list[str]:
 # ---------------------------------------------------------------------------
 # Helper keamanan tingkat modul.
 # ---------------------------------------------------------------------------
-_ZIP_BASED_EXTS = frozenset({".docx", ".pptx", ".xlsx", ".odt", ".ods", ".odp", ".epub"})
+_ZIP_BASED_EXTS = frozenset({".docx", ".pptx", ".xlsx", ".odt", ".ods", ".odp", ".epub", ".zip"})
 
 
 def check_file_signature(ext: str, data: bytes) -> str | None:
     """Cocokkan isi file dengan ekstensinya (anti file yang diberi nama menyesatkan). None = lolos."""
     if ext == ".pdf":
         return None if b"%PDF-" in data[:1024] else "isi file bukan PDF yang valid"
+    if ext == ".7z":
+        return None if data.startswith(b"7z\\xbc\\xaf\\x27\\x1c") else "signature file bukan 7Z valid"
     if ext in _ZIP_BASED_EXTS:
         return None if data[:4] in (b"PK\x03\x04", b"PK\x05\x06") else "isi file bukan arsip Office/EPUB yang valid"
     if ext == ".rtf":
@@ -2894,6 +2896,63 @@ class ClouzerBot(commands.Bot):
             return self._wrap_doc_content(ext.lstrip(".").upper(), filename, extracted)
         return self._wrap_doc_content(ext.lstrip(".").upper(), filename, f"[File {filename} terbaca namun tidak memiliki teks yang dapat diekstrak.]")
 
+
+    def extract_generic_zip_content(self, raw_bytes: bytes, filename: str) -> tuple[str, list[str]]:
+        """Safely read a generic ZIP in memory; no filesystem extraction is performed."""
+        parts: list[str] = []
+        images: list[str] = []
+        total_chars = 0
+        max_chars = 30000
+        text_exts = {".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm",
+                     ".log", ".yaml", ".yml", ".ini", ".py", ".js", ".ts",
+                     ".css", ".sql", ".sh", ".rtf"}
+        with self._validate_zip_archive(raw_bytes) as zf:
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                name = info.filename.replace("\\\\", "/")
+                if name.startswith("/") or any(part == ".." for part in name.split("/")):
+                    parts.append(f"[Anggota ditolak karena path traversal: {name[:120]}]")
+                    continue
+                ext = os.path.splitext(name.lower())[1]
+                if ext in IMAGE_EXTS:
+                    if len(images) >= MAX_VISION_IMAGES_PER_TURN:
+                        parts.append(f"[Gambar dilewati karena batas visual: {name[:120]}]")
+                        continue
+                    try:
+                        images.append(self._compress_image_bytes_to_data_url(zf.read(info)))
+                        parts.append(f"[Gambar arsip disertakan sebagai visual: {name[:140]}]")
+                    except Exception as exc:
+                        parts.append(f"[Gambar gagal diproses: {name[:100]} ({type(exc).__name__})]")
+                elif ext in text_exts:
+                    remaining = max_chars - total_chars
+                    if remaining <= 0:
+                        parts.append("[Anggota selanjutnya tidak dibaca: batas teks arsip tercapai.]")
+                        break
+                    try:
+                        raw = zf.read(info)
+                        content = raw.decode("utf-8-sig", errors="replace")
+                        scan = scan_secrets(content, code_mode=ext in CODE_EXTS)
+                        if scan.blocked:
+                            parts.append(f"[Anggota {name[:120]} ditahan karena berisi kredensial.]")
+                            continue
+                        content = scan.text[:remaining]
+                        if len(scan.text) > remaining:
+                            content += "\\n...(dipotong karena batas total teks arsip)"
+                        parts.append(f"[{name[:160]}]\\n{content}")
+                        total_chars += len(content)
+                    except Exception as exc:
+                        parts.append(f"[Anggota gagal dibaca: {name[:100]} ({type(exc).__name__})]")
+                elif ext in {".zip", ".7z"}:
+                    parts.append(f"[Arsip bersarang tidak diekstrak: {name[:140]}]")
+                elif ext in {".pdf", ".docx", ".pptx", ".xlsx"}:
+                    parts.append(f"[Dokumen terdeteksi tetapi parser dokumen bersarang belum dijalankan: {name[:140]}]")
+                else:
+                    parts.append(f"[Format anggota belum didukung: {name[:140]}]")
+        if not parts:
+            parts.append("[Arsip ZIP valid tetapi kosong.]")
+        return self._wrap_doc_content("ZIP", filename, "\\n\\n".join(parts)), images
+
     def extract_design_file_content(self, raw_bytes: bytes, filename: str, ext: str) -> str:
         if ext == ".svg":
             try:
@@ -3250,6 +3309,8 @@ class ClouzerBot(commands.Bot):
             ".ods": 20 * 1024 * 1024,
             ".odp": 20 * 1024 * 1024,
             ".epub": 20 * 1024 * 1024,
+            ".zip": 30 * 1024 * 1024,
+            ".7z": 30 * 1024 * 1024,
             ".svg": 20 * 1024 * 1024,
             ".eps": 20 * 1024 * 1024,
             ".ai": 20 * 1024 * 1024,
@@ -3364,6 +3425,22 @@ class ClouzerBot(commands.Bot):
             except Exception:
                 logging.exception("Gagal membaca lampiran RTF %s", scrub_secrets(attachment.filename)[:120])
                 return f"\n\n[Gagal membaca file RTF {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
+
+        elif ext == ".zip" and attachment.size <= 30 * 1024 * 1024:
+            try:
+                data = await self._read_attachment_checked(attachment, ext)
+                archive_text, archive_imgs = await asyncio.to_thread(self.extract_generic_zip_content, data, attachment.filename)
+                return archive_text, archive_imgs, [], "archive"
+            except Exception as exc:
+                logging.exception("Gagal membaca ZIP %s", scrub_secrets(attachment.filename)[:120])
+                return f"\\n\\n[ZIP {scrub_secrets(attachment.filename)[:120]} gagal dibaca: {type(exc).__name__}: {scrub_secrets(str(exc))[:200]}]\\n", [], [], "archive_error"
+
+        elif ext == ".7z" and attachment.size <= 30 * 1024 * 1024:
+            try:
+                data = await self._read_attachment_checked(attachment, ext)
+                return self._wrap_doc_content("7Z", attachment.filename, "[Arsip 7Z valid terdeteksi, tetapi ekstraksi 7Z belum tersedia pada build ini. Isi tidak diklaim sudah dibaca.]"), [], [], "archive_unsupported"
+            except Exception as exc:
+                return f"\\n\\n[7Z {scrub_secrets(attachment.filename)[:120]} gagal divalidasi: {type(exc).__name__}]\\n", [], [], "archive_error"
 
         elif ext in {".odt", ".ods", ".odp", ".epub"} and attachment.size <= 20 * 1024 * 1024:
             try:
