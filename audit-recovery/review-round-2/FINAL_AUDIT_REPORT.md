@@ -8,10 +8,10 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit terakhir yang mengubah file kandidat: `305fb0826515870ec28ba912c7d3fc8416a74731`
-- Blob kandidat: `c0533f485c752541465b44c735f0618852393db8`
-- Jumlah baris: 5.577
-- CI terakhir: [Run #45512856720 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45511576862)
+- Commit terakhir yang mengubah file kandidat: `28ec50b4215d0e94f0d28ea8f39306d6ec43b136`
+- Blob kandidat: `3ab3d0e6b3ee426d296980aba277efde9c372e0b`
+- Jumlah baris: 5.583
+- CI terakhir: [Run #45513063986 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45511576862)
 
 ## Bukti CI terakhir
 
@@ -19,9 +19,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - Bandit high-severity scan: PASS, tidak ada temuan high-severity.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat tambahan: **49/49 PASS**.
+- Tes kandidat tambahan: **50/50 PASS**.
 - Regresi audit yang sudah ada: **74/74 PASS**.
-- Total dua suite yang dijalankan pada run terakhir: **123 tes PASS**.
+- Total dua suite yang dijalankan pada run terakhir: **124 tes PASS**.
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2` dan `py7zr>=1.0,<2`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -43,6 +43,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 13. Retry Responses hanya satu kali untuk HTTP 502/503/504 sebelum event stream pertama. Tidak ada retry otomatis setelah stream mulai.
 14. Jika stream terputus setelah sebagian teks diterima, teks parsial dipertahankan dan user request tidak dibuang dari history.
 15. Antrean percakapan menggunakan lock FIFO per scope user/channel. Cancellation membersihkan referensi lock; scope antar-user terpisah.
+16. Environment override resource diberi hard cap: 10 lampiran, 10 gambar vision, 100 MB total lampiran, batas teks dokumen/konteks, serta batas konkurensi AI/image/audio.
 
 ## Audit 64 butir — status jujur
 
