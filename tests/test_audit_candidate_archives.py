@@ -1105,6 +1105,10 @@ class ArchiveReaderTests(unittest.TestCase):
             "MAX_VISION_IMAGES_PER_TURN": "99",
             "MAX_ATTACHMENT_TOTAL_MB": "999",
             "MAX_CONCURRENT_ATTACHMENTS": "99",
+            "MAX_CONCURRENT_AI_CALLS": "99",
+            "MAX_CONCURRENT_IMAGE_CALLS": "99",
+            "MAX_CONCURRENT_AUDIO_CALLS": "99",
+            "MAX_RESPONSES_OUTPUT_CHARS": "999999",
         }):
             self.assertEqual(module._env_int_capped(
                 "MAX_ATTACHMENTS_PER_MESSAGE", 10, minimum=1, maximum=10
@@ -1118,6 +1122,18 @@ class ArchiveReaderTests(unittest.TestCase):
             self.assertEqual(module._env_int_capped(
                 "MAX_CONCURRENT_ATTACHMENTS", 3, minimum=1, maximum=5
             ), 5)
+            self.assertEqual(module._env_int_capped(
+                "MAX_CONCURRENT_AI_CALLS", 4, minimum=1, maximum=8
+            ), 8)
+            self.assertEqual(module._env_int_capped(
+                "MAX_CONCURRENT_IMAGE_CALLS", 2, minimum=1, maximum=4
+            ), 4)
+            self.assertEqual(module._env_int_capped(
+                "MAX_CONCURRENT_AUDIO_CALLS", 2, minimum=1, maximum=4
+            ), 4)
+            self.assertEqual(module._env_int_capped(
+                "MAX_RESPONSES_OUTPUT_CHARS", 65536, minimum=1024, maximum=100000
+            ), 100000)
 
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
