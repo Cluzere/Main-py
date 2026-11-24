@@ -895,6 +895,26 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("path tidak aman", text)
         self.assertEqual(images, [])
 
+
+    def test_audio_container_signatures_are_checked(self):
+        valid_samples = {
+            ".wav": b"RIFF" + b"\\x00" * 4 + b"WAVE" + b"data",
+            ".ogg": b"OggS" + b"payload",
+            ".opus": b"OggS" + b"payload",
+            ".flac": b"fLaC" + b"payload",
+            ".webm": bytes((0x1A, 0x45, 0xDF, 0xA3)) + b"payload",
+            ".m4a": b"\\x00\\x00\\x00\\x18ftypM4A " + b"payload",
+            ".aac": bytes((0xFF, 0xF1)) + b"payload",
+            ".mp3": b"ID3" + b"payload",
+        }
+        for ext, sample in valid_samples.items():
+            with self.subTest(ext=ext):
+                self.assertIsNone(module.check_file_signature(ext, sample))
+        self.assertIn(
+            "format audio",
+            module.check_file_signature(".wav", b"not audio"),
+        )
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
