@@ -51,38 +51,42 @@ jobs:
               sys.exit(1)
           PY
 
-      - name: Test Xingchi chat API
+      - name: Test Xingchi Responses API
         env:
           XINGCHI_API_KEY: ${{ secrets.STAGING_XINGCHI_API_KEY }}
         run: |
           python - <<'PY'
-          import json, os, sys, urllib.request, urllib.error
+          import json, os, sys, urllib.request, urllib.error, re
           payload = json.dumps({
               "model": "gpt-6.1-sol",
-              "messages": [{"role": "user", "content": "Reply with exactly: STAGING_OK"}],
-              "max_tokens": 12,
-              "temperature": 0
+              "input": "Reply with exactly: STAGING_OK",
+              "max_output_tokens": 16,
+              "stream": False
           }).encode()
           req = urllib.request.Request(
-              "https://api.xingchiapi.com/v1/chat/completions",
+              "https://api.xingchiapi.com/v1/responses",
               data=payload,
               headers={"Authorization": "Bearer " + os.environ["XINGCHI_API_KEY"],
                        "Content-Type": "application/json",
-                       "User-Agent": "Main-py-staging-smoke-test"},
+                       "User-Agent": "opencode/1.0.0",
+                       "X-Client-Name": "OpenCode"},
               method="POST"
           )
           try:
               with urllib.request.urlopen(req, timeout=45) as response:
                   data = json.loads(response.read(262144))
-                  choices = data.get("choices")
-                  if response.status != 200 or not isinstance(choices, list) or not choices:
-                      print("XINGCHI_CHAT_FAILED: unexpected response")
+                  if response.status != 200 or not isinstance(data, dict):
+                      print("XINGCHI_RESPONSES_FAILED: unexpected response")
                       sys.exit(1)
-                  print("XINGCHI_CHAT_OK")
+                  print("XINGCHI_RESPONSES_OK")
           except urllib.error.HTTPError as exc:
-              print(f"XINGCHI_CHAT_FAILED: HTTP {exc.code}")
+              body = exc.read(8192).decode("utf-8", "replace")
+              body = re.sub(r"(?i)(bearer\\s+)[^\\s\\\",]+", r"\\1[REDACTED]", body)
+              body = re.sub(r"(?i)(api[_-]?key|token|authorization)(\\s*[=:]\\s*)[^\\s\\\",}]+", r"\\1\\2[REDACTED]", body)
+              print(f"XINGCHI_RESPONSES_FAILED: HTTP {exc.code}")
+              print("PROVIDER_ERROR_BODY=" + body[:2000])
               sys.exit(1)
           except Exception as exc:
-              print("XINGCHI_CHAT_FAILED: " + type(exc).__name__)
+              print("XINGCHI_RESPONSES_FAILED: " + type(exc).__name__)
               sys.exit(1)
           PY
