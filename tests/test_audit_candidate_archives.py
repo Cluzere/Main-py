@@ -220,6 +220,33 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("Revenue", text)
         self.assertIn("10", text)
 
+
+    @staticmethod
+    def make_7z(entries):
+        import py7zr
+        buffer = io.BytesIO()
+        with py7zr.SevenZipFile(buffer, mode="w") as archive:
+            for name, value in entries:
+                archive.writestr(value, name)
+        return buffer.getvalue()
+
+    def test_reads_text_member_from_7z_in_memory(self):
+        raw = self.make_7z([("hello.txt", "7Z ARCHIVE CONTENT")])
+        text, images = self.bot.extract_7z_content(raw, "sample.7z")
+        self.assertIn("7Z ARCHIVE CONTENT", text)
+        self.assertEqual(images, [])
+
+    def test_reads_docx_member_from_7z(self):
+        raw = self.make_7z([("inside.docx", self.make_docx("7Z NESTED DOCX CONTENT"))])
+        text, _ = self.bot.extract_7z_content(raw, "docs.7z")
+        self.assertIn("7Z NESTED DOCX CONTENT", text)
+
+    def test_rejects_7z_decompression_ratio_bomb(self):
+        raw = self.make_7z([("repeat.txt", "A" * (2 * 1024 * 1024))])
+        text, _ = self.bot.extract_7z_content(raw, "ratio-bomb.7z")
+        self.assertIn("gagal dibaca atau ditolak", text)
+        self.assertNotIn("AAAA", text)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
