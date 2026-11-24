@@ -1040,6 +1040,61 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertEqual(local, ["data:image/png;base64,AAAA"])
         self.assertEqual(remote, [])
 
+
+    def test_new_images_and_replied_images_are_both_forwarded(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeRateLimiter:
+            def acquire(self, *args, **kwargs):
+                return True, 0.0
+
+        class FakeBot:
+            user = SimpleNamespace(id=999)
+            rate_limiter = FakeRateLimiter()
+
+            def __init__(self):
+                self.turn = None
+
+            def is_channel_allowed(self, channel, guild):
+                return True
+
+            async def encode_attachment(self, attachment):
+                return None, ["data:image/png;base64,NEW"], [], "image"
+
+            async def resolve_replied_files(self, message, **kwargs):
+                return ""
+
+            async def resolve_replied_images(self, message):
+                return ["data:image/png;base64,REPLIED"], ["https://cdn.discordapp.com/replied.png"]
+
+            async def process_ai_turn(self, **kwargs):
+                self.turn = kwargs
+
+        bot = FakeBot()
+        message = SimpleNamespace(
+            author=SimpleNamespace(bot=False, id=42, display_name="tester"),
+            guild=None,
+            channel=SimpleNamespace(id=7),
+            content="Edit gambar ini",
+            attachments=[SimpleNamespace(
+                filename="new.png", size=10, content_type="image/png"
+            )],
+            reference=SimpleNamespace(message_id=8),
+        )
+        with patch.object(module, "bot", bot):
+            asyncio.run(module.on_message(message))
+
+        self.assertEqual(
+            bot.turn["image_data_urls"],
+            ["data:image/png;base64,NEW", "data:image/png;base64,REPLIED"],
+        )
+        self.assertEqual(
+            bot.turn["llm_image_urls"],
+            ["https://cdn.discordapp.com/replied.png"],
+        )
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
