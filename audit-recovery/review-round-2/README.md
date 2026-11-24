@@ -4,7 +4,7 @@
 
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File kandidat yang sedang diaudit: `revisi_audit_final_main.py`
-- File produksi `main.py` tidak diubah.
+- File sumber asli repo `main (4).py` tidak diubah (blob sama dengan branch `main`); file produksi Wispbyte juga tidak disentuh.
 - `test_audit_regressions.py`: 74 regression tests yang sudah ada.
 - `tests/test_audit_candidate_archives.py`: tes tambahan khusus parser arsip, antrean lampiran, retry stream, dan alur pesan Discord yang dimock.
 - `FINAL_AUDIT_REPORT.md`: status gerbang CI dan pekerjaan staging yang belum dapat dibuktikan lewat CI.
@@ -18,7 +18,8 @@
 - Teks gabungan lampiran dibatasi agar tidak diam-diam membanjiri konteks model.
 - Dokumen dari pesan yang di-reply dibaca bersama lampiran baru dengan sisa anggaran ukuran/teks.
 - Antrean semaphore lampiran menunggu giliran, bukan langsung meminta pengguna mengunggah ulang.
-- Retry Responses hanya untuk HTTP gateway 502/503/504 sebelum event stream pertama; tidak mengulang stream yang sudah mulai mengirim event.
+- Retry Responses maksimal satu kali untuk HTTP 502/503/504, atau HTTP 500 dengan pesan `Unable to forward upstream stream`, hanya sebelum event stream pertama.
+- Antrean AI FIFO per user/channel dibatasi 10 waiter, timeout default 300 detik, dan memberi status antrean penuh/timeout/dibatalkan; queue tidak persisten setelah hard restart.
 
 ## Dependensi tambahan
 
@@ -32,6 +33,6 @@ Lihat `requirements-audit.txt` untuk daftar dependensi audit. Jika `py7zr` tidak
 
 ## Gerbang verifikasi
 
-CI memeriksa Python 3.12, kompilasi, Bandit medium/high severity, 56 tes kandidat, pip check, pip-audit, dan 74 tes regresi yang sudah ada. CI bukan pengganti tes staging Discord/Wispbyte.
+CI terbaru (run #45514190007) memeriksa Python 3.12, kompilasi, Bandit medium/high severity, 56 tes kandidat, pip check, pip-audit, dan 74 tes regresi yang sudah ada: total 130 tes lulus. CI bukan pengganti tes staging Discord/Wispbyte.
 
 Jangan mengganti file produksi sebelum checklist staging di `FINAL_AUDIT_REPORT.md` selesai.
