@@ -2558,6 +2558,7 @@ class ClouzerBot(commands.Bot):
         async with self.http_session.get(
             image_url,
             timeout=aiohttp.ClientTimeout(total=90),
+            allow_redirects=False,
         ) as resp:
             if resp.status != 200:
                 raise RuntimeError(f"Pollinations FLUX HTTP {resp.status}")
@@ -3222,6 +3223,7 @@ class ClouzerBot(commands.Bot):
                 return None
             return await asyncio.to_thread(self._compress_image_bytes_to_data_url, raw_bytes)
         except Exception:
+            logging.warning("Gagal mengunduh gambar eksternal untuk preview", exc_info=True)
             return None
 
     @staticmethod
@@ -3315,70 +3317,79 @@ class ClouzerBot(commands.Bot):
                 http_urls = [attachment.url] if attachment.url and attachment.url.startswith(("http://", "https://")) else []
                 return None, [local_data_url], http_urls, "image"
             except Exception:
-                return f"\n\n[File gambar {attachment.filename} rusak atau gagal dibaca.]\n", [], [], "none"
+                logging.exception("Gagal memproses lampiran gambar %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[File gambar {scrub_secrets(attachment.filename)[:120]} rusak atau gagal dibaca.]\n", [], [], "none"
 
         elif ext == ".pdf" and attachment.size <= 20 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
                 pdf_text, pdf_images = await asyncio.to_thread(self.extract_pdf_content, data, attachment.filename)
                 return pdf_text, pdf_images, [], "pdf"
-            except Exception as e:
-                return f"\n\n[Gagal membaca file PDF {attachment.filename}: {type(e).__name__}: {e}]\n", [], [], "document"
+            except Exception:
+                logging.exception("Gagal membaca lampiran PDF %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[Gagal membaca file PDF {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
 
         elif ext == ".docx" and attachment.size <= 15 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
                 docx_text, docx_imgs = await asyncio.to_thread(self.extract_docx_content, data, attachment.filename)
                 return docx_text, docx_imgs, [], "docx"
-            except Exception as e:
-                return f"\n\n[Gagal membaca file DOCX {attachment.filename}: {type(e).__name__}: {e}]\n", [], [], "document"
+            except Exception:
+                logging.exception("Gagal membaca lampiran DOCX %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[Gagal membaca file DOCX {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
 
         elif ext == ".pptx" and attachment.size <= 20 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
                 pptx_text, pptx_imgs = await asyncio.to_thread(self.extract_pptx_content, data, attachment.filename)
                 return pptx_text, pptx_imgs, [], "pptx"
-            except Exception as e:
-                return f"\n\n[Gagal membaca file PPTX {attachment.filename}: {type(e).__name__}: {e}]\n", [], [], "document"
+            except Exception:
+                logging.exception("Gagal membaca lampiran PPTX %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[Gagal membaca file PPTX {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
         elif ext == ".xlsx" and attachment.size <= 20 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
                 xlsx_text, xlsx_imgs = await asyncio.to_thread(self.extract_xlsx_content, data, attachment.filename)
                 return xlsx_text, xlsx_imgs, [], "xlsx"
-            except Exception as e:
-                return f"\n\n[Gagal membaca file XLSX {attachment.filename}: {type(e).__name__}: {e}]\n", [], [], "document"
+            except Exception:
+                logging.exception("Gagal membaca lampiran XLSX %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[Gagal membaca file XLSX {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
 
         elif ext == ".rtf" and attachment.size <= 10 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
                 rtf_text = await asyncio.to_thread(self.extract_rtf_content, data, attachment.filename)
                 return rtf_text, [], [], "rtf"
-            except Exception as e:
-                return f"\n\n[Gagal membaca file RTF {attachment.filename}: {type(e).__name__}: {e}]\n", [], [], "document"
+            except Exception:
+                logging.exception("Gagal membaca lampiran RTF %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[Gagal membaca file RTF {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
 
         elif ext in {".odt", ".ods", ".odp", ".epub"} and attachment.size <= 20 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
                 zip_text = await asyncio.to_thread(self.extract_zip_office_or_epub_content, data, attachment.filename, ext)
                 return zip_text, [], [], ext.lstrip(".")
-            except Exception as e:
-                return f"\n\n[Gagal membaca file {attachment.filename}: {type(e).__name__}: {e}]\n", [], [], "document"
+            except Exception:
+                logging.exception("Gagal membaca lampiran arsip %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[Gagal membaca file {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
 
         elif ext in {".svg", ".eps", ".ai"} and attachment.size <= 20 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
                 design_text = await asyncio.to_thread(self.extract_design_file_content, data, attachment.filename, ext)
                 return design_text, [], [], ext.lstrip(".")
-            except Exception as e:
-                return f"\n\n[Gagal membaca file desain {attachment.filename}: {type(e).__name__}: {e}]\n", [], [], "document"
+            except Exception:
+                logging.exception("Gagal membaca lampiran desain %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[Gagal membaca file desain {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
 
         elif ext in AUDIO_EXTS and attachment.size <= 25 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
                 audio_text = await self.transcribe_audio_bytes(data, attachment.filename)
                 return audio_text, [], [], "audio"
-            except Exception as e:
-                return f"\n\n[Gagal memproses file audio {attachment.filename}: {type(e).__name__}: {e}]\n", [], [], "audio"
+            except Exception:
+                logging.exception("Gagal memproses lampiran audio %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[Gagal memproses file audio {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "audio"
 
         elif ext in (FULL_CONTENT_EXTS - OFFICE_DOC_EXTS) and attachment.size <= 2 * 1024 * 1024:
             try:
@@ -3397,7 +3408,8 @@ class ClouzerBot(commands.Bot):
                 formatted = f"\n\n--- KONTEN FILE ({attachment.filename}) ---\n{body_text}{notes}\n------------------------------------------\n"
                 return formatted, [], [], "text"
             except Exception:
-                return f"\n\n[Gagal membaca konten teks dari file {attachment.filename}.]\n", [], [], "none"
+                logging.exception("Gagal membaca lampiran teks %s", scrub_secrets(attachment.filename)[:120])
+                return f"\n\n[Gagal membaca konten teks dari file {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "none"
 
         elif ext in ALL_SUPPORTED_EXTS:
             return (
