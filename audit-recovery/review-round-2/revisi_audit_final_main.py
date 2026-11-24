@@ -2943,7 +2943,7 @@ class ClouzerBot(commands.Bot):
                     or any(part in {"..", ""} for part in normalized_parts if part != "")
                     or "\x00" in name
                 ):
-                    parts.append(f"[Anggota ditolak karena path tidak aman: {name[:120]}]")
+                    parts.append(f"[Anggota ditolak karena path traversal / path tidak aman: {name[:120]}]")
                     continue
                 # Symlink entries are not followed or materialized.
                 unix_mode = (info.external_attr >> 16) & 0xFFFF
