@@ -887,3 +887,12 @@ class FinalHardeningLockCallSiteTests(unittest.TestCase):
         self.assertNotIn("guild_locks[scope_key]", source)
         self.assertIn("self.bot_instance.guild_lock(scope_key)", source)
         self.assertIn("bot.guild_lock(scope_key)", source)
+
+
+class FinalAttachmentFailureHandlingTests(unittest.TestCase):
+    def test_attachment_errors_are_logged_and_not_echoed_raw_to_model(self):
+        source = SOURCE.read_text(encoding="utf-8")
+        self.assertIn('logging.exception("Gagal membaca lampiran PDF', source)
+        self.assertIn('logging.exception("Gagal memproses lampiran gambar', source)
+        self.assertNotIn('type(e).__name__}: {e}', source)
+        self.assertIn("allow_redirects=False", source)
