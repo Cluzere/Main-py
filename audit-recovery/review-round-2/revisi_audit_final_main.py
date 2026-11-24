@@ -15,6 +15,7 @@ import copy
 import threading
 import zipfile
 import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as DefusedET
 from html.parser import HTMLParser
 from collections import defaultdict, OrderedDict, deque
 from contextlib import asynccontextmanager
@@ -1684,7 +1685,7 @@ def safe_xml_fromstring(raw: bytes):
                 raise ValueError("XML ditolak: external/parameter entity tidak diizinkan")
         if _XML_NESTED_ENTITY_RE.search(raw):
             raise ValueError("XML ditolak: entity bersarang (indikasi XML bomb)")
-    return ET.fromstring(raw)
+    return DefusedET.fromstring(raw, forbid_dtd=False, forbid_entities=True, forbid_external=True)
 
 
 def message_char_len(message: dict) -> int:
