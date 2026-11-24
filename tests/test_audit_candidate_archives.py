@@ -673,6 +673,36 @@ class ArchiveReaderTests(unittest.TestCase):
             module.check_file_signature(".7z", bytes((55, 122, 188, 175, 39, 28)) + b"payload")
         )
 
+
+    def test_rejects_encrypted_zip_flag_before_reading_members(self):
+        raw = bytearray(self.make_zip([("secret.txt", "encrypted payload")]))
+        local = raw.find(b"PK\\x03\\x04")
+        central = raw.find(b"PK\\x01\\x02")
+        self.assertGreaterEqual(local, 0)
+        self.assertGreaterEqual(central, 0)
+        raw[local + 6] |= 0x01
+        raw[central + 8] |= 0x01
+        with self.assertRaisesRegex(ValueError, "terenkripsi"):
+            self.bot._validate_zip_archive(bytes(raw))
+
+    def test_7z_password_protection_is_rejected(self):
+        from unittest.mock import patch
+
+        class FakeArchive:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def needs_password(self):
+                return True
+
+        with patch.object(module.py7zr, "SevenZipFile", return_value=FakeArchive()):
+            text, images = self.bot.extract_7z_content(b"valid test bytes", "encrypted.7z")
+        self.assertIn("terenkripsi", text)
+        self.assertEqual(images, [])
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
