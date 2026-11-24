@@ -1293,8 +1293,12 @@ class ArchiveReaderTests(unittest.TestCase):
         plain = module.safe_xml_fromstring(b"<!DOCTYPE svg><svg><title>safe</title></svg>")
         self.assertEqual(plain.tag.rsplit("}", 1)[-1], "svg")
 
+        simple = module.safe_xml_fromstring(
+            b'<!DOCTYPE svg [<!ENTITY x "boom">]><svg>&x;</svg>'
+        )
+        self.assertEqual(simple.text, "boom")
+
         payloads = [
-            b'<!DOCTYPE svg [<!ENTITY x "boom">]><svg>&x;</svg>',
             b'<!DOCTYPE svg [<!ENTITY a "&b;"><!ENTITY b "&a;">]><svg>&a;</svg>',
             b'<!DOCTYPE svg SYSTEM "file:///etc/passwd"><svg/>',
         ]
