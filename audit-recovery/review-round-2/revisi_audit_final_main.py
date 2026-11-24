@@ -1724,7 +1724,7 @@ class AIResponseView(discord.ui.View):
         user_id = interaction.user.id
 
         try:
-            async with self.bot_instance.guild_locks[scope_key]:
+            async with self.bot_instance.guild_lock(scope_key):
                 new_reply, function_calls = await self.bot_instance.run_responses_ai(
                     original_messages,
                     interaction.message,
@@ -4382,7 +4382,7 @@ async def imagine_cmd(
     await interaction.response.send_message(initial_status)
 
     try:
-        async with bot.guild_locks[scope_key]:
+        async with bot.guild_lock(scope_key):
             async with bot.user_image_queue(interaction.user.id):
                 source_imgs: list[str] | None = None
                 if gambar is not None:
