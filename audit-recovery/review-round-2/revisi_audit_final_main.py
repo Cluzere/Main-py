@@ -3768,8 +3768,19 @@ class ClouzerBot(commands.Bot):
                     continue
 
                 etype = event.get("type", "")
+                _diag_now = asyncio.get_running_loop().time()
                 if _diag_timing is not None and "first_event_seconds" not in _diag_timing:
-                    _diag_timing["first_event_seconds"] = asyncio.get_running_loop().time() - _diag_request_start
+                    _diag_timing["first_event_seconds"] = _diag_now - _diag_request_start
+
+                # Catat durasi web search dari event SSE provider; tidak mengubah alur tool.
+                if _diag_timing is not None and etype.startswith("response.web_search_call."):
+                    _diag_timing.setdefault("web_event_types", []).append(etype)
+                    if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching"):
+                        _diag_timing.setdefault("web_search_start", _diag_now)
+                    elif etype == "response.web_search_call.completed":
+                        _diag_timing["web_search_completed_at"] = _diag_now
+                        if "web_search_start" in _diag_timing:
+                            _diag_timing["web_search_seconds"] = _diag_now - _diag_timing["web_search_start"]
 
                 if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching") and not raw_full_text and not web_badge_shown:
                     web_badge_shown = True
@@ -3827,6 +3838,21 @@ class ClouzerBot(commands.Bot):
 
         if not response_completed:
             raise RuntimeError("Responses stream berakhir sebelum event response.completed diterima.")
+
+        if _diag_timing is not None:
+            _diag_timing["response_completed_seconds"] = asyncio.get_running_loop().time() - _diag_request_start
+            _diag_timing["function_call_count"] = len(function_calls)
+            logging.warning(
+                "[RESPONSES-DETAIL] mode=%s headers=%s first_event=%s first_text=%s web_search=%s web_events=%s function_calls=%s response_completed=%.3fs",
+                mode,
+                f'{_diag_timing["request_to_headers_seconds"]:.3f}s' if "request_to_headers_seconds" in _diag_timing else "n/a",
+                f'{_diag_timing["first_event_seconds"]:.3f}s' if "first_event_seconds" in _diag_timing else "n/a",
+                f'{_diag_timing["first_text_seconds"]:.3f}s' if "first_text_seconds" in _diag_timing else "n/a",
+                f'{_diag_timing["web_search_seconds"]:.3f}s' if "web_search_seconds" in _diag_timing else "n/a",
+                ",".join(_diag_timing.get("web_event_types", [])) or "none",
+                len(function_calls),
+                _diag_timing["response_completed_seconds"],
+            )
 
         return clean_response_text(raw_full_text).strip(), function_calls
 
