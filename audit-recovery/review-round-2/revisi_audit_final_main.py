@@ -4171,7 +4171,7 @@ class ClouzerBot(commands.Bot):
                         and "first_event_seconds" not in attempt_diag
                     )
                     if attempt == 0 and safe_gateway_failure:
-                        retry_allowed, retry_wait = await asyncio.to_thread(
+                        retry_allowed, _retry_wait = await asyncio.to_thread(
                             self.global_budget.acquire, "responses"
                         )
                         if not retry_allowed:
