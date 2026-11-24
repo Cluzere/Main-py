@@ -3671,7 +3671,7 @@ class ClouzerBot(commands.Bot):
             except Exception as exc:
                 logging.exception("Gagal membaca dokumen pada pesan reply")
                 chunks.append(f"[Gagal membaca lampiran reply {scrub_secrets(att.filename or 'file')[:100]}: {type(exc).__name__}.]")
-        return "\\n\\n".join(chunks)
+        return "\n\n".join(chunks)
 
     async def resolve_replied_images(self, message: discord.Message) -> tuple[list[str], list[str]]:
         ref = message.reference
@@ -5120,6 +5120,13 @@ async def on_message(message: discord.Message):
             image_data_urls.extend(local_res)
         if http_res:
             llm_image_urls.extend(http_res)
+
+    if attachment_context_truncated:
+        skipped_notes.append(
+            "Konten gabungan lampiran dipotong pada batas %s karakter." % format(MAX_ATTACHMENT_CONTEXT_CHARS, ",")
+        )
+        if attachment_manifest:
+            attachment_manifest[-1] += " [KONTEN TIDAK SEPENUHNYA MASUK KONTEKS AI]"
 
     if attachment_manifest:
         additional_file_text += "\n\n--- MANIFEST LAMPIRAN ---\n" + "\n".join(attachment_manifest) + "\n--- AKHIR MANIFEST ---\n"
