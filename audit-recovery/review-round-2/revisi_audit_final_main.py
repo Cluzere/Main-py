@@ -4728,3 +4728,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+# Audit revision: hardened network, bounded I/O, and cleanup controls; see FINAL_AUDIT_REPORT.md.
