@@ -247,6 +247,43 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("gagal dibaca atau ditolak", text)
         self.assertNotIn("AAAA", text)
 
+
+    def test_replied_documents_obey_remaining_byte_and_character_budgets(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeAttachment:
+            def __init__(self, filename, size):
+                self.filename = filename
+                self.size = size
+
+        class FakeMessage:
+            def __init__(self):
+                self.attachments = [
+                    FakeAttachment("first.docx", 3),
+                    FakeAttachment("second.docx", 3),
+                ]
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+        async def fake_encode(attachment):
+            return ("CONTENT-" + attachment.filename, [], [], "docx")
+
+        bot.encode_attachment = fake_encode
+        source = FakeMessage()
+        message = SimpleNamespace(
+            reference=SimpleNamespace(message_id=123, resolved=source),
+            channel=SimpleNamespace(),
+        )
+        with patch.object(module.discord, "Message", FakeMessage):
+            result = asyncio.run(bot.resolve_replied_files(
+                message, remaining_bytes=4, remaining_chars=10
+            ))
+        self.assertIn("first.docx", result)
+        self.assertIn("dipotong", result.lower())
+        self.assertNotIn("second.docx", result)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
