@@ -1007,6 +1007,39 @@ class ArchiveReaderTests(unittest.TestCase):
             module.check_file_signature(".wav", b"not audio"),
         )
 
+
+    def test_replied_image_failure_does_not_skip_later_images(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeAttachment:
+            def __init__(self, filename):
+                self.filename = filename
+
+        class FakeMessage:
+            attachments = [FakeAttachment("bad.png"), FakeAttachment("good.png")]
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        calls = []
+
+        async def fake_encode(attachment):
+            calls.append(attachment.filename)
+            if attachment.filename == "bad.png":
+                raise ValueError("bad image")
+            return None, ["data:image/png;base64,AAAA"], [], "image"
+
+        bot.encode_attachment = fake_encode
+        message = SimpleNamespace(
+            reference=SimpleNamespace(message_id=9, resolved=FakeMessage()),
+            channel=SimpleNamespace(),
+        )
+        with patch.object(module.discord, "Message", FakeMessage):
+            local, remote = asyncio.run(bot.resolve_replied_images(message))
+        self.assertEqual(calls, ["bad.png", "good.png"])
+        self.assertEqual(local, ["data:image/png;base64,AAAA"])
+        self.assertEqual(remote, [])
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
