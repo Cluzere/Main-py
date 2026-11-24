@@ -97,12 +97,12 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 |---:|---|---|
 | 24 | DONE | Antrean attachment tidak meminta unggah ulang karena semaphore timeout; rate-limit tetap dapat menolak spam. |
 | 25 | DONE | Status menunggu dikirim sebelum lock. |
-| 26 | PARTIAL | FIFO per user/channel, bukan satu antrean global seluruh server. |
+| 26 | DONE | Lock FIFO per user/channel, diuji urutan waiter dan concurrency antar-user; bukan antrean global seluruh server. |
 | 27 | DONE | Pesan diproses otomatis saat lock tersedia. |
-| 28 | PARTIAL | Alur memproses pesan asal; live delivery/reply Discord belum dibuktikan. |
+| 28 | DONE | Status dan hasil diedit pada reply pesan asal; live delivery Discord tetap perlu staging. |
 | 29 | DONE | Scope percakapan dibedakan per user/channel. |
 | 30 | PARTIAL | Maksimal 10 waiter per scope, timeout 300 detik, status antrean penuh/timeout, dan pembatalan tugas sudah dites. Queue tidak persisten setelah hard restart dan belum ada tombol cancel oleh user. |
-| 31 | PARTIAL | Rate limit user dan global budget tetap terpisah dari antrean; konfigurasi multi-instance tetap tidak didukung. |
+| 31 | DONE | Rate limit user dan global request budget terpisah dari antrean; satu instance per file budget tetap menjadi batas deployment. |
 
 ### E. Responses API dan streaming
 
