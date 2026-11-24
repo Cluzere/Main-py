@@ -284,6 +284,108 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("dipotong", result.lower())
         self.assertNotIn("CONTENT-second.docx", result)
 
+
+    def test_on_message_processes_ten_mixed_attachments_and_isolates_one_failure(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeRateLimiter:
+            def acquire(self, *args, **kwargs):
+                return True, 0.0
+
+        class FakeBot:
+            user = SimpleNamespace(id=999)
+            rate_limiter = FakeRateLimiter()
+
+            def __init__(self):
+                self.processed = []
+                self.turn = None
+
+            def is_channel_allowed(self, channel, guild):
+                return True
+
+            async def encode_attachment(self, attachment):
+                self.processed.append(attachment.filename)
+                if attachment.filename == "03.docx":
+                    raise ValueError("simulated parser failure")
+                return "[READ %s]" % attachment.filename, [], [], "text"
+
+            async def process_ai_turn(self, **kwargs):
+                self.turn = kwargs
+
+        extensions = [".txt", ".pdf", ".docx", ".xlsx", ".pptx", ".png", ".jpg", ".zip", ".7z", ".csv"]
+        attachments = [
+            SimpleNamespace(filename="%02d%s" % (i + 1, ext), size=10, content_type="application/octet-stream")
+            for i, ext in enumerate(extensions)
+        ]
+        author = SimpleNamespace(bot=False, id=42, display_name="tester")
+        message = SimpleNamespace(
+            author=author,
+            guild=None,
+            channel=SimpleNamespace(id=7),
+            content="Baca semua file ini",
+            attachments=attachments,
+            reference=None,
+        )
+        bot = FakeBot()
+        with patch.object(module, "bot", bot):
+            asyncio.run(module.on_message(message))
+
+        self.assertEqual(len(bot.processed), 10)
+        self.assertEqual(len(set(bot.processed)), 10)
+        self.assertIsNotNone(bot.turn)
+        self.assertIn("READ 10.csv", bot.turn["additional_file_text"])
+        self.assertIn("03.docx gagal diproses", bot.turn["additional_file_text"])
+
+    def test_on_message_caps_eleven_attachments_at_ten_with_notice(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeRateLimiter:
+            def acquire(self, *args, **kwargs):
+                return True, 0.0
+
+        class FakeBot:
+            user = SimpleNamespace(id=999)
+            rate_limiter = FakeRateLimiter()
+
+            def __init__(self):
+                self.processed = []
+                self.turn = None
+
+            def is_channel_allowed(self, channel, guild):
+                return True
+
+            async def encode_attachment(self, attachment):
+                self.processed.append(attachment.filename)
+                return "[READ %s]" % attachment.filename, [], [], "text"
+
+            async def process_ai_turn(self, **kwargs):
+                self.turn = kwargs
+
+        class FakeMessage:
+            async def reply(self, content, **kwargs):
+                self.notice = content
+
+        bot = FakeBot()
+        message = FakeMessage()
+        message.author = SimpleNamespace(bot=False, id=42, display_name="tester")
+        message.guild = None
+        message.channel = SimpleNamespace(id=7)
+        message.content = "Baca semua"
+        message.reference = None
+        message.attachments = [
+            SimpleNamespace(filename="file-%02d.txt" % i, size=10, content_type="text/plain")
+            for i in range(11)
+        ]
+        with patch.object(module, "bot", bot):
+            asyncio.run(module.on_message(message))
+
+        self.assertEqual(len(bot.processed), 10)
+        self.assertIn("1 lampiran dilewati", message.notice)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
