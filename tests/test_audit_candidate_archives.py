@@ -473,6 +473,56 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("xl/charts/chart1.xml", text)
         self.assertIn("Sales", text)
 
+
+    def test_aggregate_attachment_context_cap_is_disclosed_per_file(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeRateLimiter:
+            def acquire(self, *args, **kwargs):
+                return True, 0.0
+
+        class FakeBot:
+            user = SimpleNamespace(id=999)
+            rate_limiter = FakeRateLimiter()
+
+            def __init__(self):
+                self.turn = None
+
+            def is_channel_allowed(self, channel, guild):
+                return True
+
+            async def encode_attachment(self, attachment):
+                return ("X" * 120, [], [], "text")
+
+            async def process_ai_turn(self, **kwargs):
+                self.turn = kwargs
+
+        class FakeMessage:
+            async def reply(self, content, **kwargs):
+                self.notice = content
+
+        bot = FakeBot()
+        message = FakeMessage()
+        message.author = SimpleNamespace(bot=False, id=42, display_name="tester")
+        message.guild = None
+        message.channel = SimpleNamespace(id=7)
+        message.content = "Baca semua"
+        message.reference = None
+        message.attachments = [
+            SimpleNamespace(filename="first.txt", size=10, content_type="text/plain"),
+            SimpleNamespace(filename="second.txt", size=10, content_type="text/plain"),
+        ]
+        with patch.object(module, "bot", bot), patch.object(module, "MAX_ATTACHMENT_CONTEXT_CHARS", 100):
+            asyncio.run(module.on_message(message))
+
+        context = bot.turn["additional_file_text"]
+        self.assertIn("batas gabungan seluruh file", context)
+        self.assertIn("first.txt", context)
+        self.assertIn("second.txt", context)
+        self.assertGreaterEqual(context.count("KONTEN TIDAK SEPENUHNYA MASUK KONTEKS AI"), 2)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
