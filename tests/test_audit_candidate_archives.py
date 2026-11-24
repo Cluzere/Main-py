@@ -1288,6 +1288,21 @@ class ArchiveReaderTests(unittest.TestCase):
 
         asyncio.run(run())
 
+
+    def test_safe_xml_parser_allows_plain_doctype_but_rejects_entities(self):
+        plain = module.safe_xml_fromstring(b"<!DOCTYPE svg><svg><title>safe</title></svg>")
+        self.assertEqual(plain.tag.rsplit("}", 1)[-1], "svg")
+
+        payloads = [
+            b'<!DOCTYPE svg [<!ENTITY x "boom">]><svg>&x;</svg>',
+            b'<!DOCTYPE svg [<!ENTITY a "&b;"><!ENTITY b "&a;">]><svg>&a;</svg>',
+            b'<!DOCTYPE svg SYSTEM "file:///etc/passwd"><svg/>',
+        ]
+        for payload in payloads:
+            with self.subTest(payload=payload[:60]):
+                with self.assertRaises(Exception):
+                    module.safe_xml_fromstring(payload)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
