@@ -1671,11 +1671,16 @@ _XML_ENTITY_DECL_RE = re.compile(rb"<!ENTITY\s+(%\s+)?[^\s>]+\s+(SYSTEM|PUBLIC|\
 _XML_NESTED_ENTITY_RE = re.compile(rb"<!ENTITY\s+[^\s>]+\s+(?:\"[^\"]*&[A-Za-z_#][^\";]*;[^\"]*\"|'[^']*&[A-Za-z_#][^';]*;[^']*')")
 
 
+_XML_EXTERNAL_DTD_RE = re.compile(rb"<!DOCTYPE\s+[^>]*(?:SYSTEM|PUBLIC)\b", re.IGNORECASE)
+
+
 def safe_xml_fromstring(raw: bytes):
     """ET.fromstring dengan penolakan entity-expansion (billion laughs) dan external/parameter entity.
 
     DOCTYPE biasa dan deklarasi entity sederhana (mis. header SVG dari Illustrator) tetap diterima.
     """
+    if _XML_EXTERNAL_DTD_RE.search(raw):
+        raise ValueError("XML ditolak: external DTD tidak diizinkan")
     if b"<!ENTITY" in raw:
         if raw.count(b"<!ENTITY") > 20:
             raise ValueError("XML ditolak: terlalu banyak deklarasi entity")
