@@ -1733,6 +1733,7 @@ class AIResponseView(discord.ui.View):
                     allow_image_tool=allow_image_tool,
                 )
 
+                _turn_diag["first_responses_call_seconds"] = _turn_loop.time() - _main_response_started
                 img_calls = [fc for fc in function_calls if fc.get("name") == "generate_image"]
                 unsupported_calls = [fc for fc in function_calls if fc.get("name") != "generate_image"]
                 if unsupported_calls:
@@ -3616,6 +3617,7 @@ class ClouzerBot(commands.Bot):
             _diag_semaphore_done = _diag_loop.time()
             diag = {
                 "started": _diag_start,
+                "request_id": getattr(target_msg, "id", None),
                 "budget_seconds": _diag_budget_done - _diag_start,
                 "semaphore_seconds": _diag_semaphore_done - _diag_semaphore_start,
             }
@@ -3625,8 +3627,8 @@ class ClouzerBot(commands.Bot):
                 _diag_timing=diag,
             )
         logging.warning(
-            "[TTFT-DIAG] mode=%s budget=%.3fs semaphore=%.3fs request_to_first_event=%s request_to_first_text=%s total=%.3fs",
-            mode, diag["budget_seconds"], diag["semaphore_seconds"],
+            "[TTFT-DIAG] request_id=%s mode=%s budget=%.3fs semaphore=%.3fs request_to_first_event=%s request_to_first_text=%s total=%.3fs",
+            diag.get("request_id"), mode, diag["budget_seconds"], diag["semaphore_seconds"],
             f'{diag["first_event_seconds"]:.3f}s' if "first_event_seconds" in diag else "n/a",
             f'{diag["first_text_seconds"]:.3f}s' if "first_text_seconds" in diag else "n/a",
             _diag_loop.time() - _diag_start,
@@ -3775,12 +3777,29 @@ class ClouzerBot(commands.Bot):
                 # Catat durasi web search dari event SSE provider; tidak mengubah alur tool.
                 if _diag_timing is not None and etype.startswith("response.web_search_call."):
                     _diag_timing.setdefault("web_event_types", []).append(etype)
+                    _diag_timing.setdefault("web_calls", [])
+                    _diag_timing.setdefault("web_active", {})
                     if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching"):
-                        _diag_timing.setdefault("web_search_start", _diag_now)
-                    elif etype == "response.web_search_call.completed":
-                        _diag_timing["web_search_completed_at"] = _diag_now
-                        if "web_search_start" in _diag_timing:
-                            _diag_timing["web_search_seconds"] = _diag_now - _diag_timing["web_search_start"]
+                        item_key = str(event.get("item_id") or event.get("output_index") or "web-unknown")
+                        active = _diag_timing["web_active"]
+                        if item_key not in active:
+                            if "web_first_start_seconds" not in _diag_timing:
+                                _diag_timing["web_first_start_seconds"] = _diag_now - _diag_request_start
+                            elif "web_last_completed_at" in _diag_timing:
+                                _diag_timing.setdefault("web_inter_search_gaps", []).append(
+                                    max(0.0, _diag_now - _diag_timing["web_last_completed_at"])
+                                )
+                            active[item_key] = _diag_now
+                    elif etype in ("response.web_search_call.completed", "response.web_search_call.failed"):
+                        item_key = str(event.get("item_id") or event.get("output_index") or "web-unknown")
+                        started_at = _diag_timing["web_active"].pop(item_key, None)
+                        duration = (_diag_now - started_at) if started_at is not None else None
+                        _diag_timing["web_calls"].append({
+                            "item": item_key,
+                            "status": "completed" if etype.endswith(".completed") else "failed",
+                            "seconds": duration,
+                        })
+                        _diag_timing["web_last_completed_at"] = _diag_now
 
                 if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching") and not raw_full_text and not web_badge_shown:
                     web_badge_shown = True
@@ -3793,7 +3812,8 @@ class ClouzerBot(commands.Bot):
                 elif etype == "response.output_text.delta":
                     delta = event.get("delta", "")
                     if delta and _diag_timing is not None and "first_text_seconds" not in _diag_timing:
-                        _diag_timing["first_text_seconds"] = asyncio.get_running_loop().time() - _diag_request_start
+                        _diag_timing["first_text_at"] = asyncio.get_running_loop().time()
+                        _diag_timing["first_text_seconds"] = _diag_timing["first_text_at"] - _diag_request_start
                     if delta and (raw_full_text or delta.strip()):
                         raw_full_text = append_bounded_response_text(raw_full_text, delta)
                         cleaned_live = clean_response_text(raw_full_text)
@@ -3842,13 +3862,32 @@ class ClouzerBot(commands.Bot):
         if _diag_timing is not None:
             _diag_timing["response_completed_seconds"] = asyncio.get_running_loop().time() - _diag_request_start
             _diag_timing["function_call_count"] = len(function_calls)
+            _web_calls = _diag_timing.get("web_calls", [])
+            _web_durations = [call["seconds"] for call in _web_calls if isinstance(call.get("seconds"), (int, float))]
+            _web_gaps = _diag_timing.get("web_inter_search_gaps", [])
+            _web_after_last_to_text = None
+            if "web_last_completed_at" in _diag_timing and "first_text_at" in _diag_timing:
+                _web_after_last_to_text = _diag_timing["first_text_at"] - _diag_timing["web_last_completed_at"]
+            _web_call_summary = ",".join(
+                f'{call["item"]}:{call["seconds"]:.3f}s:{call["status"]}'
+                for call in _web_calls if isinstance(call.get("seconds"), (int, float))
+            ) or "none"
             logging.warning(
-                "[RESPONSES-DETAIL] mode=%s headers=%s first_event=%s first_text=%s web_search=%s web_events=%s function_calls=%s response_completed=%.3fs",
+                "[RESPONSES-DETAIL] request_id=%s mode=%s headers=%s first_event=%s first_text=%s "
+                "web_first_start=%s web_call_count=%s web_call_durations=%s web_total=%s "
+                "web_inter_search_gaps=%s web_last_to_first_text=%s web_events=%s "
+                "function_calls=%s response_completed=%.3fs",
+                _diag_timing.get("request_id"),
                 mode,
                 f'{_diag_timing["request_to_headers_seconds"]:.3f}s' if "request_to_headers_seconds" in _diag_timing else "n/a",
                 f'{_diag_timing["first_event_seconds"]:.3f}s' if "first_event_seconds" in _diag_timing else "n/a",
                 f'{_diag_timing["first_text_seconds"]:.3f}s' if "first_text_seconds" in _diag_timing else "n/a",
-                f'{_diag_timing["web_search_seconds"]:.3f}s' if "web_search_seconds" in _diag_timing else "n/a",
+                f'{_diag_timing["web_first_start_seconds"]:.3f}s' if "web_first_start_seconds" in _diag_timing else "n/a",
+                len(_web_calls),
+                _web_call_summary,
+                f'{sum(_web_durations):.3f}s' if _web_durations else "n/a",
+                ",".join(f'{gap:.3f}s' for gap in _web_gaps) or "none",
+                f'{_web_after_last_to_text:.3f}s' if _web_after_last_to_text is not None else "n/a",
                 ",".join(_diag_timing.get("web_event_types", [])) or "none",
                 len(function_calls),
                 _diag_timing["response_completed_seconds"],
@@ -3866,7 +3905,15 @@ class ClouzerBot(commands.Bot):
         llm_image_urls: list[str] | None = None,
         additional_file_text: str = "",
         reply_to_message: discord.Message | None = None,
+        _ingress_started_at: float | None = None,
+        _attachment_seconds: float = 0.0,
     ):
+        _turn_loop = asyncio.get_running_loop()
+        _turn_started_at = _turn_loop.time()
+        _turn_diag = {
+            "ingress_seconds": max(0.0, _turn_started_at - _ingress_started_at) if _ingress_started_at is not None else None,
+            "attachment_seconds": _attachment_seconds,
+        }
         # Sensor secret yang diketik langsung di chat sebelum masuk prompt/memori.
         # (Teks lampiran sudah dipindai di encode_attachment.)
         clean_content = scrub_secrets(clean_content or "")
@@ -3934,11 +3981,15 @@ class ClouzerBot(commands.Bot):
             else:
                 status_badge = "💬 *Sedang memproses pesan...*"
 
+            _turn_diag["prompt_prep_seconds"] = _turn_loop.time() - _turn_started_at
+            _status_send_started = _turn_loop.time()
             status_msg = await (
                 reply_to_message.reply(status_badge, mention_author=False)
                 if reply_to_message
                 else target_channel.send(status_badge)
             )
+            _turn_diag["status_send_seconds"] = _turn_loop.time() - _status_send_started
+            _main_response_started = _turn_loop.time()
 
             try:
                 reply_text, function_calls = await self.run_responses_ai(
@@ -4197,7 +4248,9 @@ class ClouzerBot(commands.Bot):
                 reply_text = reply_text or "Maaf, tidak ada respon."
                 history_msgs.append({"role": "assistant", "content": reply_text})
                 guild_state["turn_count"] = guild_state.get("turn_count", 0) + 1
+                _memory_save_started = _turn_loop.time()
                 await self.save_memory()
+                _turn_diag["memory_save_seconds"] = _turn_loop.time() - _memory_save_started
 
                 # State tombol disimpan di ViewStateStore (dibatasi + persisten), bukan di objek view.
                 # Kegagalan menyimpan state tidak boleh menggagalkan jawaban: tombol saja yang jadi kedaluwarsa.
@@ -4216,14 +4269,46 @@ class ClouzerBot(commands.Bot):
                     logging.exception("Gagal menyimpan state tombol (%s)", scope_key)
                 ui_view = self.get_response_view()
                 chunks = split_discord_chunks(reply_text, limit=DISCORD_MSG_CHUNK_LIMIT)
+                _discord_delivery_started = _turn_loop.time()
                 await status_msg.edit(content=chunks[0], view=ui_view)
                 for chunk in chunks[1:]:
                     await target_channel.send(chunk)
+                _turn_diag["discord_delivery_seconds"] = _turn_loop.time() - _discord_delivery_started
+                _turn_diag["total_seconds"] = _turn_loop.time() - _turn_started_at
+                logging.warning(
+                    "[TURN-PIPELINE] message_id=%s status_message_id=%s ingress=%s attachments=%.3fs "
+                    "prompt_prep=%.3fs status_send=%.3fs first_responses_call=%.3fs memory_save=%.3fs "
+                    "discord_delivery=%.3fs total=%.3fs result=success",
+                    getattr(reply_to_message, "id", None),
+                    getattr(status_msg, "id", None),
+                    f'{_turn_diag["ingress_seconds"]:.3f}s' if _turn_diag["ingress_seconds"] is not None else "n/a",
+                    _turn_diag["attachment_seconds"],
+                    _turn_diag.get("prompt_prep_seconds", 0.0),
+                    _turn_diag.get("status_send_seconds", 0.0),
+                    _turn_diag.get("first_responses_call_seconds", 0.0),
+                    _turn_diag.get("memory_save_seconds", 0.0),
+                    _turn_diag.get("discord_delivery_seconds", 0.0),
+                    _turn_diag["total_seconds"],
+                )
             except Exception as e:
                 if history_msgs:
                     history_msgs.pop()
                 err_msg = f"⚠️ Error: `{safe_exc_text(e)}`"[:1990]
                 await status_msg.edit(content=err_msg)
+                _turn_diag["total_seconds"] = _turn_loop.time() - _turn_started_at
+                logging.warning(
+                    "[TURN-PIPELINE] message_id=%s status_message_id=%s ingress=%s attachments=%.3fs "
+                    "prompt_prep=%.3fs status_send=%.3fs first_responses_call=%.3fs total=%.3fs result=error:%s",
+                    getattr(reply_to_message, "id", None),
+                    getattr(status_msg, "id", None),
+                    f'{_turn_diag["ingress_seconds"]:.3f}s' if _turn_diag["ingress_seconds"] is not None else "n/a",
+                    _turn_diag["attachment_seconds"],
+                    _turn_diag.get("prompt_prep_seconds", 0.0),
+                    _turn_diag.get("status_send_seconds", 0.0),
+                    _turn_diag.get("first_responses_call_seconds", 0.0),
+                    _turn_diag["total_seconds"],
+                    type(e).__name__,
+                )
 
 
 bot = ClouzerBot()
@@ -4668,6 +4753,7 @@ async def on_message(message: discord.Message):
     if not bot.is_channel_allowed(message.channel, message.guild):
         return
 
+    _ingress_started_at = asyncio.get_running_loop().time()
     clean_content = message.content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
 
     # Pesan tanpa teks, lampiran, maupun reply tidak akan memicu AI: jangan habiskan jatah rate limit.
@@ -4684,6 +4770,7 @@ async def on_message(message: discord.Message):
             await notify_rate_limited(message, wait)
             return
 
+    _attachment_started_at = asyncio.get_running_loop().time()
     image_data_urls: list[str] = []
     llm_image_urls: list[str] = []
     additional_file_text = ""
@@ -4761,6 +4848,8 @@ async def on_message(message: discord.Message):
         llm_image_urls=llm_image_urls,
         additional_file_text=additional_file_text,
         reply_to_message=message,
+        _ingress_started_at=_ingress_started_at,
+        _attachment_seconds=asyncio.get_running_loop().time() - _attachment_started_at,
     )
 
 
