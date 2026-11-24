@@ -71,7 +71,7 @@ MAX_OUTPUT_IMAGE_BYTES = int(os.getenv("MAX_OUTPUT_IMAGE_BYTES", str(12 * 1024 *
 MAX_IMAGE_PIXELS = int(os.getenv("MAX_IMAGE_PIXELS", str(25_000_000)))
 DISCORD_MSG_CHUNK_LIMIT = min(1990, max(500, int(os.getenv("DISCORD_MSG_CHUNK_LIMIT", "1900"))))
 MEMORY_PROMPT_MAX_LEN = int(os.getenv("MEMORY_PROMPT_MAX_LEN", "160"))
-MAX_VISION_IMAGES_PER_TURN = _env_int("MAX_VISION_IMAGES_PER_TURN", 10, minimum=1)
+MAX_VISION_IMAGES_PER_TURN = 10
 # Defensive limits for ZIP-based office/e-book formats. These cap decompressed
 # work, not just the uploaded compressed size.
 ZIP_MAX_ENTRIES = 2000
@@ -102,6 +102,8 @@ def _env_bool(name: str, default: bool = False) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on", "y"}
+
+MAX_VISION_IMAGES_PER_TURN = _env_int("MAX_VISION_IMAGES_PER_TURN", 10, minimum=1)
 
 
 def _env_id_set(name: str) -> frozenset[int]:
