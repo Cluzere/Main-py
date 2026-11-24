@@ -6,6 +6,7 @@ on:
       - audit-recovery-gpt-2026-11-23
     paths:
       - "audit-recovery/review-round-2/main_final_hardened_candidate.py"
+      - "audit-recovery/review-round-2/revisi_audit_final_main.py"
       - "audit-recovery/review-round-2/test_audit_regressions.py"
       - ".github/workflows/audit-recovery.yml"
   workflow_dispatch:
@@ -22,6 +23,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile candidate
-        run: python -m py_compile audit-recovery/review-round-2/main_final_hardened_candidate.py
+        run: python -m py_compile audit-recovery/review-round-2/revisi_audit_final_main.py
       - name: Run focused regression tests
         run: python -m unittest discover -s audit-recovery/review-round-2 -p "test_*.py" -v
