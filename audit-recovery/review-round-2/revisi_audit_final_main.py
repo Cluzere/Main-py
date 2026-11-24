@@ -2901,7 +2901,7 @@ class ClouzerBot(commands.Bot):
         text = re.sub(r"\\[a-zA-Z]+-?\d*\s?", " ", text)
         text = text.replace("{", "").replace("}", "")
         text = re.sub(r"[ \t]+", " ", text)
-        text = re.sub(r"\n\s*\n+", "\n\n", text).strip()[:25000]
+        text = re.sub(r"\n\s*\n+", "\n\n", text).strip()[:MAX_DOCUMENT_TEXT_CHARS]
         if text:
             return self._wrap_doc_content("RTF", filename, text)
         return self._wrap_doc_content("RTF", filename, "[File RTF tidak mengandung teks yang dapat dibaca.]")
@@ -2909,7 +2909,7 @@ class ClouzerBot(commands.Bot):
     def extract_zip_office_or_epub_content(self, raw_bytes: bytes, filename: str, ext: str) -> str:
         parts: list[str] = []
         total_chars = 0
-        max_chars = 25000
+        max_chars = MAX_DOCUMENT_TEXT_CHARS
 
         try:
             with self._validate_zip_archive(raw_bytes) as zf:
@@ -3105,12 +3105,13 @@ class ClouzerBot(commands.Bot):
                 self.limit = limit
 
             def write(self, data):
-                next_size = max(self.tell() + len(data), len(self.getbuffer()))
-                if next_size > self.limit or self.owner.total_written + len(data) > ZIP_MAX_TOTAL_UNCOMPRESSED:
-                    raise ValueError("hasil ekstraksi 7Z melewati batas memori")
-                written = super().write(data)
-                self.owner.total_written += written
-                return written
+                with self.owner.lock:
+                    next_size = max(self.tell() + len(data), len(self.getbuffer()))
+                    if next_size > self.limit or self.owner.total_written + len(data) > ZIP_MAX_TOTAL_UNCOMPRESSED:
+                        raise ValueError("hasil ekstraksi 7Z melewati batas memori")
+                    written = super().write(data)
+                    self.owner.total_written += written
+                    return written
 
             def size(self):
                 return len(self.getbuffer())
@@ -3124,6 +3125,7 @@ class ClouzerBot(commands.Bot):
             def __init__(self):
                 self.files = {}
                 self.total_written = 0
+                self.lock = threading.Lock()
 
             def create(self, member_name):
                 if len(self.files) >= 100:
@@ -3729,7 +3731,13 @@ class ClouzerBot(commands.Bot):
             try:
                 data = await self._read_attachment_checked(attachment, ext)
                 archive_text, archive_imgs = await asyncio.to_thread(self.extract_7z_content, data, attachment.filename)
-                return archive_text, archive_imgs, [], "archive" if py7zr is not None else "archive_unsupported"
+                if py7zr is None:
+                    archive_type = "archive_unsupported"
+                elif "gagal dibaca atau ditolak" in archive_text.lower():
+                    archive_type = "archive_error"
+                else:
+                    archive_type = "archive"
+                return archive_text, archive_imgs, [], archive_type
             except Exception as exc:
                 logging.exception("Gagal membaca 7Z %s", scrub_secrets(attachment.filename)[:120])
                 return f"\\n\\n[7Z {scrub_secrets(attachment.filename)[:120]} gagal divalidasi: {type(exc).__name__}]\\n", [], [], "archive_error"
@@ -3839,7 +3847,7 @@ class ClouzerBot(commands.Bot):
                     if len(text_part) > remaining_text:
                         chunks.append("[Konten dokumen reply dipotong karena batas gabungan karakter tercapai.]")
                         break
-                if file_type in ("none", "unsupported", "busy"):
+                if file_type in ("none", "unsupported", "busy", "error", "archive_error", "archive_unsupported"):
                     chunks.append(f"[Lampiran pada pesan yang di-reply tidak berhasil dibaca: {scrub_secrets(att.filename or 'file')[:100]} ({file_type}).]")
             except Exception as exc:
                 logging.exception("Gagal membaca dokumen pada pesan reply")
@@ -5271,6 +5279,8 @@ async def on_message(message: discord.Message):
             "busy": "FAILED: antrean pemrosesan timeout",
             "unsupported": "UNSUPPORTED: format tidak didukung",
             "archive_unsupported": "UNSUPPORTED: parser 7Z belum tersedia",
+            "archive_error": "FAILED: arsip rusak atau ditolak batas keamanan",
+            "metadata_only": "PARTIAL: metadata saja, isi belum diparse",
             "none": "FAILED/EMPTY: konten tidak diekstrak",
             "error": "FAILED: exception pemrosesan",
         }
@@ -5278,7 +5288,7 @@ async def on_message(message: discord.Message):
         attachment_manifest.append(f"- {safe_filename} ({ext_label}, {mime_label}, {att_size:,} byte): {status}")
         if ftype == "blocked":
             blocked_files.append(safe_filename[:60])
-        elif ftype not in ("none", "busy", "unsupported", "error") and (text_res or local_res or http_res):
+        elif ftype not in ("none", "busy", "unsupported", "error", "archive_error", "archive_unsupported") and (text_res or local_res or http_res):
             has_usable_attachment = True
         if text_res:
             remaining_context = MAX_ATTACHMENT_CONTEXT_CHARS - len(additional_file_text)
