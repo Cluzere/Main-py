@@ -898,6 +898,15 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
+    def test_chat_and_file_requests_enter_fifo_queue_without_cooldown_rejection(self):
+        self.assertEqual(module._RATE_DEFAULTS["chat"], (0.0, 10, 60.0))
+        self.assertEqual(module._RATE_DEFAULTS["file"], (0.0, 6, 300.0))
+
+    def test_rate_limit_message_does_not_claim_rejected_turn_was_queued(self):
+        message = module.rate_limit_text(4)
+        self.assertIn("belum masuk antrean", message)
+        self.assertIn("4 detik", message)
+
 
 if __name__ == "__main__":
     unittest.main()
