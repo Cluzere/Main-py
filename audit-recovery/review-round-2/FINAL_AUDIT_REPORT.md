@@ -9,9 +9,11 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
 - Commit terakhir yang mengubah file kandidat: `20f7d35e93c1e3de9b19fdfa8398d6e2373ced1a`
+- Branch head saat laporan diperbarui: `840a479e334f9ee9ea3e023c43221dd80ad8cc9f`
+- File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Blob kandidat: `ed97417c86ddccc736efdac67c8694bdf80ea941`
 - Jumlah baris: 5.656
-- CI terakhir: [Run #45513962855 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45513962855)
+- CI terakhir: [Run #45514190007 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45514190007)
 
 ## Bukti CI terakhir
 
@@ -20,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat tambahan: **55/55 PASS**.
+- Tes kandidat tambahan: **56/56 PASS**.
 - Regresi audit yang sudah ada: **74/74 PASS**.
-- Total dua suite yang dijalankan pada run terakhir: **129 tes PASS**.
+- Total dua suite yang dijalankan pada run terakhir: **130 tes PASS**.
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -41,9 +43,9 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 10. Konteks gabungan lampiran dibatasi default 100.000 karakter. Manifest menandai konten yang tidak seluruhnya masuk konteks AI.
 11. Batas teks parser dokumen dinaikkan ke default 50.000 karakter per dokumen.
 12. DOCX membaca header/footer; PPTX membaca speaker notes dan judul/data seri grafik; XLSX membaca sheet serta metadata judul/range seri grafik.
-13. Retry Responses hanya satu kali untuk HTTP 502/503/504 sebelum event stream pertama. Tidak ada retry otomatis setelah stream mulai.
+13. Retry Responses maksimal satu kali untuk HTTP 502/503/504, serta HTTP 500 hanya jika error memuat frasa persis `Unable to forward upstream stream`, dan hanya sebelum event stream pertama. Tidak ada retry otomatis setelah stream mulai.
 14. Jika stream terputus setelah sebagian teks diterima, teks parsial dipertahankan dan user request tidak dibuang dari history.
-15. Antrean percakapan menggunakan lock FIFO per scope user/channel. Cancellation membersihkan referensi lock; scope antar-user terpisah.
+15. Antrean percakapan FIFO per scope user/channel dibatasi maksimal 10 waiter, timeout 300 detik, dan memberi status bila penuh/timeout/dibatalkan. Cancellation membersihkan referensi lock; scope antar-user terpisah. Antrean tetap in-memory dan tidak dipulihkan setelah hard restart.
 16. Environment override resource diberi hard cap: 10 lampiran, 10 gambar vision, 100 MB total lampiran, batas teks dokumen/konteks, serta batas konkurensi AI/image/audio.
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 
@@ -99,14 +101,14 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 27 | DONE | Pesan diproses otomatis saat lock tersedia. |
 | 28 | PARTIAL | Alur memproses pesan asal; live delivery/reply Discord belum dibuktikan. |
 | 29 | DONE | Scope percakapan dibedakan per user/channel. |
-| 30 | PARTIAL | Cancellation lock dibersihkan dan dites; queue tidak persisten setelah restart dan belum ada fitur antrean penuh/cancel user. |
+| 30 | PARTIAL | Maksimal 10 waiter per scope, timeout 300 detik, status antrean penuh/timeout, dan pembatalan tugas sudah dites. Queue tidak persisten setelah hard restart dan belum ada tombol cancel oleh user. |
 | 31 | PARTIAL | Rate limit user dan global budget tetap terpisah dari antrean; konfigurasi multi-instance tetap tidak didukung. |
 
 ### E. Responses API dan streaming
 
 | No. | Status | Catatan |
 |---:|---|---|
-| 32 | PARTIAL | HTTP gateway 502/503/504 sebelum event pertama ditangani dengan retry terbatas; bukan semua bentuk upstream stream failure. |
+| 32 | PARTIAL | Retry mencakup 502/503/504 dan HTTP 500 dengan frasa `Unable to forward upstream stream` sebelum event pertama; bentuk error upstream lain belum seluruhnya tercakup. |
 | 33 | DONE | Retry maksimal satu kali hanya untuk kegagalan gateway yang aman sebelum stream. |
 | 34 | PARTIAL | Tidak replay setelah event stream dimulai; belum ada idempotency key untuk semua side effect provider. |
 | 35 | PARTIAL | Kebijakan retry menghindari duplikasi dari retry stream; duplikasi live delivery belum diuji. |
@@ -147,13 +149,20 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 55 | PARTIAL | 10 file campuran diuji melalui mocked Discord event; belum 10 upload sungguhan melalui Discord CDN. |
 | 56 | PARTIAL | ZIP berisi beberapa format dites; belum semua kombinasi format/korupsi. |
 | 57 | PARTIAL | 7Z teks/DOCX dan compression-ratio bomb dites; encrypted/arsip dunia nyata belum live diuji. |
-| 58 | PARTIAL | Reply dokumen dites; reply gambar perlu staging tambahan. |
+| 58 | PARTIAL | Reply dokumen dan gambar, termasuk penggabungan gambar baru + gambar reply serta isolasi kegagalan gambar, dites via mock; live Discord staging tetap wajib. |
 | 59 | PARTIAL | Tes image generation/edit sebelumnya sudah dikonfirmasi pengguna; belum dire-run pada kandidat terbaru. |
-| 60 | PARTIAL | Scope user berbeda dan cancellation lock dites; belum tes dua user aktif bersamaan di Discord. |
+| 60 | PARTIAL | Scope user berbeda, konkurensi antar-scope, FIFO, queue timeout/full, dan cancellation dites via mock; belum tes dua user aktif bersamaan di Discord. |
 | 61 | PARTIAL | SSE partial disconnect dan retry policy dites; belum inject error pada upstream live. |
 | 62 | PARTIAL | Corrupt ZIP, signature mismatch, rasio 7Z, dan batas file dites; belum seluruh format. |
 | 63 | PARTIAL | History user/partial response dipertahankan dan retry dibatasi; belum pembuktian no-loss/no-duplicate live. |
 | 64 | PARTIAL | CI dan regresi lulus; staging dan promosi produksi belum dilakukan. |
+
+## Status antrean setelah hardening terbaru
+
+- Chat dan pesan berlampiran tidak lagi ditolak oleh cooldown minimum default; sliding-window tetap berlaku (chat 10/60 detik, file 6/300 detik), ditambah kuota harian dan global.
+- Antrean AI per user/channel menerima maksimal 10 waiter, menunggu FIFO, timeout default 300 detik (hard cap 600 detik), dan memberi status eksplisit jika penuh, timeout, atau task dibatalkan.
+- Pembatalan task saat menunggu lock maupun saat sedang diproses mencoba memperbarui status Discord dan selalu membersihkan referensi lock.
+- Ini bukan antrean persisten. Jika proses hosting mati mendadak sebelum handler cancellation berjalan, antrean yang menunggu tidak dipulihkan otomatis. User perlu mengirim ulang pesan yang belum selesai.
 
 ## Gerbang yang masih wajib sebelum produksi
 
