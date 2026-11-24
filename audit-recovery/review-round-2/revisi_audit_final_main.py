@@ -4171,6 +4171,14 @@ class ClouzerBot(commands.Bot):
                         and "first_event_seconds" not in attempt_diag
                     )
                     if attempt == 0 and safe_gateway_failure:
+                        retry_allowed, retry_wait = await asyncio.to_thread(
+                            self.global_budget.acquire, "responses"
+                        )
+                        if not retry_allowed:
+                            raise RuntimeError(
+                                "Anggaran API global harian tercapai; retry Responses dibatalkan "
+                                "agar batas penggunaan tetap dipatuhi."
+                            ) from exc
                         logging.warning(
                             "[RESPONSES-RETRY] request_id=%s status=upstream_gateway_failure attempt=1",
                             diag.get("request_id"),
