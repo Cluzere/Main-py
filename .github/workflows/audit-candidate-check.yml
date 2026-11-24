@@ -1,0 +1,21 @@
+name: Audit candidate syntax check
+
+on:
+  push:
+    branches:
+      - audit-recovery-gpt-2026-11-23
+    paths:
+      - "audit-recovery/review-round-2/revisi_audit_final_main.py"
+      - ".github/workflows/audit-candidate-check.yml"
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile candidate without running the bot
+        run: python -m py_compile audit-recovery/review-round-2/revisi_audit_final_main.py
