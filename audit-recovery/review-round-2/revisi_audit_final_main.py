@@ -129,15 +129,15 @@ def _env_id_set(name: str) -> frozenset[int]:
 MAX_ATTACHMENTS_PER_MESSAGE = _env_int_capped("MAX_ATTACHMENTS_PER_MESSAGE", 10, minimum=1, maximum=10)
 MAX_ATTACHMENT_TOTAL_BYTES = _env_int_capped("MAX_ATTACHMENT_TOTAL_MB", 100, minimum=1, maximum=100) * 1024 * 1024
 MAX_CONCURRENT_ATTACHMENTS = _env_int_capped("MAX_CONCURRENT_ATTACHMENTS", 3, minimum=1, maximum=5)
-MAX_TEXT_FILE_CHARS = _env_int("MAX_TEXT_FILE_CHARS", 60_000, minimum=1_000)
+MAX_TEXT_FILE_CHARS = _env_int_capped("MAX_TEXT_FILE_CHARS", 60_000, minimum=1_000, maximum=100_000)
 MAX_DOCUMENT_TEXT_CHARS = _env_int_capped("MAX_DOCUMENT_TEXT_CHARS", 50_000, minimum=5_000, maximum=100_000)
 MAX_ATTACHMENT_CONTEXT_CHARS = _env_int_capped("MAX_ATTACHMENT_CONTEXT_CHARS", 100_000, minimum=10_000, maximum=200_000)
 
 # Pemakaian API: konkurensi provider dan anggaran panjang prompt riwayat.
-MAX_CONCURRENT_AI_CALLS = _env_int("MAX_CONCURRENT_AI_CALLS", 4, minimum=1)
-MAX_CONCURRENT_IMAGE_CALLS = _env_int("MAX_CONCURRENT_IMAGE_CALLS", 2, minimum=1)
-MAX_CONCURRENT_AUDIO_CALLS = _env_int("MAX_CONCURRENT_AUDIO_CALLS", 2, minimum=1)
-PROMPT_HISTORY_MAX_CHARS = _env_int("PROMPT_HISTORY_MAX_CHARS", 240_000, minimum=20_000)
+MAX_CONCURRENT_AI_CALLS = _env_int_capped("MAX_CONCURRENT_AI_CALLS", 4, minimum=1, maximum=8)
+MAX_CONCURRENT_IMAGE_CALLS = _env_int_capped("MAX_CONCURRENT_IMAGE_CALLS", 2, minimum=1, maximum=4)
+MAX_CONCURRENT_AUDIO_CALLS = _env_int_capped("MAX_CONCURRENT_AUDIO_CALLS", 2, minimum=1, maximum=4)
+PROMPT_HISTORY_MAX_CHARS = _env_int_capped("PROMPT_HISTORY_MAX_CHARS", 240_000, minimum=20_000, maximum=500_000)
 
 # Deteksi secret: file dengan >= N secret berbeda ditolak total (bukan hanya disensor).
 SECRET_BLOCK_THRESHOLD = _env_int("SECRET_BLOCK_THRESHOLD", 5, minimum=1)
@@ -252,7 +252,7 @@ MEMORY_FILE = os.path.join(BASE_DIR, "memory.json")
 MAX_MEMORY_FILE_BYTES = 20 * 1024 * 1024
 MAX_RESPONSES_STREAM_BYTES = 20 * 1024 * 1024
 MAX_RESPONSES_LINE_BYTES = 1024 * 1024
-MAX_RESPONSES_OUTPUT_CHARS = _env_int("MAX_RESPONSES_OUTPUT_CHARS", 65536, minimum=1024)
+MAX_RESPONSES_OUTPUT_CHARS = _env_int_capped("MAX_RESPONSES_OUTPUT_CHARS", 65536, minimum=1024, maximum=100_000)
 MAX_RESPONSES_FUNCTION_CALLS = 8
 MAX_RESPONSES_FUNCTION_ARGUMENT_CHARS = 16 * 1024
 MAX_RECENT_MESSAGES = 10
