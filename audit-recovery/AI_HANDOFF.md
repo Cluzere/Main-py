@@ -1,5 +1,5 @@
 # AI HANDOFF — CURRENT DISCORD BOT AUDIT
-Last updated: 2026-11-23 (UTC)
+Last updated: 2026-11-25 (UTC)
 Repository: `Cluzere/Main-py`
 Active audit branch: `audit-recovery-gpt-2026-11-23`
 
@@ -7,7 +7,7 @@ Active audit branch: `audit-recovery-gpt-2026-11-23`
 
 ## 1. Non-negotiable working rules
 
-1. **Do not modify production `main.py` or the original source unless the user explicitly asks.** All current work is isolated under `audit-recovery/` on the audit branch.
+1. **Do not modify the production source.** The repository's original source file is `main (4).py` (identical to the default `main` branch); the hosting copy is referred to as `main.py`. All current work is isolated under `audit-recovery/` and tests on the audit branch.
 2. Do not rename the project, bot, model, provider, identifiers, or configuration based on guesses. Preserve exact existing names.
 3. Do not replace or rewrite the whole bot when a targeted patch is sufficient. Preserve working features and behavior.
 4. Do not claim a test passed unless it was actually run and its result inspected. Distinguish source inspection, unit tests, CI, staging, and live production verification.
@@ -21,30 +21,28 @@ Active audit branch: `audit-recovery-gpt-2026-11-23`
 - Repository: `Cluzere/Main-py`
 - Default branch: `main`
 - Audit branch: `audit-recovery-gpt-2026-11-23`
-- Current audit candidate:
-  `audit-recovery/review-round-2/main_final_hardened_candidate.py`
-- Regression suite:
-  `audit-recovery/review-round-2/test_audit_regressions.py`
-- Audit report:
-  `audit-recovery/review-round-2/INDEPENDENT_ROOT_CAUSE_AUDIT.md`
-- This handoff:
-  `audit-recovery/AI_HANDOFF.md`
+- Current audit candidate: `audit-recovery/review-round-2/revisi_audit_final_main.py`
+- Candidate-specific tests: `tests/test_audit_candidate_archives.py`
+- Existing regression suite: `audit-recovery/review-round-2/test_audit_regressions.py`
+- Current report: `audit-recovery/review-round-2/FINAL_AUDIT_REPORT.md`
+- README: `audit-recovery/review-round-2/README.md`
 
-### Current verified file blob SHAs (as of this handoff)
+### Current verified file blob SHAs
 
-- Candidate: `323df49a224304336af22ff3a0195f25624a1f97` (226,074 bytes)
-- Tests: `a5e6a9463513ec172af08ebb7a3c3688fe32f6c5` (35,969 bytes)
-- Report: `35917e8f6783c078fef95a1072f3f188e5e8937d` (20,711 bytes)
+- Candidate: `ed97417c86ddccc736efdac67c8694bdf80ea941` (282,602 bytes; 5,656 lines)
+- Candidate tests: `b3e2fc67db099f2a3a99287851829c682ac45fb5` (50,312 bytes; 1,374 lines)
+- Existing regression tests: `5a735dc40bdf4c8504f4d7bf180e819004f40592` (38,349 bytes; 901 lines)
+- Audit report: `5d4832099503f0e865f28042002a0cee90fc33ef`
+- Original source `main (4).py`: `ffffd0c17169b29504f4a8713dca396cf61ddeff` on both default `main` and audit branch; unchanged.
 
-### Recent commits
+### Current branch and CI
 
-- Candidate hardening: `7b35b6856d11173b7eaa7c9e29681d7174914791`
-- Added tests: `6a172f559d08c8d1892a7d15ec043f822462fdb5`
-- Report update: `612b4906ff6e392bf6474240bc14e2c1bdca8d8b`
-
-Latest known branch commit at handoff time: `612b4906ff6e392bf6474240bc14e2c1bdca8d8b`.
-
-**Production safety:** `main.py` has not been changed by this audit work. Keep it that way unless the user explicitly authorizes a production change.
+- Branch head at handoff refresh: `610e115a84b24e467cfb935cd3ccf312e48625a8`
+- Candidate source's latest code commit: `20f7d35e93c1e3de9b19fdfa8398d6e2373ced1a`
+- Latest verified candidate CI: run `45514190007`, SUCCESS.
+- Candidate suite: 56/56 PASS; existing regression suite: 74/74 PASS; total 130 tests.
+- Python 3.12 compile, `pip check`, Bandit medium/high severity, and `pip-audit --strict`: PASS; no known dependency vulnerabilities found.
+- Changes remain confined to audit candidate/tests/docs. The original source blob above is identical across branches.
 
 ## 3. What this bot/audit is trying to protect
 
@@ -103,18 +101,20 @@ The candidate received further bounds for provider output and function-call meta
 
 ## 6. Test and verification status — do not overstate
 
-Earlier baseline:
-- Commit `e6d20364b18e447c5773ca58a3781bc8cd8aa7da` had a successful GitHub Actions run (run ID `45092041454`).
-- That run reported 49 regression tests passing and Python 3.12 compilation passing.
-- That CI run predates the latest provider-output/function-call hardening.
+Latest verified CI:
+- Run `45514190007`: SUCCESS on candidate branch commit `840a479e334f9ee9ea3e023c43221dd80ad8cc9f`.
+- Candidate regression suite: **56/56 PASS**.
+- Existing audit regression suite: **74/74 PASS**.
+- Total: **130/130 tests PASS**.
+- CPython 3.12 compile: PASS.
+- `pip check`: PASS.
+- Bandit medium/high severity scan: PASS.
+- `pip-audit --strict`: PASS; no known dependency vulnerabilities found.
+- Latest candidate code blob remains `ed97417c86ddccc736efdac67c8694bdf80ea941`; later branch commits refreshed reports/docs and did not change candidate source.
 
-Latest state:
-- The candidate and test suite have since changed (9 additional regression tests; expected suite count is 58 if all prior tests remain intact).
-- CI status for the latest candidate/test commits was **not verified** when this handoff was written. Do not infer success from the earlier 49-test run.
-- The GitHub connector's commit workflow-run wrapper only surfaced pull-request-triggered runs; combined status returned no statuses for the latest direct commits. This does not establish that the workflow ran or passed.
-- No live end-to-end validation with Discord Gateway, provider Responses/SSE, image generation/editing, audio, Cloudflare/Pollinations, or hosting restart/persistence has been completed as part of this latest audit pass.
+These are CI/unit/regression results. They are not live end-to-end validation.
 
-Required next action: trigger/check the audit workflow for the latest branch head, verify Python 3.12 compilation and the complete regression suite, inspect actual job logs, and update this file/report with exact results. Never write “PASS” without the evidence.
+No live staging has yet proven Discord Gateway, Discord CDN attachment URLs, Xingchi SSE, Cloudflare image/edit/audio, Pollinations fallback, Wispbyte runtime dependencies, restart/shutdown, or real multi-user traffic. Do not call the candidate production-ready until the staging checklist in `FINAL_AUDIT_REPORT.md` is completed.
 
 ## 7. Known limits / remaining security work
 
@@ -131,11 +131,11 @@ These are not necessarily exploitable findings; they are areas requiring explici
 9. **Resource limits:** inspect every path that accumulates response text, event data, parser output, attachment bytes, image dimensions, and tool-call metadata. Bound before allocation wherever possible.
 10. **Recovery:** test corrupt state, disk-full/write failure, restart during writes, and concurrent saves. User-visible commands must not claim a setting was saved if persistence failed.
 
-## 8. Existing configuration/rate-limit values noted in the prior audit
+## 8. Current configuration/rate-limit values
 
-These are the defaults recorded during the audit; re-check the current candidate before relying on them because values may change:
-- Chat cooldown: 4 seconds; 10 per 60 seconds.
-- File cooldown: 12 seconds; 6 per 300 seconds.
+Rechecked against the latest candidate:
+- Chat cooldown: 0 seconds; 10 per 60 seconds.
+- File cooldown: 0 seconds; 6 per 300 seconds.
 - Image cooldown: 20 seconds; 8 per 600 seconds.
 - Regenerate: 8 seconds; 6 per 120 seconds.
 - Summarize: 60 seconds; 3 per 600 seconds.
@@ -143,14 +143,19 @@ These are the defaults recorded during the audit; re-check the current candidate
 - DM copy: 5 seconds; 5 per 120 seconds.
 - Daily user quota: 400 operations per rolling 24 hours.
 - Global daily operation defaults: Responses 600; images 40; audio 80.
-- AI concurrency 4; image 2; audio 2; attachment processing 2.
-- Vision images per turn: 5.
+- AI concurrency 4; image 2; audio 2; attachment processing 3.
+- Max attachments per message: 10; total default 100 MB.
+- Vision images per turn: 10.
+- Document text default: 50,000 chars; aggregate attachment context: 100,000 chars.
+- Queue per user/channel scope: max 10 waiting tasks; default timeout 300 seconds (hard cap 600 seconds).
+- ZIP/7Z expanded bytes, member count, compression ratio, and nesting are bounded.
+- 7Z requires `py7zr>=1.0,<2`; safe XML parsing requires `defusedxml`. Both are in `requirements-audit.txt`.
 - Prompt history cap: 240,000 characters.
-- Responses SSE cap: 20 MiB total; 1 MiB per line (verify the current bounded-line implementation).
+- Responses SSE cap: 20 MiB total; 1 MiB per line.
 - Default maximum output image: 12 MiB.
 - Image pixel default maximum: 25,000,000 pixels.
 
-Per-user limiter is RAM-only and resets on restart; global persisted quota is intended for a single active process/host and uses process-local locking. Verify current implementation before deployment.
+Per-user rate limiter is RAM-only and resets on restart. The conversation queue is also in-memory: it is bounded, FIFO, times out, and reports task cancellation, but it is not replayed after a hard process crash/restart. Graceful cancellation status update is best-effort. Global persisted quota is intended for a single active process/host and uses process-local locking; it is not safe as a shared multi-replica counter.
 
 ## 9. Current audit score and meaning
 
