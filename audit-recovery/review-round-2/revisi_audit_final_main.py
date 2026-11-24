@@ -1058,8 +1058,8 @@ class RateRule(NamedTuple):
 
 # kategori: (jeda minimum, maks per jendela, panjang jendela)
 _RATE_DEFAULTS: dict[str, tuple[float, int, float]] = {
-    "chat": (4.0, 10, 60.0),
-    "file": (12.0, 6, 300.0),
+    "chat": (0.0, 10, 60.0),
+    "file": (0.0, 6, 300.0),
     "image": (20.0, 8, 600.0),
     "regen": (8.0, 6, 120.0),
     "summarize": (60.0, 3, 600.0),
@@ -1192,7 +1192,10 @@ class RateLimiter:
 
 
 def rate_limit_text(wait: float) -> str:
-    return f"⏳ Pelan-pelan dulu ya. Coba lagi sekitar **{format_wait(wait)}**."
+    return (
+        "⏳ Batas permintaan sementara tercapai. Pesan ini belum masuk antrean; "
+        f"jatah berikutnya tersedia sekitar **{format_wait(wait)}**."
+    )
 
 
 # ---------------------------------------------------------------------------
