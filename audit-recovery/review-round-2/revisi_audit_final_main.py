@@ -3792,8 +3792,14 @@ class ClouzerBot(commands.Bot):
 
         return (f"\\n\\n[Format file {scrub_secrets(attachment.filename)[:120]} tidak didukung. Ekstensi: {ext or 'tanpa ekstensi'}; MIME: {getattr(attachment, 'content_type', None) or 'tidak diketahui'}.]\\n", [], [], "unsupported")
 
-    async def resolve_replied_files(self, message: discord.Message) -> str:
-        """Read document/text attachments from the message being replied to."""
+    async def resolve_replied_files(
+        self,
+        message: discord.Message,
+        *,
+        remaining_bytes: int | None = None,
+        remaining_chars: int | None = None,
+    ) -> str:
+        """Read replied-to documents within the current message's remaining budgets."""
         ref = message.reference
         if not ref or not ref.message_id:
             return ""
@@ -3809,12 +3815,14 @@ class ClouzerBot(commands.Bot):
         chunks: list[str] = []
         total_declared_bytes = 0
         total_text_chars = 0
+        byte_budget = MAX_ATTACHMENT_TOTAL_BYTES if remaining_bytes is None else max(0, int(remaining_bytes))
+        char_budget = MAX_ATTACHMENT_CONTEXT_CHARS if remaining_chars is None else max(0, int(remaining_chars))
         for att in list(replied_msg.attachments)[:MAX_ATTACHMENTS_PER_MESSAGE]:
             ext = os.path.splitext((att.filename or "").lower())[1]
             if ext in IMAGE_EXTS:
                 continue
             declared_size = max(0, int(getattr(att, "size", 0) or 0))
-            if total_declared_bytes + declared_size > MAX_ATTACHMENT_TOTAL_BYTES:
+            if total_declared_bytes + declared_size > byte_budget:
                 chunks.append(
                     f"[Lampiran reply {scrub_secrets(att.filename or 'file')[:100]} dilewati: "
                     "batas total ukuran lampiran pesan sumber tercapai.]"
@@ -3824,7 +3832,7 @@ class ClouzerBot(commands.Bot):
             try:
                 text_part, _, _, file_type = await self.encode_attachment(att)
                 if text_part:
-                    remaining_text = MAX_ATTACHMENT_CONTEXT_CHARS - total_text_chars
+                    remaining_text = char_budget - total_text_chars
                     if remaining_text > 0:
                         chunks.append(text_part[:remaining_text])
                         total_text_chars += min(len(text_part), remaining_text)
@@ -5296,9 +5304,13 @@ async def on_message(message: discord.Message):
     if attachment_manifest:
         additional_file_text += "\n\n--- MANIFEST LAMPIRAN ---\n" + "\n".join(attachment_manifest) + "\n--- AKHIR MANIFEST ---\n"
 
-    if not attachments and message.reference is not None:
+    if message.reference is not None:
         try:
-            replied_file_text = await bot.resolve_replied_files(message)
+            replied_file_text = await bot.resolve_replied_files(
+                message,
+                remaining_bytes=MAX_ATTACHMENT_TOTAL_BYTES - total_bytes,
+                remaining_chars=MAX_ATTACHMENT_CONTEXT_CHARS - len(additional_file_text),
+            )
             if replied_file_text:
                 additional_file_text += "\n\n--- DOKUMEN DARI PESAN YANG DI-REPLY ---\n" + replied_file_text
                 has_usable_attachment = True
