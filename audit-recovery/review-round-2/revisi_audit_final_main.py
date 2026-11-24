@@ -5450,6 +5450,10 @@ async def on_message(message: discord.Message):
             "error": "FAILED: exception pemrosesan",
         }
         status = status_map.get(ftype, "READ: konten berhasil diproses" if (text_res or local_res or http_res) else "NO CONTENT")
+        if ftype in ("unsupported", "archive_unsupported", "archive_error", "none", "error") and text_res:
+            safe_reason = re.sub(r"\s+", " ", scrub_secrets(text_res)).strip()
+            if safe_reason:
+                status += " — " + safe_reason[:180]
         attachment_manifest.append(f"- {safe_filename} ({ext_label}, {mime_label}, {att_size:,} byte): {status}")
         if ftype == "blocked":
             blocked_files.append(safe_filename[:60])
