@@ -4046,7 +4046,17 @@ class ClouzerBot(commands.Bot):
             has_image=bool(current_turn_images),
         )
 
+        # Kirim status segera sebelum menunggu lock; asyncio.Lock melayani waiter secara FIFO.
+        _queue_status_started = _turn_loop.time()
+        status_msg = await (
+            reply_to_message.reply("⏳ Pesan diterima. Menunggu giliran diproses...", mention_author=False)
+            if reply_to_message
+            else target_channel.send("⏳ Pesan diterima. Menunggu giliran diproses...")
+        )
+        _turn_diag["queue_status_send_seconds"] = _turn_loop.time() - _queue_status_started
+        _queue_wait_started = _turn_loop.time()
         async with self.guild_lock(scope_key):
+            _turn_diag["queue_wait_seconds"] = _turn_loop.time() - _queue_wait_started
             guild_state = self.get_guild_state(guild, user.id, channel_id)
             mode = guild_state["thread_modes"].get(str(target_channel.id), "fast")
             history_msgs = guild_state["messages"]
@@ -4095,11 +4105,7 @@ class ClouzerBot(commands.Bot):
 
             _turn_diag["prompt_prep_seconds"] = _turn_loop.time() - _turn_started_at
             _status_send_started = _turn_loop.time()
-            status_msg = await (
-                reply_to_message.reply(status_badge, mention_author=False)
-                if reply_to_message
-                else target_channel.send(status_badge)
-            )
+            await status_msg.edit(content=status_badge)
             _turn_diag["status_send_seconds"] = _turn_loop.time() - _status_send_started
             _main_response_started = _turn_loop.time()
 
