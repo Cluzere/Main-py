@@ -3241,8 +3241,10 @@ class ClouzerBot(commands.Bot):
                         or any(part == ".." for part in parts)
                         or chr(0) in member_name
                     ):
+                        parts_out.append("[Anggota 7Z ditolak karena path tidak aman: %s]" % member_name[:120])
                         continue
                     if getattr(info, "is_symlink", False) or not getattr(info, "is_file", False):
+                        parts_out.append("[Anggota khusus/symlink 7Z dilewati: %s]" % member_name[:120])
                         continue
                     size = getattr(info, "uncompressed", None)
                     compressed = getattr(info, "compressed", None)
