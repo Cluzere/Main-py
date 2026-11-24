@@ -627,7 +627,7 @@ class ArchiveReaderTests(unittest.TestCase):
 
         class FakeSession:
             def post(self, *args, **kwargs):
-                event = b'data: {"type":"response.output_text.delta","delta":"PARTIAL ANSWER"}\\n'
+                event = b'data: {"type":"response.output_text.delta","delta":"PARTIAL ANSWER"}\n'
                 return FakeRequest(FakeResponse(FakeStream([event, b""])))
 
         bot = module.ClouzerBot.__new__(module.ClouzerBot)
