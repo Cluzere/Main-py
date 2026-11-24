@@ -898,7 +898,7 @@ class ArchiveReaderTests(unittest.TestCase):
 
     def test_audio_container_signatures_are_checked(self):
         valid_samples = {
-            ".wav": b"RIFF" + b"\\x00" * 4 + b"WAVE" + b"data",
+            ".wav": b"RIFF" + b"\x00" * 4 + b"WAVE" + b"data",
             ".ogg": b"OggS" + b"payload",
             ".opus": b"OggS" + b"payload",
             ".flac": b"fLaC" + b"payload",
