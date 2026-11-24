@@ -3197,6 +3197,13 @@ class ClouzerBot(commands.Bot):
                         continue
                     total_bytes_read += len(member_bytes)
 
+                    signature_error = check_file_signature(ext, member_bytes)
+                    if signature_error:
+                        parts.append(
+                            f"[Anggota {name[:120]} ditolak karena signature tidak cocok: {signature_error}]"
+                        )
+                        continue
+
                     if ext in IMAGE_EXTS:
                         if len(images) >= _image_budget:
                             parts.append(f"[Gambar dilewati karena batas visual per giliran: {name[:120]}]")
@@ -3376,6 +3383,13 @@ class ClouzerBot(commands.Bot):
             for member_name, member_buffer in factory.files.items():
                 member_bytes = member_buffer.getvalue()
                 ext = os.path.splitext(member_name.lower())[1]
+                signature_error = check_file_signature(ext, member_bytes)
+                if signature_error:
+                    parts_out.append(
+                        "[Anggota %s ditolak karena signature tidak cocok: %s]"
+                        % (member_name[:120], signature_error)
+                    )
+                    continue
                 if ext in IMAGE_EXTS:
                     if len(images) >= MAX_VISION_IMAGES_PER_TURN:
                         parts_out.append("[Gambar 7Z dilewati karena batas visual per giliran.]")
