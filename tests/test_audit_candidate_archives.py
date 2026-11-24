@@ -77,6 +77,37 @@ class ArchiveReaderTests(unittest.TestCase):
         text, _ = self.bot.extract_generic_zip_content(raw, "bundle.zip")
         self.assertIn("NESTED XLSX CONTENT", text)
 
+    @staticmethod
+    def make_pptx(text):
+        from pptx import Presentation
+        from pptx.util import Inches
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        shape = slide.shapes.add_textbox(0, 0, Inches(6), Inches(1))
+        shape.text_frame.text = text
+        out = io.BytesIO()
+        prs.save(out)
+        return out.getvalue()
+
+    @staticmethod
+    def make_pdf(text):
+        doc = module.fitz.open()
+        page = doc.new_page()
+        page.insert_text((72, 72), text)
+        raw = doc.tobytes()
+        doc.close()
+        return raw
+
+    def test_reads_pptx_nested_inside_zip(self):
+        raw = self.make_zip([("slides/deck.pptx", self.make_pptx("NESTED PPTX CONTENT"))])
+        text, _ = self.bot.extract_generic_zip_content(raw, "bundle.zip")
+        self.assertIn("NESTED PPTX CONTENT", text)
+
+    def test_reads_pdf_nested_inside_zip(self):
+        raw = self.make_zip([("docs/report.pdf", self.make_pdf("NESTED PDF CONTENT"))])
+        text, _ = self.bot.extract_generic_zip_content(raw, "bundle.zip")
+        self.assertIn("NESTED PDF CONTENT", text)
+
     def test_reads_nested_zip_one_level(self):
         inner = self.make_zip([("inside.txt", "NESTED ZIP CONTENT")])
         outer = self.make_zip([("nested/inner.zip", inner)])
@@ -515,6 +546,36 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertEqual(len(bot.processed), 10)
         self.assertIn("1 lampiran dilewati", message.notice)
 
+
+    def test_reply_image_failure_does_not_drop_other_replied_images(self):
+        import asyncio
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeAttachment:
+            def __init__(self, filename):
+                self.filename = filename
+
+        class FakeMessage:
+            attachments = [FakeAttachment("broken.png"), FakeAttachment("good.png")]
+            embeds = []
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+        async def fake_encode(attachment):
+            if attachment.filename == "broken.png":
+                raise ValueError("simulated image parser failure")
+            return None, ["data:image/jpeg;base64,GOOD"], ["https://cdn.discordapp.com/good.png"], "image"
+
+        bot.encode_attachment = fake_encode
+        message = SimpleNamespace(
+            reference=SimpleNamespace(message_id=1, resolved=FakeMessage()),
+            channel=SimpleNamespace(),
+        )
+        with patch.object(module.discord, "Message", FakeMessage):
+            local, remote = asyncio.run(bot.resolve_replied_images(message))
+        self.assertEqual(local, ["data:image/jpeg;base64,GOOD"])
+        self.assertEqual(remote, ["https://cdn.discordapp.com/good.png"])
 
     def test_replied_documents_are_joined_with_real_newlines(self):
         import asyncio
