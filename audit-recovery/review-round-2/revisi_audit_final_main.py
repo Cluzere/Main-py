@@ -123,7 +123,6 @@ def _env_id_set(name: str) -> frozenset[int]:
 MAX_ATTACHMENTS_PER_MESSAGE = _env_int("MAX_ATTACHMENTS_PER_MESSAGE", 10, minimum=1)
 MAX_ATTACHMENT_TOTAL_BYTES = _env_int("MAX_ATTACHMENT_TOTAL_MB", 100, minimum=1) * 1024 * 1024
 MAX_CONCURRENT_ATTACHMENTS = _env_int("MAX_CONCURRENT_ATTACHMENTS", 3, minimum=1)
-ATTACHMENT_QUEUE_TIMEOUT_SECONDS = _env_float("ATTACHMENT_QUEUE_TIMEOUT_SECONDS", 120.0, minimum=1.0)
 MAX_TEXT_FILE_CHARS = _env_int("MAX_TEXT_FILE_CHARS", 60_000, minimum=1_000)
 MAX_DOCUMENT_TEXT_CHARS = _env_int("MAX_DOCUMENT_TEXT_CHARS", 50_000, minimum=5_000)
 MAX_ATTACHMENT_CONTEXT_CHARS = _env_int("MAX_ATTACHMENT_CONTEXT_CHARS", 100_000, minimum=10_000)
@@ -3739,7 +3738,7 @@ class ClouzerBot(commands.Bot):
                 return pdf_text, pdf_images, [], "pdf"
             except Exception:
                 logging.exception("Gagal membaca lampiran PDF %s", scrub_secrets(attachment.filename)[:120])
-                return f"\n\n[Gagal membaca file PDF {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
+                return f"\n\n[Gagal membaca file PDF {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "error"
 
         elif ext == ".docx" and attachment.size <= 15 * 1024 * 1024:
             try:
@@ -3748,7 +3747,7 @@ class ClouzerBot(commands.Bot):
                 return docx_text, docx_imgs, [], "docx"
             except Exception:
                 logging.exception("Gagal membaca lampiran DOCX %s", scrub_secrets(attachment.filename)[:120])
-                return f"\n\n[Gagal membaca file DOCX {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
+                return f"\n\n[Gagal membaca file DOCX {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "error"
 
         elif ext == ".pptx" and attachment.size <= 20 * 1024 * 1024:
             try:
@@ -3757,7 +3756,7 @@ class ClouzerBot(commands.Bot):
                 return pptx_text, pptx_imgs, [], "pptx"
             except Exception:
                 logging.exception("Gagal membaca lampiran PPTX %s", scrub_secrets(attachment.filename)[:120])
-                return f"\n\n[Gagal membaca file PPTX {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
+                return f"\n\n[Gagal membaca file PPTX {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "error"
         elif ext == ".xlsx" and attachment.size <= 20 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
@@ -3765,7 +3764,7 @@ class ClouzerBot(commands.Bot):
                 return xlsx_text, xlsx_imgs, [], "xlsx"
             except Exception:
                 logging.exception("Gagal membaca lampiran XLSX %s", scrub_secrets(attachment.filename)[:120])
-                return f"\n\n[Gagal membaca file XLSX {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
+                return f"\n\n[Gagal membaca file XLSX {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "error"
 
         elif ext == ".rtf" and attachment.size <= 10 * 1024 * 1024:
             try:
@@ -3774,7 +3773,7 @@ class ClouzerBot(commands.Bot):
                 return rtf_text, [], [], "rtf"
             except Exception:
                 logging.exception("Gagal membaca lampiran RTF %s", scrub_secrets(attachment.filename)[:120])
-                return f"\n\n[Gagal membaca file RTF {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
+                return f"\n\n[Gagal membaca file RTF {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "error"
 
         elif ext == ".zip" and attachment.size <= 30 * 1024 * 1024:
             try:
@@ -3807,7 +3806,7 @@ class ClouzerBot(commands.Bot):
                 return zip_text, [], [], ext.lstrip(".")
             except Exception:
                 logging.exception("Gagal membaca lampiran arsip %s", scrub_secrets(attachment.filename)[:120])
-                return f"\n\n[Gagal membaca file {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
+                return f"\n\n[Gagal membaca file {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "error"
 
         elif ext in {".svg", ".eps", ".ai"} and attachment.size <= 20 * 1024 * 1024:
             try:
@@ -3816,7 +3815,7 @@ class ClouzerBot(commands.Bot):
                 return design_text, [], [], ext.lstrip(".")
             except Exception:
                 logging.exception("Gagal membaca lampiran desain %s", scrub_secrets(attachment.filename)[:120])
-                return f"\n\n[Gagal membaca file desain {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "document"
+                return f"\n\n[Gagal membaca file desain {scrub_secrets(attachment.filename)[:120]}.]\n", [], [], "error"
 
         elif ext in AUDIO_EXTS and attachment.size <= 25 * 1024 * 1024:
             try:
@@ -5334,7 +5333,7 @@ async def on_message(message: discord.Message):
             )
         status_map = {
             "blocked": "BLOCKED: kredensial/rahasia terdeteksi",
-            "busy": "FAILED: antrean pemrosesan timeout",
+            "busy": "QUEUED/WAITING: antrean lampiran masih diproses",
             "unsupported": "UNSUPPORTED: format tidak didukung",
             "archive_unsupported": "UNSUPPORTED: parser 7Z belum tersedia",
             "archive_error": "FAILED: arsip rusak atau ditolak batas keamanan",
