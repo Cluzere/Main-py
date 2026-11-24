@@ -1,0 +1,29 @@
+Server marked as running
+Python 3.11.18
+container~ pip install --no-cache-dir -r /home/container/requirements.txt && /usr/local/bin/python /home/container/revisi_audit_final_main.py
+Defaulting to user installation because normal site-packages is not writeable
+Requirement already satisfied: discord.py>=2.3.2 in ./.local/lib/python3.11/site-packages (from -r /home/container/requirements.txt (line 1)) (2.7.1)
+Requirement already satisfied: aiohttp>=3.9.0 in ./.local/lib/python3.11/site-packages (from -r /home/container/requirements.txt (line 2)) (3.14.5)
+Requirement already satisfied: Pillow>=10.0.0 in ./.local/lib/python3.11/site-packages (from -r /home/container/requirements.txt (line 3)) (13.0.0)
+Requirement already satisfied: python-dotenv>=1.0.0 in ./.local/lib/python3.11/site-packages (from -r /home/container/requirements.txt (line 4)) (1.2.4)
+Requirement already satisfied: PyMuPDF<2 in ./.local/lib/python3.11/site-packages (from -r /home/container/requirements.txt (line 5)) (1.28.2)
+Requirement already satisfied: python-docx>=1.1.0 in ./.local/lib/python3.11/site-packages (from -r /home/container/requirements.txt (line 6)) (1.2.0)
+Requirement already satisfied: python-pptx>=0.6.23 in ./.local/lib/python3.11/site-packages (from -r /home/container/requirements.txt (line 7)) (1.0.2)
+Requirement already satisfied: openpyxl>=3.1.2 in ./.local/lib/python3.11/site-packages (from -r /home/container/requirements.txt (line 8)) (3.1.5)
+Requirement already satisfied: aiohappyeyeballs>=2.5.0 in ./.local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r /home/container/requirements.txt (line 2)) (2.7.1)
+Requirement already satisfied: aiosignal>=1.4.0 in ./.local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r /home/container/requirements.txt (line 2)) (1.4.0)
+Requirement already satisfied: attrs>=17.3.0 in ./.local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r /home/container/requirements.txt (line 2)) (26.1.0)
+Requirement already satisfied: frozenlist>=1.1.1 in ./.local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r /home/container/requirements.txt (line 2)) (1.8.0)
+Requirement already satisfied: multidict<8.0,>=4.5 in ./.local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r /home/container/requirements.txt (line 2)) (7.2.1)
+Requirement already satisfied: propcache>=0.2.0 in ./.local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r /home/container/requirements.txt (line 2)) (0.5.4)
+Requirement already satisfied: typing_extensions>=4.4 in ./.local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r /home/container/requirements.txt (line 2)) (4.16.0)
+Requirement already satisfied: yarl<2.0,>=1.25.1 in ./.local/lib/python3.11/site-packages (from aiohttp>=3.9.0->-r /home/container/requirements.txt (line 2)) (1.25.1)
+Requirement already satisfied: lxml>=3.1.0 in ./.local/lib/python3.11/site-packages (from python-docx>=1.1.0->-r /home/container/requirements.txt (line 6)) (6.1.3)
+Requirement already satisfied: XlsxWriter>=0.5.7 in ./.local/lib/python3.11/site-packages (from python-pptx>=0.6.23->-r /home/container/requirements.txt (line 7)) (3.3.3)
+Requirement already satisfied: et-xmlfile in ./.local/lib/python3.11/site-packages (from openpyxl>=3.1.2->-r /home/container/requirements.txt (line 8)) (2.0.0)
+Requirement already satisfied: idna>=2.0 in ./.local/lib/python3.11/site-packages (from yarl<2.0,>=1.25.1->aiohttp>=3.9.0->-r /home/container/requirements.txt (line 2)) (3.20)
+
+[notice] A new release of pip is available: 24.0 -> 26.3
+[notice] To update, run: pip install --upgrade pip
+[ONLINE] Clouzer AI Bot aktif (Cloudflare AI: OK (3 akun) | Gen: @cf/leonardo/lucid-origin | Edit: @cf/black-forest-labs/flux-2-klein-4b | Audio: @cf/openai/whisper-large-v3-turbo | Multi-Format Doc/Slide/Sheet/Design/Audio Reader + Native Web Search)!
+[CHECK] Pastikan Message Content Intent juga aktif di Discord Developer Portal.
