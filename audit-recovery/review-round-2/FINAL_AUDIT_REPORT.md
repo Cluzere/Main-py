@@ -175,4 +175,4 @@ Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
 - Tes regresi lama: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/test_audit_regressions.py
 - Dependensi staging: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/requirements-audit.txt
 - Perintah staging: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/STARTUP_COMMANDS.txt
-- Workflow CI: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-25/.github/workflows/audit-candidate-check.yml
+- Workflow CI: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/.github/workflows/audit-candidate-check.yml
