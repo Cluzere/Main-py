@@ -1680,7 +1680,7 @@ def safe_xml_fromstring(raw: bytes):
     DOCTYPE biasa dan deklarasi entity sederhana (mis. header SVG dari Illustrator) tetap diterima.
     """
     if _XML_EXTERNAL_DTD_RE.search(raw):
-        raise ValueError("XML ditolak: external DTD tidak diizinkan")
+        raise ValueError("XML ditolak: external/parameter entity atau DTD tidak diizinkan")
     if b"<!ENTITY" in raw:
         if raw.count(b"<!ENTITY") > 20:
             raise ValueError("XML ditolak: terlalu banyak deklarasi entity")
