@@ -218,6 +218,67 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertEqual(attempts, 1)
         self.assertEqual(bot.global_budget.calls, 2)
 
+
+    def test_retry_policy_covers_503_and_504_gateway_failures(self):
+        import asyncio
+
+        for status in (503, 504):
+            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+            class Budget:
+                def __init__(self):
+                    self.calls = 0
+
+                def acquire(self, _category):
+                    self.calls += 1
+                    return True, 0.0
+
+            bot.global_budget = Budget()
+            bot.ai_semaphore = asyncio.Semaphore(1)
+            attempts = 0
+
+            async def fake_impl(*args, **kwargs):
+                nonlocal attempts
+                attempts += 1
+                if attempts == 1:
+                    raise RuntimeError("Responses HTTP %d: gateway unavailable" % status)
+                return "recovered", []
+
+            bot._run_responses_ai_impl = fake_impl
+            result = asyncio.run(bot.run_responses_ai([], None))
+            self.assertEqual(result[0], "recovered")
+            self.assertEqual(attempts, 2)
+            self.assertEqual(bot.global_budget.calls, 2)
+
+    def test_retry_policy_does_not_retry_http_429_or_500(self):
+        import asyncio
+
+        for status in (429, 500):
+            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+            class Budget:
+                def __init__(self):
+                    self.calls = 0
+
+                def acquire(self, _category):
+                    self.calls += 1
+                    return True, 0.0
+
+            bot.global_budget = Budget()
+            bot.ai_semaphore = asyncio.Semaphore(1)
+            attempts = 0
+
+            async def fake_impl(*args, **kwargs):
+                nonlocal attempts
+                attempts += 1
+                raise RuntimeError("Responses HTTP %d: do not retry" % status)
+
+            bot._run_responses_ai_impl = fake_impl
+            with self.assertRaisesRegex(RuntimeError, "HTTP %d" % status):
+                asyncio.run(bot.run_responses_ai([], None))
+            self.assertEqual(attempts, 1)
+            self.assertEqual(bot.global_budget.calls, 1)
+
     def test_docx_header_and_footer_are_extracted(self):
         from docx import Document
         doc = Document()
