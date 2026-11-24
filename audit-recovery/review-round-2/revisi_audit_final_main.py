@@ -2899,61 +2899,146 @@ class ClouzerBot(commands.Bot):
         return self._wrap_doc_content(ext.lstrip(".").upper(), filename, f"[File {filename} terbaca namun tidak memiliki teks yang dapat diekstrak.]")
 
 
-    def extract_generic_zip_content(self, raw_bytes: bytes, filename: str) -> tuple[str, list[str]]:
-        """Safely read a generic ZIP in memory; no filesystem extraction is performed."""
+    def extract_generic_zip_content(
+        self,
+        raw_bytes: bytes,
+        filename: str,
+        _depth: int = 0,
+        _image_budget: int | None = None,
+    ) -> tuple[str, list[str]]:
+        """Read a bounded ZIP in memory; never writes archive paths to disk.
+
+        Nested ZIPs are limited to one level. Every member is read through a
+        bounded stream and all document parsers receive bytes, not filesystem paths.
+        """
         parts: list[str] = []
         images: list[str] = []
         total_chars = 0
+        total_bytes_read = 0
         max_chars = 30000
-        text_exts = {".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm",
-                     ".log", ".yaml", ".yml", ".ini", ".py", ".js", ".ts",
-                     ".css", ".sql", ".sh", ".rtf"}
+        max_read_bytes = 50 * 1024 * 1024
+        max_members = 100
+        if _image_budget is None:
+            _image_budget = MAX_VISION_IMAGES_PER_TURN
+
+        text_exts = {
+            ".txt", ".md", ".csv", ".tsv", ".json", ".xml", ".html", ".htm",
+            ".log", ".yaml", ".yml", ".ini", ".py", ".js", ".ts", ".css",
+            ".sql", ".sh", ".rtf",
+        }
+        document_exts = {".pdf", ".docx", ".pptx", ".xlsx"}
+
         with self._validate_zip_archive(raw_bytes) as zf:
-            for info in zf.infolist():
-                if info.is_dir():
-                    continue
+            members = [info for info in zf.infolist() if not info.is_dir()]
+            if len(members) > max_members:
+                parts.append(
+                    f"[Arsip berisi {len(members)} file; hanya {max_members} anggota pertama yang diproses.]"
+                )
+            for info in members[:max_members]:
                 name = info.filename.replace(chr(92), "/")
-                if name.startswith("/") or any(part == ".." for part in name.split("/")):
-                    parts.append(f"[Anggota ditolak karena path traversal: {name[:120]}]")
+                normalized_parts = name.split("/")
+                if (
+                    name.startswith("/")
+                    or name.startswith("//")
+                    or any(part in {"..", ""} for part in normalized_parts if part != "")
+                    or "\x00" in name
+                ):
+                    parts.append(f"[Anggota ditolak karena path tidak aman: {name[:120]}]")
                     continue
+                # Symlink entries are not followed or materialized.
+                unix_mode = (info.external_attr >> 16) & 0xFFFF
+                if (unix_mode & 0o170000) == 0o120000:
+                    parts.append(f"[Anggota symlink dilewati: {name[:120]}]")
+                    continue
+                if info.file_size > max_read_bytes - total_bytes_read:
+                    parts.append("[Anggota selanjutnya tidak dibaca: batas total byte arsip tercapai.]")
+                    break
+
                 ext = os.path.splitext(name.lower())[1]
-                if ext in IMAGE_EXTS:
-                    if len(images) >= MAX_VISION_IMAGES_PER_TURN:
-                        parts.append(f"[Gambar dilewati karena batas visual: {name[:120]}]")
+                try:
+                    with zf.open(info, "r") as member_stream:
+                        member_bytes = member_stream.read(min(info.file_size, max_read_bytes - total_bytes_read) + 1)
+                    if len(member_bytes) != info.file_size:
+                        parts.append(f"[Ukuran anggota tidak cocok atau melebihi batas: {name[:120]}]")
                         continue
-                    try:
-                        images.append(self._compress_image_bytes_to_data_url(zf.read(info)))
+                    total_bytes_read += len(member_bytes)
+
+                    if ext in IMAGE_EXTS:
+                        if len(images) >= _image_budget:
+                            parts.append(f"[Gambar dilewati karena batas visual per giliran: {name[:120]}]")
+                            continue
+                        images.append(self._compress_image_bytes_to_data_url(member_bytes))
                         parts.append(f"[Gambar arsip disertakan sebagai visual: {name[:140]}]")
-                    except Exception as exc:
-                        parts.append(f"[Gambar gagal diproses: {name[:100]} ({type(exc).__name__})]")
-                elif ext in text_exts:
-                    remaining = max_chars - total_chars
-                    if remaining <= 0:
-                        parts.append("[Anggota selanjutnya tidak dibaca: batas teks arsip tercapai.]")
-                        break
-                    try:
-                        raw = zf.read(info)
-                        content = raw.decode("utf-8-sig", errors="replace")
+                        continue
+
+                    if ext in text_exts:
+                        remaining = max_chars - total_chars
+                        if remaining <= 0:
+                            parts.append("[Anggota selanjutnya tidak dibaca: batas teks arsip tercapai.]")
+                            break
+                        content = member_bytes.decode("utf-8-sig", errors="replace")
                         scan = scan_secrets(content, code_mode=ext in CODE_EXTS)
                         if scan.blocked:
                             parts.append(f"[Anggota {name[:120]} ditahan karena berisi kredensial.]")
                             continue
                         content = scan.text[:remaining]
                         if len(scan.text) > remaining:
-                            content += "\\n...(dipotong karena batas total teks arsip)"
-                        parts.append(f"[{name[:160]}]\\n{content}")
+                            content += "\n...(dipotong karena batas total teks arsip)"
+                        parts.append(f"[{name[:160]}]\n{content}")
                         total_chars += len(content)
-                    except Exception as exc:
-                        parts.append(f"[Anggota gagal dibaca: {name[:100]} ({type(exc).__name__})]")
-                elif ext in {".zip", ".7z"}:
-                    parts.append(f"[Arsip bersarang tidak diekstrak: {name[:140]}]")
-                elif ext in {".pdf", ".docx", ".pptx", ".xlsx"}:
-                    parts.append(f"[Dokumen terdeteksi tetapi parser dokumen bersarang belum dijalankan: {name[:140]}]")
-                else:
-                    parts.append(f"[Format anggota belum didukung: {name[:140]}]")
+                        continue
+
+                    if ext in document_exts:
+                        if ext == ".pdf":
+                            parsed_text, parsed_images = self.extract_pdf_content(member_bytes, name)
+                        elif ext == ".docx":
+                            parsed_text, parsed_images = self.extract_docx_content(member_bytes, name)
+                        elif ext == ".pptx":
+                            parsed_text, parsed_images = self.extract_pptx_content(member_bytes, name)
+                        else:
+                            parsed_text, parsed_images = self.extract_xlsx_content(member_bytes, name)
+                        if parsed_text:
+                            remaining = max_chars - total_chars
+                            clipped = parsed_text[:remaining]
+                            parts.append(clipped)
+                            total_chars += len(clipped)
+                            if len(parsed_text) > remaining:
+                                parts.append("[Konten dokumen arsip dipotong karena batas total teks ZIP.]")
+                        for data_url in parsed_images:
+                            if len(images) >= _image_budget:
+                                break
+                            images.append(data_url)
+                        if len(parsed_images) > max(0, _image_budget - len(images)):
+                            parts.append(f"[Sebagian gambar dari {name[:100]} dilewati karena batas visual.]")
+                        continue
+
+                    if ext == ".zip":
+                        if _depth >= 1:
+                            parts.append(f"[ZIP bersarang dilewati: kedalaman maksimum tercapai ({name[:120]}).]")
+                        else:
+                            nested_text, nested_images = self.extract_generic_zip_content(
+                                member_bytes,
+                                name,
+                                _depth=_depth + 1,
+                                _image_budget=max(0, _image_budget - len(images)),
+                            )
+                            remaining = max_chars - total_chars
+                            clipped = nested_text[:remaining]
+                            parts.append(clipped)
+                            total_chars += len(clipped)
+                            images.extend(nested_images[:max(0, _image_budget - len(images))])
+                        continue
+
+                    if ext == ".7z":
+                        parts.append(f"[Arsip 7Z terdeteksi tetapi parser 7Z belum tersedia: {name[:140]}]")
+                    else:
+                        parts.append(f"[Format anggota belum didukung: {name[:140]}]")
+                except Exception as exc:
+                    parts.append(f"[Anggota gagal dibaca: {name[:100]} ({type(exc).__name__})]")
+
         if not parts:
             parts.append("[Arsip ZIP valid tetapi kosong.]")
-        return self._wrap_doc_content("ZIP", filename, "\\n\\n".join(parts)), images
+        return self._wrap_doc_content("ZIP", filename, "\n\n".join(parts)), images
 
     def extract_design_file_content(self, raw_bytes: bytes, filename: str, ext: str) -> str:
         if ext == ".svg":
@@ -3517,10 +3602,19 @@ class ClouzerBot(commands.Bot):
         if replied_msg is None:
             return ""
         chunks: list[str] = []
+        total_declared_bytes = 0
         for att in list(replied_msg.attachments)[:MAX_ATTACHMENTS_PER_MESSAGE]:
             ext = os.path.splitext((att.filename or "").lower())[1]
             if ext in IMAGE_EXTS:
                 continue
+            declared_size = max(0, int(getattr(att, "size", 0) or 0))
+            if total_declared_bytes + declared_size > MAX_ATTACHMENT_TOTAL_BYTES:
+                chunks.append(
+                    f"[Lampiran reply {scrub_secrets(att.filename or 'file')[:100]} dilewati: "
+                    "batas total ukuran lampiran pesan sumber tercapai.]"
+                )
+                continue
+            total_declared_bytes += declared_size
             try:
                 text_part, _, _, file_type = await self.encode_attachment(att)
                 if text_part:
@@ -4946,13 +5040,13 @@ async def on_message(message: discord.Message):
             llm_image_urls.extend(http_res)
 
     if attachment_manifest:
-        additional_file_text += "\\n\\n--- MANIFEST LAMPIRAN ---\\n" + "\\n".join(attachment_manifest) + "\\n--- AKHIR MANIFEST ---\\n"
+        additional_file_text += "\n\n--- MANIFEST LAMPIRAN ---\n" + "\n".join(attachment_manifest) + "\n--- AKHIR MANIFEST ---\n"
 
     if not attachments and message.reference is not None:
         try:
             replied_file_text = await bot.resolve_replied_files(message)
             if replied_file_text:
-                additional_file_text += "\\n\\n--- DOKUMEN DARI PESAN YANG DI-REPLY ---\\n" + replied_file_text
+                additional_file_text += "\n\n--- DOKUMEN DARI PESAN YANG DI-REPLY ---\n" + replied_file_text
                 has_usable_attachment = True
         except Exception:
             logging.exception("Gagal memproses dokumen dari pesan reply")
