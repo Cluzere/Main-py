@@ -5,12 +5,12 @@
 ## Artifact identity
 - Branch: `audit-recovery-gpt-2026-11-23`
 - Candidate: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Candidate Git blob SHA-1: `ff560829a17541c0073cbc1788b32b61889a5d04`
-- Candidate size: 230,056 characters / 4,730 lines
+- Candidate Git blob SHA-1: `f807351cfa8a1a8220fc6ba6f60a295707f9a7f0`
+- Candidate size: 230,155 characters / 4,732 lines
 - Regression suite: `audit-recovery/review-round-2/test_audit_regressions.py`
 - Test blob SHA-1: `f30d13ba0c8d6616e1c27dd77b6099fa067e5a78`
-- GitHub Actions run: [#59 — PASS](https://github.com/Cluzere/Main-py/actions/runs/45407940932)
-- CI head commit: `02626e5a0d33a397d7df9ca126950a3356dd1807`
+- GitHub Actions run: [#65 — PASS](https://github.com/Cluzere/Main-py/actions/runs/45408138651)
+- CI head commit: `f2ab841144196fc5fca8d9b6229f329ba8df8a05`
 
 ## Changes applied
 1. Provider base URL now requires HTTPS; plaintext HTTP is accepted only for localhost/loopback. The broad `ALLOW_INSECURE_BASE_URL` bypass was removed.
@@ -24,6 +24,7 @@
 
 ## CI evidence
 - Python 3.12 candidate compilation: PASS.
+- Bandit high-severity security scan: PASS (no high-severity findings).
 - Regression suite: **74 tests passed**.
 - GitHub Actions job conclusion: SUCCESS.
 
