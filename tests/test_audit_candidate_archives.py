@@ -446,6 +446,33 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("01234", result)
         self.assertIn("dipotong", result.lower())
 
+
+    def test_xlsx_chart_title_and_series_ranges_are_extracted(self):
+        import openpyxl
+        from openpyxl.chart import BarChart, Reference
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Sales"
+        ws.append(["Quarter", "Revenue"])
+        ws.append(["Q1", 10])
+        ws.append(["Q2", 20])
+        chart = BarChart()
+        chart.title = "Quarterly Revenue Audit"
+        data = Reference(ws, min_col=2, min_row=1, max_row=3)
+        categories = Reference(ws, min_col=1, min_row=2, max_row=3)
+        chart.add_data(data, titles_from_data=True)
+        chart.set_categories(categories)
+        ws.add_chart(chart, "D2")
+        out = io.BytesIO()
+        wb.save(out)
+        wb.close()
+
+        text, _ = self.bot.extract_xlsx_content(out.getvalue(), "chart.xlsx")
+        self.assertIn("Quarterly Revenue Audit", text)
+        self.assertIn("xl/charts/chart1.xml", text)
+        self.assertIn("Sales", text)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
