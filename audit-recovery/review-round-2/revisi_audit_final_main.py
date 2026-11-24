@@ -3327,10 +3327,11 @@ class ClouzerBot(commands.Bot):
             return self._wrap_doc_content("7Z", filename, "\n\n".join(parts_out)), images
         except Exception as exc:
             logging.warning("7Z archive rejected or unreadable (%s): %s", filename, type(exc).__name__)
-            return self._wrap_doc_content(
-                "7Z", filename,
-                "[Arsip 7Z gagal dibaca atau ditolak oleh batas keamanan: %s.]" % type(exc).__name__,
-            ), []
+            if isinstance(exc, ValueError) and "terenkripsi" in str(exc).lower():
+                reason = "[Arsip 7Z terenkripsi/password-protected tidak didukung.]"
+            else:
+                reason = "[Arsip 7Z gagal dibaca atau ditolak oleh batas keamanan: %s.]" % type(exc).__name__
+            return self._wrap_doc_content("7Z", filename, reason), []
 
     def extract_design_file_content(self, raw_bytes: bytes, filename: str, ext: str) -> str:
         if ext == ".svg":
