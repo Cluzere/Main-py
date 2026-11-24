@@ -523,6 +523,57 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("second.txt", context)
         self.assertGreaterEqual(context.count("KONTEN TIDAK SEPENUHNYA MASUK KONTEKS AI"), 2)
 
+
+    def test_same_user_queue_lock_is_fifo_and_cleans_up_after_cancellation(self):
+        import asyncio
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot.guild_locks = {}
+        bot.guild_lock_refs = {}
+
+        async def run():
+            order = []
+            entered = asyncio.Event()
+            release = asyncio.Event()
+
+            async def first():
+                async with bot.guild_lock("same-user-scope"):
+                    order.append("first")
+                    entered.set()
+                    await release.wait()
+
+            async def second():
+                await entered.wait()
+                async with bot.guild_lock("same-user-scope"):
+                    order.append("second")
+
+            first_task = asyncio.create_task(first())
+            await entered.wait()
+            second_task = asyncio.create_task(second())
+            await asyncio.sleep(0)
+            second_task.cancel()
+            try:
+                await second_task
+            except asyncio.CancelledError:
+                pass
+            release.set()
+            await first_task
+            return order
+
+        order = asyncio.run(run())
+        self.assertEqual(order, ["first"])
+        self.assertEqual(bot.guild_lock_refs, {})
+        self.assertEqual(bot.guild_locks, {})
+
+    def test_conversation_scope_is_separated_by_user(self):
+        from types import SimpleNamespace
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        guild = SimpleNamespace(id=123)
+        first = bot.get_scope_key(guild, user_id=10, channel_id=20)
+        second = bot.get_scope_key(guild, user_id=11, channel_id=20)
+        self.assertNotEqual(first, second)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
