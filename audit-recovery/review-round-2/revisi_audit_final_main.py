@@ -3421,7 +3421,7 @@ class ClouzerBot(commands.Bot):
                 "metadata_only",
             )
 
-        return None, [], [], "none"
+        return (f"\\n\\n[Format file {scrub_secrets(attachment.filename)[:120]} tidak didukung. Ekstensi: {ext or 'tanpa ekstensi'}; MIME: {getattr(attachment, 'content_type', None) or 'tidak diketahui'}.]\\n", [], [], "unsupported")
 
     async def resolve_replied_images(self, message: discord.Message) -> tuple[list[str], list[str]]:
         ref = message.reference
@@ -4785,25 +4785,42 @@ async def on_message(message: discord.Message):
     attachments = list(message.attachments)
     if len(attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
         skipped_notes.append(
-            f"{len(attachments) - MAX_ATTACHMENTS_PER_MESSAGE} lampiran dilewati (maksimal {MAX_ATTACHMENTS_PER_MESSAGE} per pesan)"
+            f"{len(attachments) - MAX_ATTACHMENTS_PER_MESSAGE} lampiran dilewati (batas konfigurasi {MAX_ATTACHMENTS_PER_MESSAGE} per pesan)"
         )
         attachments = attachments[:MAX_ATTACHMENTS_PER_MESSAGE]
 
     total_bytes = 0
+    attachment_manifest: list[str] = []
     for att in attachments:
         att_size = max(int(getattr(att, "size", 0) or 0), 0)
+        safe_filename = scrub_secrets(att.filename or "file")[:100]
+        ext_label = os.path.splitext(safe_filename)[1].lower() or "tanpa ekstensi"
+        mime_label = getattr(att, "content_type", None) or "MIME tidak diketahui"
         if total_bytes + att_size > MAX_ATTACHMENT_TOTAL_BYTES:
-            skipped_notes.append(
-                f"`{scrub_secrets(att.filename)[:60]}` dilewati (total ukuran lampiran melewati "
-                f"{MAX_ATTACHMENT_TOTAL_BYTES // (1024 * 1024)} MB)"
-            )
+            attachment_manifest.append(f"- {safe_filename} ({ext_label}, {mime_label}): SKIPPED - batas total batch")
+            skipped_notes.append(f"`{safe_filename[:60]}` dilewati karena batas total ukuran batch")
             continue
         total_bytes += att_size
-
-        text_res, local_res, http_res, ftype = await bot.encode_attachment(att)
+        try:
+            text_res, local_res, http_res, ftype = await bot.encode_attachment(att)
+        except Exception as exc:
+            logging.exception("Attachment processing failed: %s", safe_filename)
+            text_res, local_res, http_res, ftype = (
+                f"\\n\\n[File {safe_filename} gagal diproses: {type(exc).__name__}: {scrub_secrets(str(exc))[:200]}]\\n",
+                [], [], "error"
+            )
+        status_map = {
+            "blocked": "BLOCKED: kredensial/rahasia terdeteksi",
+            "busy": "FAILED: antrean pemrosesan timeout",
+            "unsupported": "UNSUPPORTED: format tidak didukung",
+            "none": "FAILED/EMPTY: konten tidak diekstrak",
+            "error": "FAILED: exception pemrosesan",
+        }
+        status = status_map.get(ftype, "READ: konten berhasil diproses" if (text_res or local_res or http_res) else "NO CONTENT")
+        attachment_manifest.append(f"- {safe_filename} ({ext_label}, {mime_label}, {att_size:,} byte): {status}")
         if ftype == "blocked":
-            blocked_files.append(scrub_secrets(att.filename)[:60])
-        elif ftype not in ("none", "busy") and (text_res or local_res or http_res):
+            blocked_files.append(safe_filename[:60])
+        elif ftype not in ("none", "busy", "unsupported", "error") and (text_res or local_res or http_res):
             has_usable_attachment = True
         if text_res:
             additional_file_text += text_res
@@ -4811,6 +4828,9 @@ async def on_message(message: discord.Message):
             image_data_urls.extend(local_res)
         if http_res:
             llm_image_urls.extend(http_res)
+
+    if attachment_manifest:
+        additional_file_text += "\\n\\n--- MANIFEST LAMPIRAN ---\\n" + "\\n".join(attachment_manifest) + "\\n--- AKHIR MANIFEST ---\\n"
 
     notices: list[str] = []
     if blocked_files:
