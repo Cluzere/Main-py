@@ -598,6 +598,49 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertEqual(str(exc), "stream disconnected")
         self.assertEqual(exc.partial_text, "jawaban parsial")
 
+
+    def test_real_responses_stream_parser_preserves_partial_text_on_eof(self):
+        import asyncio
+
+        class FakeStream:
+            def __init__(self, chunks):
+                self.chunks = list(chunks)
+
+            async def read(self, _size):
+                return self.chunks.pop(0) if self.chunks else b""
+
+        class FakeResponse:
+            status = 200
+
+            def __init__(self, stream):
+                self.content = stream
+
+        class FakeRequest:
+            def __init__(self, response):
+                self.response = response
+
+            async def __aenter__(self):
+                return self.response
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        class FakeSession:
+            def post(self, *args, **kwargs):
+                event = b'data: {"type":"response.output_text.delta","delta":"PARTIAL ANSWER"}\\n'
+                return FakeRequest(FakeResponse(FakeStream([event, b""])))
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot.http_session = FakeSession()
+        bot.to_responses_input = lambda messages: ("", [])
+
+        async def run():
+            with self.assertRaises(module.ResponsesStreamInterrupted) as caught:
+                await bot._run_responses_ai_impl([], None, _diag_timing={})
+            self.assertEqual(caught.exception.partial_text, "PARTIAL ANSWER")
+
+        asyncio.run(run())
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
