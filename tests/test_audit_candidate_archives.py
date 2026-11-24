@@ -574,6 +574,30 @@ class ArchiveReaderTests(unittest.TestCase):
         second = bot.get_scope_key(guild, user_id=11, channel_id=20)
         self.assertNotEqual(first, second)
 
+
+    def test_failed_turn_history_keeps_user_request_and_removes_partial_assistant(self):
+        prior_user = {"role": "user", "content": "previous request"}
+        prior_assistant = {"role": "assistant", "content": "previous answer"}
+        current_user = {"role": "user", "content": "important current request"}
+        partial_assistant = {"role": "assistant", "content": "partial draft"}
+        history = [prior_user, prior_assistant, current_user, partial_assistant]
+
+        module.preserve_failed_turn_history(history, current_user, "⚠️ Stream terputus")
+
+        self.assertEqual(history[0], prior_user)
+        self.assertEqual(history[1], prior_assistant)
+        self.assertEqual(history[2], current_user)
+        self.assertEqual(history[3]["role"], "assistant")
+        self.assertIn("Stream terputus", history[3]["content"])
+        self.assertNotIn("partial draft", str(history))
+
+    def test_stream_interruption_carries_partial_text(self):
+        exc = module.ResponsesStreamInterrupted(
+            "stream disconnected", partial_text="jawaban parsial"
+        )
+        self.assertEqual(str(exc), "stream disconnected")
+        self.assertEqual(exc.partial_text, "jawaban parsial")
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
