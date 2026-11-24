@@ -1151,6 +1151,143 @@ class ArchiveReaderTests(unittest.TestCase):
                 "PROMPT_HISTORY_MAX_CHARS", 240000, minimum=20000, maximum=500000
             ), 500000)
 
+    def test_queue_full_rejects_new_turn_and_cleans_lock_registry(self):
+        import asyncio
+        from unittest.mock import patch
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot.guild_locks = {}
+        bot.guild_lock_refs = {}
+
+        class FakeStatus:
+            content = ""
+
+            async def edit(self, content):
+                self.content = content
+
+        async def run():
+            entered = asyncio.Event()
+            release = asyncio.Event()
+            order = []
+
+            async def holder():
+                async with bot.guild_lock("bounded-queue"):
+                    entered.set()
+                    await release.wait()
+                    order.append("holder")
+
+            async def waiter():
+                status = FakeStatus()
+                async with bot.guild_lock("bounded-queue", status_message=status) as acquired:
+                    if acquired:
+                        order.append("waiter")
+                return status
+
+            with patch.object(module, "MAX_QUEUE_PENDING_PER_SCOPE", 1):
+                first = asyncio.create_task(holder())
+                await entered.wait()
+                second_status = FakeStatus()
+                async def queued_waiter():
+                    async with bot.guild_lock("bounded-queue", status_message=second_status) as acquired:
+                        if acquired:
+                            order.append("second")
+                second = asyncio.create_task(queued_waiter())
+                while bot.guild_lock_refs.get("bounded-queue") != 2:
+                    await asyncio.sleep(0)
+                rejected_status = FakeStatus()
+                async with bot.guild_lock("bounded-queue", status_message=rejected_status) as acquired:
+                    self.assertFalse(acquired)
+                self.assertIn("antrean percakapan penuh", rejected_status.content.lower())
+                release.set()
+                await asyncio.gather(first, second)
+            self.assertEqual(order, ["holder", "second"])
+            self.assertEqual(bot.guild_locks, {})
+            self.assertEqual(bot.guild_lock_refs, {})
+
+        asyncio.run(run())
+
+    def test_queue_wait_timeout_updates_status_and_cleans_lock_registry(self):
+        import asyncio
+        from unittest.mock import patch
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot.guild_locks = {}
+        bot.guild_lock_refs = {}
+
+        class FakeStatus:
+            content = ""
+
+            async def edit(self, content):
+                self.content = content
+
+        async def run():
+            entered = asyncio.Event()
+            release = asyncio.Event()
+
+            async def holder():
+                async with bot.guild_lock("timeout-queue"):
+                    entered.set()
+                    await release.wait()
+
+            first = asyncio.create_task(holder())
+            await entered.wait()
+            status = FakeStatus()
+            with patch.object(module, "QUEUE_WAIT_TIMEOUT_SECONDS", 0.01):
+                async with bot.guild_lock("timeout-queue", status_message=status) as acquired:
+                    self.assertFalse(acquired)
+            self.assertIn("waktu tunggu antrean habis", status.content.lower())
+            release.set()
+            await first
+            self.assertEqual(bot.guild_locks, {})
+            self.assertEqual(bot.guild_lock_refs, {})
+
+        asyncio.run(run())
+
+    def test_cancelled_queue_waiter_updates_status_and_releases_reference(self):
+        import asyncio
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot.guild_locks = {}
+        bot.guild_lock_refs = {}
+
+        class FakeStatus:
+            content = ""
+
+            async def edit(self, content):
+                self.content = content
+
+        async def run():
+            entered = asyncio.Event()
+            release = asyncio.Event()
+            status = FakeStatus()
+
+            async def holder():
+                async with bot.guild_lock("cancel-queue"):
+                    entered.set()
+                    await release.wait()
+
+            async def waiter():
+                async with bot.guild_lock("cancel-queue", status_message=status):
+                    pass
+
+            first = asyncio.create_task(holder())
+            await entered.wait()
+            second = asyncio.create_task(waiter())
+            while bot.guild_lock_refs.get("cancel-queue") != 2:
+                await asyncio.sleep(0)
+            second.cancel()
+            try:
+                await second
+            except asyncio.CancelledError:
+                pass
+            self.assertIn("dibatalkan", status.content.lower())
+            release.set()
+            await first
+            self.assertEqual(bot.guild_locks, {})
+            self.assertEqual(bot.guild_lock_refs, {})
+
+        asyncio.run(run())
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
