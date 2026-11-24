@@ -27,6 +27,11 @@ from PIL import Image
 from dotenv import load_dotenv
 
 try:
+    import py7zr
+except ImportError:
+    py7zr = None
+
+try:
     import pymupdf as fitz  # PyMuPDF untuk baca teks & render halaman PDF
 except ImportError:
     fitz = None
@@ -3085,6 +3090,164 @@ class ClouzerBot(commands.Bot):
             parts.append("[Arsip ZIP valid tetapi kosong.]")
         return self._wrap_doc_content("ZIP", filename, "\n\n".join(parts)), images
 
+    def extract_7z_content(self, raw_bytes: bytes, filename: str) -> tuple[str, list[str]]:
+        """Safely read selected 7z members into bounded memory buffers."""
+        if py7zr is None:
+            return self._wrap_doc_content(
+                "7Z", filename,
+                "[Parser 7Z belum tersedia. Pasang dependency 'py7zr' pada environment bot untuk membaca arsip ini.]",
+            ), []
+
+        class _MemoryMember(io.BytesIO):
+            def __init__(self, owner, limit):
+                super().__init__()
+                self.owner = owner
+                self.limit = limit
+
+            def write(self, data):
+                next_size = max(self.tell() + len(data), len(self.getbuffer()))
+                if next_size > self.limit or self.owner.total_written + len(data) > ZIP_MAX_TOTAL_UNCOMPRESSED:
+                    raise ValueError("hasil ekstraksi 7Z melewati batas memori")
+                written = super().write(data)
+                self.owner.total_written += written
+                return written
+
+            def size(self):
+                return len(self.getbuffer())
+
+            # py7zr calls close() after each member. Keep the in-memory result
+            # available until the caller has parsed all extracted members.
+            def close(self):
+                return None
+
+        class _MemoryFactory:
+            def __init__(self):
+                self.files = {}
+                self.total_written = 0
+
+            def create(self, member_name):
+                if len(self.files) >= 100:
+                    raise ValueError("jumlah anggota 7Z melewati batas pemrosesan")
+                buffer = _MemoryMember(self, ZIP_MAX_ENTRY_UNCOMPRESSED)
+                self.files[member_name] = buffer
+                return buffer
+
+        try:
+            factory = _MemoryFactory()
+            with py7zr.SevenZipFile(
+                io.BytesIO(raw_bytes),
+                mode="r",
+                max_extract_size=ZIP_MAX_TOTAL_UNCOMPRESSED,
+            ) as archive:
+                if archive.needs_password():
+                    raise ValueError("arsip 7Z terenkripsi tidak didukung")
+                infos = archive.list()
+                if len(infos) > ZIP_MAX_ENTRIES:
+                    raise ValueError("arsip 7Z memiliki terlalu banyak anggota")
+                selected = []
+                total_size = 0
+                for info in infos:
+                    if getattr(info, "is_directory", False):
+                        continue
+                    member_name = str(getattr(info, "filename", "") or "").replace(chr(92), "/")
+                    parts = member_name.split("/")
+                    if (
+                        not member_name
+                        or member_name.startswith("/")
+                        or any(part == ".." for part in parts)
+                        or chr(0) in member_name
+                    ):
+                        continue
+                    if getattr(info, "is_symlink", False) or not getattr(info, "is_file", False):
+                        continue
+                    size = getattr(info, "uncompressed", None)
+                    compressed = getattr(info, "compressed", None)
+                    if not isinstance(size, int) or size < 0 or size > ZIP_MAX_ENTRY_UNCOMPRESSED:
+                        raise ValueError("ukuran anggota 7Z tidak valid atau terlalu besar")
+                    total_size += size
+                    if total_size > ZIP_MAX_TOTAL_UNCOMPRESSED:
+                        raise ValueError("total hasil ekstraksi 7Z melewati batas keamanan")
+                    if size > 1024 * 1024 and isinstance(compressed, int):
+                        if size / max(compressed, 1) > ZIP_MAX_COMPRESSION_RATIO:
+                            raise ValueError("rasio kompresi 7Z mencurigakan")
+                    selected.append(member_name)
+                    if len(selected) >= 100:
+                        break
+                if selected:
+                    archive.extract(targets=selected, recursive=False, factory=factory)
+
+            parts_out: list[str] = []
+            images: list[str] = []
+            total_chars = 0
+            max_chars = 30000
+            text_exts = {
+                ".txt", ".md", ".csv", ".tsv", ".json", ".xml", ".html", ".htm",
+                ".log", ".yaml", ".yml", ".ini", ".py", ".js", ".ts", ".css",
+                ".sql", ".sh", ".rtf",
+            }
+            for member_name, member_buffer in factory.files.items():
+                member_bytes = member_buffer.getvalue()
+                ext = os.path.splitext(member_name.lower())[1]
+                if ext in IMAGE_EXTS:
+                    if len(images) >= MAX_VISION_IMAGES_PER_TURN:
+                        parts_out.append("[Gambar 7Z dilewati karena batas visual per giliran.]")
+                        continue
+                    images.append(self._compress_image_bytes_to_data_url(member_bytes))
+                    parts_out.append("[Gambar 7Z disertakan sebagai visual: %s]" % member_name[:140])
+                elif ext in text_exts:
+                    remaining = max_chars - total_chars
+                    if remaining <= 0:
+                        parts_out.append("[Anggota selanjutnya tidak dibaca: batas teks 7Z tercapai.]")
+                        break
+                    content = member_bytes.decode("utf-8-sig", errors="replace")
+                    scan = scan_secrets(content, code_mode=ext in CODE_EXTS)
+                    if scan.blocked:
+                        parts_out.append("[Anggota %s ditahan karena berisi kredensial.]" % member_name[:120])
+                        continue
+                    content = scan.text[:remaining]
+                    parts_out.append("[%s]\n%s" % (member_name[:160], content))
+                    total_chars += len(content)
+                elif ext in {".pdf", ".docx", ".pptx", ".xlsx"}:
+                    if ext == ".pdf":
+                        parsed_text, parsed_images = self.extract_pdf_content(member_bytes, member_name)
+                    elif ext == ".docx":
+                        parsed_text, parsed_images = self.extract_docx_content(member_bytes, member_name)
+                    elif ext == ".pptx":
+                        parsed_text, parsed_images = self.extract_pptx_content(member_bytes, member_name)
+                    else:
+                        parsed_text, parsed_images = self.extract_xlsx_content(member_bytes, member_name)
+                    remaining = max_chars - total_chars
+                    if parsed_text and remaining > 0:
+                        parts_out.append(parsed_text[:remaining])
+                        total_chars += min(len(parsed_text), remaining)
+                    for data_url in parsed_images:
+                        if len(images) >= MAX_VISION_IMAGES_PER_TURN:
+                            break
+                        images.append(data_url)
+                elif ext == ".zip":
+                    nested_text, nested_images = self.extract_generic_zip_content(member_bytes, member_name, _depth=1)
+                    remaining = max_chars - total_chars
+                    if remaining > 0:
+                        parts_out.append(nested_text[:remaining])
+                        total_chars += min(len(nested_text), remaining)
+                    images.extend(nested_images[:max(0, MAX_VISION_IMAGES_PER_TURN - len(images))])
+                elif ext == ".7z":
+                    parts_out.append("[Arsip 7Z bersarang dilewati: kedalaman arsip tidak diperluas.]")
+                else:
+                    parts_out.append("[Format anggota 7Z belum didukung: %s]" % member_name[:140])
+
+            if len(infos) > len(selected):
+                parts_out.append("[Sebagian anggota dilewati karena batas pemrosesan atau tipe file khusus.]")
+            if not parts_out:
+                parts_out.append("[Arsip 7Z valid tetapi tidak memiliki file yang dapat dibaca.]")
+            return self._wrap_doc_content("7Z", filename, "\n\n".join(parts_out)), images
+        except Exception as exc:
+            logging.warning("7Z archive rejected or unreadable (%s): %s", filename, type(exc).__name__)
+            return self._wrap_doc_content(
+                "7Z", filename,
+                "[Arsip 7Z gagal dibaca atau ditolak oleh batas keamanan: %s.]" % type(exc).__name__,
+            ), []
+
     def extract_design_file_content(self, raw_bytes: bytes, filename: str, ext: str) -> str:
         if ext == ".svg":
             try:
@@ -3565,8 +3728,10 @@ class ClouzerBot(commands.Bot):
         elif ext == ".7z" and attachment.size <= 30 * 1024 * 1024:
             try:
                 data = await self._read_attachment_checked(attachment, ext)
-                return self._wrap_doc_content("7Z", attachment.filename, "[Arsip 7Z valid terdeteksi, tetapi ekstraksi 7Z belum tersedia pada build ini. Isi tidak diklaim sudah dibaca.]"), [], [], "archive_unsupported"
+                archive_text, archive_imgs = await asyncio.to_thread(self.extract_7z_content, data, attachment.filename)
+                return archive_text, archive_imgs, [], "archive" if py7zr is not None else "archive_unsupported"
             except Exception as exc:
+                logging.exception("Gagal membaca 7Z %s", scrub_secrets(attachment.filename)[:120])
                 return f"\\n\\n[7Z {scrub_secrets(attachment.filename)[:120]} gagal divalidasi: {type(exc).__name__}]\\n", [], [], "archive_error"
 
         elif ext in {".odt", ".ods", ".odp", ".epub"} and attachment.size <= 20 * 1024 * 1024:
