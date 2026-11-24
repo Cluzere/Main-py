@@ -879,3 +879,11 @@ class FinalHardeningStaticRegressionTests(unittest.TestCase):
 
     def test_diagnostic_function_arguments_are_sanitized(self):
         self.assertIn("safe_args = scrub_secrets", self.source)
+
+
+class FinalHardeningLockCallSiteTests(unittest.TestCase):
+    def test_all_guild_lock_call_sites_use_cleanup_manager(self):
+        source = SOURCE.read_text(encoding="utf-8")
+        self.assertNotIn("guild_locks[scope_key]", source)
+        self.assertIn("self.bot_instance.guild_lock(scope_key)", source)
+        self.assertIn("bot.guild_lock(scope_key)", source)
