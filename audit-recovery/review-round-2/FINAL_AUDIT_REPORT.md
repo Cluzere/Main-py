@@ -8,18 +8,20 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit branch saat laporan ini dibuat: `61a26fb8fb0ff76b1da553ad0f4e36bb123ddecc`
-- Blob kandidat: `87936de8ffe6454e0c8fe5704d227a149965cb85`
-- Jumlah baris: 5.520
-- CI terakhir: [Run #45511576862 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45511576862)
+- Commit branch saat laporan ini dibuat: `305fb0826515870ec28ba912c7d3fc8416a74731`
+- Blob kandidat: `c0533f485c752541465b44c735f0618852393db8`
+- Jumlah baris: 5.577
+- CI terakhir: [Run #45512856720 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45511576862)
 
 ## Bukti CI terakhir
 
 - CPython 3.12: `py_compile` PASS.
 - Bandit high-severity scan: PASS, tidak ada temuan high-severity.
-- Tes kandidat tambahan: **32/32 PASS**.
+- `pip check`: PASS.
+- `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
+- Tes kandidat tambahan: **49/49 PASS**.
 - Regresi audit yang sudah ada: **74/74 PASS**.
-- Total dua suite yang dijalankan pada run terakhir: **106 tes PASS**.
+- Total dua suite yang dijalankan pada run terakhir: **123 tes PASS**.
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2` dan `py7zr>=1.0,<2`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -58,7 +60,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 6 | DONE | Manifest nama, ekstensi, MIME, ukuran. |
 | 7 | PARTIAL | Label ekstensi/MIME; signature check hanya untuk format tertentu. |
 | 8 | DONE | Status per file dicatat. |
-| 9 | PARTIAL | Alasan skip/error utama dicatat; beberapa parser hanya memberi kategori error, belum diagnosis rinci. |
+| 9 | DONE | Manifest menyertakan alasan error/unsupported yang sudah disanitasi; beberapa error tetap hanya dapat dikategorikan. |
 | 10 | DONE | Kegagalan satu file diisolasi; ada tes batch 10 file dengan satu kegagalan. |
 
 ### B. ZIP dan 7Z
@@ -78,11 +80,11 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | No. | Status | Catatan |
 |---:|---|---|
 | 18 | DONE | Dokumen dari pesan reply ikut diproses; ada tes resolver dan batas anggaran. |
-| 19 | PARTIAL | Resolver gambar lama tetap ada; belum ada tes live baru untuk semua kondisi reply-image. |
+| 19 | DONE | Reply-image diambil, kegagalan per gambar diisolasi, dan gambar baru + gambar reply digabung; dites dengan mocked Discord. |
 | 20 | PARTIAL | Konteks gambar/edit sebelumnya dipertahankan oleh alur yang ada; belum ada regresi penuh untuk semua urutan edit. |
 | 21 | PARTIAL | User/channel scope dan dokumen reply dijaga; kombinasi semua metadata dan media belum live diuji. |
 | 22 | DONE | Reply dokumen tidak lagi dianggap kosong hanya karena pesan baru tidak punya attachment. |
-| 23 | DONE | Kegagalan mengambil pesan sumber reply menghasilkan penjelasan eksplisit. |
+| 23 | DONE | Dokumen reply yang tak tersedia dijelaskan; alur edit gambar memberi error bila sumber gambar tidak ditemukan. |
 
 ### D. Antrean pesan
 
@@ -128,7 +130,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 
 | No. | Status | Catatan |
 |---:|---|---|
-| 49 | PARTIAL | Signature PDF/ZIP/7Z/RTF diperiksa; image divalidasi parser; belum signature-check menyeluruh untuk semua tipe/audio. |
+| 49 | PARTIAL | Signature PDF/ZIP/7Z/RTF dan container audio umum diperiksa; image divalidasi parser; teks dan format langka tetap tidak punya magic signature kuat. |
 | 50 | PARTIAL | Ukuran, rasio, entry, gambar, teks, dan buffer dibatasi; bukan sandbox CPU/RAM tingkat OS. |
 | 51 | PARTIAL | Parser berat utama dijalankan via thread; belum profiling seluruh jalur parser di hosting. |
 | 52 | PARTIAL | Corrupt/empty/oversize/mismatch punya guard dan beberapa tes; belum semua format/fuzz corpus. |
