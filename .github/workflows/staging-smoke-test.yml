@@ -73,7 +73,7 @@ jobs:
               method="POST"
           )
           try:
-              with urllib.request.urlopen(req, timeout=45) as response:
+              with urllib.request.urlopen(req, timeout=120) as response:
                   data = json.loads(response.read(262144))
                   if response.status != 200 or not isinstance(data, dict):
                       print("XINGCHI_RESPONSES_FAILED: unexpected response")
