@@ -266,7 +266,7 @@ FULL_CONTENT_EXTS = {
 EDIT_INTENT_KEYWORDS = (
     "ganti", "ubah", "edit", "hapus", "tambah", "replace", "change",
     "recolor", "warnai", "mewarnai", "perbaiki", "koreksi", "retouch", "modif",
-    "rasio", "aspect ratio", "perlebar", "perpanjang", "crop"
+    "perlebar", "perpanjang", "crop"
 )
 
 CREATE_INTENT_KEYWORDS = (
