@@ -6,7 +6,7 @@
 - Branch: `audit-recovery-gpt-2026-11-23`
 - Candidate: `audit-recovery/review-round-2/revisi_audit_final_main.py`
 - Candidate Git blob SHA-1: `ff560829a17541c0073cbc1788b32b61889a5d04`
-- Candidate size: 230,056 characters / 228 lines
+- Candidate size: 230,056 characters / 4,730 lines
 - Regression suite: `audit-recovery/review-round-2/test_audit_regressions.py`
 - Test blob SHA-1: `f30d13ba0c8d6616e1c27dd77b6099fa067e5a78`
 - GitHub Actions run: [#59 — PASS](https://github.com/Cluzere/Main-py/actions/runs/45407940932)
