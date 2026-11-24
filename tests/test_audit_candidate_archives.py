@@ -311,6 +311,37 @@ class ArchiveReaderTests(unittest.TestCase):
             self.assertEqual(attempts, 2)
             self.assertEqual(bot.global_budget.calls, 2)
 
+
+    def test_http500_upstream_forwarding_error_is_retried_once(self):
+        import asyncio
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+        class Budget:
+            def __init__(self):
+                self.calls = 0
+
+            def acquire(self, _category):
+                self.calls += 1
+                return True, 0.0
+
+        bot.global_budget = Budget()
+        bot.ai_semaphore = asyncio.Semaphore(1)
+        attempts = 0
+
+        async def fake_impl(*args, **kwargs):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("Responses HTTP 500: Unable to forward upstream stream")
+            return "recovered from upstream forwarding error", []
+
+        bot._run_responses_ai_impl = fake_impl
+        result = asyncio.run(bot.run_responses_ai([], None))
+        self.assertEqual(result[0], "recovered from upstream forwarding error")
+        self.assertEqual(attempts, 2)
+        self.assertEqual(bot.global_budget.calls, 2)
+
     def test_retry_policy_does_not_retry_http_429_or_500(self):
         import asyncio
 
