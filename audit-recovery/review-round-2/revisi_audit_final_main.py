@@ -2910,7 +2910,7 @@ class ClouzerBot(commands.Bot):
             for info in zf.infolist():
                 if info.is_dir():
                     continue
-                name = info.filename.replace("\\\\", "/")
+                name = info.filename.replace(chr(92), "/")
                 if name.startswith("/") or any(part == ".." for part in name.split("/")):
                     parts.append(f"[Anggota ditolak karena path traversal: {name[:120]}]")
                     continue
