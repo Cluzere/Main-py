@@ -4190,9 +4190,16 @@ class ClouzerBot(commands.Bot):
                     # SSE event. Never replay a stream that may have emitted text
                     # or a function call; that could duplicate visible output or
                     # a tool operation.
+                    error_text = str(exc)
                     safe_gateway_failure = (
                         isinstance(exc, RuntimeError)
-                        and re.match(r"^Responses HTTP (?:502|503|504):", str(exc)) is not None
+                        and (
+                            re.match(r"^Responses HTTP (?:502|503|504):", error_text) is not None
+                            or (
+                                re.match(r"^Responses HTTP 500:", error_text) is not None
+                                and "unable to forward upstream stream" in error_text.lower()
+                            )
+                        )
                         and "first_event_seconds" not in attempt_diag
                     )
                     if attempt == 0 and safe_gateway_failure:
