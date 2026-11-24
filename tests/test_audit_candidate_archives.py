@@ -934,7 +934,7 @@ class ArchiveReaderTests(unittest.TestCase):
             ".opus": b"OggS" + b"payload",
             ".flac": b"fLaC" + b"payload",
             ".webm": bytes((0x1A, 0x45, 0xDF, 0xA3)) + b"payload",
-            ".m4a": b"\\x00\\x00\\x00\\x18ftypM4A " + b"payload",
+            ".m4a": bytes((0, 0, 0, 24)) + b"ftypM4A " + b"payload",
             ".aac": bytes((0xFF, 0xF1)) + b"payload",
             ".mp3": b"ID3" + b"payload",
         }
