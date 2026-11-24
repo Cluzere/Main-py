@@ -3873,12 +3873,15 @@ class ClouzerBot(commands.Bot):
                 for call in _web_calls if isinstance(call.get("seconds"), (int, float))
             ) or "none"
             logging.warning(
-                "[RESPONSES-DETAIL] request_id=%s mode=%s headers=%s first_event=%s first_text=%s "
+                "[RESPONSES-DETAIL] request_id=%s mode=%s allow_tools=%s allow_image_tool=%s continuation_items=%s headers=%s first_event=%s first_text=%s "
                 "web_first_start=%s web_call_count=%s web_call_durations=%s web_total=%s "
                 "web_inter_search_gaps=%s web_last_to_first_text=%s web_events=%s "
                 "function_calls=%s response_completed=%.3fs",
                 _diag_timing.get("request_id"),
                 mode,
+                allow_tools,
+                allow_image_tool,
+                len(extra_input or []),
                 f'{_diag_timing["request_to_headers_seconds"]:.3f}s' if "request_to_headers_seconds" in _diag_timing else "n/a",
                 f'{_diag_timing["first_event_seconds"]:.3f}s' if "first_event_seconds" in _diag_timing else "n/a",
                 f'{_diag_timing["first_text_seconds"]:.3f}s' if "first_text_seconds" in _diag_timing else "n/a",
@@ -3905,13 +3908,13 @@ class ClouzerBot(commands.Bot):
         llm_image_urls: list[str] | None = None,
         additional_file_text: str = "",
         reply_to_message: discord.Message | None = None,
-        _ingress_started_at: float | None = None,
+        _ingress_seconds: float | None = None,
         _attachment_seconds: float = 0.0,
     ):
         _turn_loop = asyncio.get_running_loop()
         _turn_started_at = _turn_loop.time()
         _turn_diag = {
-            "ingress_seconds": max(0.0, _turn_started_at - _ingress_started_at) if _ingress_started_at is not None else None,
+            "ingress_seconds": _ingress_seconds,
             "attachment_seconds": _attachment_seconds,
         }
         # Sensor secret yang diketik langsung di chat sebelum masuk prompt/memori.
@@ -4276,7 +4279,7 @@ class ClouzerBot(commands.Bot):
                 _turn_diag["discord_delivery_seconds"] = _turn_loop.time() - _discord_delivery_started
                 _turn_diag["total_seconds"] = _turn_loop.time() - _turn_started_at
                 logging.warning(
-                    "[TURN-PIPELINE] message_id=%s status_message_id=%s ingress=%s attachments=%.3fs "
+                    "[TURN-PIPELINE] message_id=%s status_message_id=%s pre_attachment=%s attachments=%.3fs "
                     "prompt_prep=%.3fs status_send=%.3fs first_responses_call=%.3fs memory_save=%.3fs "
                     "discord_delivery=%.3fs total=%.3fs result=success",
                     getattr(reply_to_message, "id", None),
@@ -4297,7 +4300,7 @@ class ClouzerBot(commands.Bot):
                 await status_msg.edit(content=err_msg)
                 _turn_diag["total_seconds"] = _turn_loop.time() - _turn_started_at
                 logging.warning(
-                    "[TURN-PIPELINE] message_id=%s status_message_id=%s ingress=%s attachments=%.3fs "
+                    "[TURN-PIPELINE] message_id=%s status_message_id=%s pre_attachment=%s attachments=%.3fs "
                     "prompt_prep=%.3fs status_send=%.3fs first_responses_call=%.3fs total=%.3fs result=error:%s",
                     getattr(reply_to_message, "id", None),
                     getattr(status_msg, "id", None),
@@ -4771,6 +4774,7 @@ async def on_message(message: discord.Message):
             return
 
     _attachment_started_at = asyncio.get_running_loop().time()
+    _pre_attachment_seconds = _attachment_started_at - _ingress_started_at
     image_data_urls: list[str] = []
     llm_image_urls: list[str] = []
     additional_file_text = ""
@@ -4848,7 +4852,7 @@ async def on_message(message: discord.Message):
         llm_image_urls=llm_image_urls,
         additional_file_text=additional_file_text,
         reply_to_message=message,
-        _ingress_started_at=_ingress_started_at,
+        _ingress_seconds=_pre_attachment_seconds,
         _attachment_seconds=asyncio.get_running_loop().time() - _attachment_started_at,
     )
 
