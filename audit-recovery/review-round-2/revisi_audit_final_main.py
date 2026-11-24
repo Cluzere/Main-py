@@ -95,6 +95,12 @@ def _env_int(name: str, default: int, minimum: int = 0) -> int:
         return default
 
 
+def _env_int_capped(name: str, default: int, minimum: int, maximum: int) -> int:
+    if maximum < minimum:
+        raise ValueError("maximum must be greater than or equal to minimum")
+    return min(maximum, _env_int(name, default, minimum))
+
+
 def _env_float(name: str, default: float, minimum: float = 0.0) -> float:
     try:
         return max(minimum, float(str(os.getenv(name, default)).strip()))
@@ -108,7 +114,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on", "y"}
 
-MAX_VISION_IMAGES_PER_TURN = _env_int("MAX_VISION_IMAGES_PER_TURN", 10, minimum=1)
+MAX_VISION_IMAGES_PER_TURN = _env_int_capped("MAX_VISION_IMAGES_PER_TURN", 10, minimum=1, maximum=10)
 
 
 def _env_id_set(name: str) -> frozenset[int]:
@@ -120,12 +126,12 @@ def _env_id_set(name: str) -> frozenset[int]:
 
 
 # Lampiran: jumlah, total ukuran, dan konkurensi pembacaan ke RAM.
-MAX_ATTACHMENTS_PER_MESSAGE = _env_int("MAX_ATTACHMENTS_PER_MESSAGE", 10, minimum=1)
-MAX_ATTACHMENT_TOTAL_BYTES = _env_int("MAX_ATTACHMENT_TOTAL_MB", 100, minimum=1) * 1024 * 1024
-MAX_CONCURRENT_ATTACHMENTS = _env_int("MAX_CONCURRENT_ATTACHMENTS", 3, minimum=1)
+MAX_ATTACHMENTS_PER_MESSAGE = _env_int_capped("MAX_ATTACHMENTS_PER_MESSAGE", 10, minimum=1, maximum=10)
+MAX_ATTACHMENT_TOTAL_BYTES = _env_int_capped("MAX_ATTACHMENT_TOTAL_MB", 100, minimum=1, maximum=100) * 1024 * 1024
+MAX_CONCURRENT_ATTACHMENTS = _env_int_capped("MAX_CONCURRENT_ATTACHMENTS", 3, minimum=1, maximum=5)
 MAX_TEXT_FILE_CHARS = _env_int("MAX_TEXT_FILE_CHARS", 60_000, minimum=1_000)
-MAX_DOCUMENT_TEXT_CHARS = _env_int("MAX_DOCUMENT_TEXT_CHARS", 50_000, minimum=5_000)
-MAX_ATTACHMENT_CONTEXT_CHARS = _env_int("MAX_ATTACHMENT_CONTEXT_CHARS", 100_000, minimum=10_000)
+MAX_DOCUMENT_TEXT_CHARS = _env_int_capped("MAX_DOCUMENT_TEXT_CHARS", 50_000, minimum=5_000, maximum=100_000)
+MAX_ATTACHMENT_CONTEXT_CHARS = _env_int_capped("MAX_ATTACHMENT_CONTEXT_CHARS", 100_000, minimum=10_000, maximum=200_000)
 
 # Pemakaian API: konkurensi provider dan anggaran panjang prompt riwayat.
 MAX_CONCURRENT_AI_CALLS = _env_int("MAX_CONCURRENT_AI_CALLS", 4, minimum=1)
