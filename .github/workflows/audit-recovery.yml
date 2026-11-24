@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  syntax-and-regressions:
+  final-candidate-syntax-and-regressions:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
