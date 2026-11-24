@@ -3897,11 +3897,21 @@ class ClouzerBot(commands.Bot):
         if replied_msg is None and hasattr(message.channel, "fetch_message"):
             try:
                 replied_msg = await message.channel.fetch_message(ref.message_id)
-            except Exception:
-                logging.warning("Tidak dapat mengambil pesan sumber reply %s", ref.message_id, exc_info=True)
-                return ""
+            except Exception as exc:
+                logging.warning(
+                    "Tidak dapat mengambil pesan sumber reply %s (%s)",
+                    ref.message_id,
+                    type(exc).__name__,
+                )
+                return (
+                    "[Pesan sumber reply tidak dapat diambil; lampiran asli tidak bisa diperiksa. "
+                    "Kirim ulang file sumber jika perlu dianalisis.]"
+                )
         if replied_msg is None:
-            return ""
+            return (
+                "[Pesan sumber reply tidak tersedia; lampiran aslinya tidak bisa diperiksa. "
+                "Kirim ulang file sumber jika perlu dianalisis.]"
+            )
         chunks: list[str] = []
         total_declared_bytes = 0
         total_text_chars = 0
