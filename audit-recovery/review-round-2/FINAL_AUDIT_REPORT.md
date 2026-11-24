@@ -11,7 +11,7 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - Commit terakhir yang mengubah file kandidat: `20f7d35e93c1e3de9b19fdfa8398d6e2373ced1a`
 - Blob kandidat: `ed97417c86ddccc736efdac67c8694bdf80ea941`
 - Jumlah baris: 5.656
-- CI terakhir: [Run #45513962855 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45511576862)
+- CI terakhir: [Run #45513962855 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45513962855)
 
 ## Bukti CI terakhir
 
@@ -45,7 +45,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 14. Jika stream terputus setelah sebagian teks diterima, teks parsial dipertahankan dan user request tidak dibuang dari history.
 15. Antrean percakapan menggunakan lock FIFO per scope user/channel. Cancellation membersihkan referensi lock; scope antar-user terpisah.
 16. Environment override resource diberi hard cap: 10 lampiran, 10 gambar vision, 100 MB total lampiran, batas teks dokumen/konteks, serta batas konkurensi AI/image/audio.
-7. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
+17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 
 ## Audit 64 butir — status jujur
 
