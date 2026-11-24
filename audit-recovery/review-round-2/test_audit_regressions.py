@@ -17,7 +17,7 @@ from collections import deque
 from collections import OrderedDict
 from pathlib import Path
 
-SOURCE = Path(__file__).with_name("main_final_hardened_candidate.py")
+SOURCE = Path(__file__).with_name("revisi_audit_final_main.py")
 TREE = ast.parse(SOURCE.read_text(encoding="utf-8"), filename=str(SOURCE))
 
 
@@ -851,3 +851,31 @@ class ResponsesOutputAndToolCallBoundsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FinalHardeningStaticRegressionTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.source = SOURCE.read_text(encoding="utf-8")
+
+    def test_provider_http_is_loopback_only(self):
+        self.assertIn('_provider_is_loopback = _provider_host in {"localhost", "127.0.0.1", "::1"}', self.source)
+        self.assertNotIn("ALLOW_INSECURE_BASE_URL", self.source)
+
+    def test_provider_requests_disable_redirects(self):
+        self.assertGreaterEqual(self.source.count("allow_redirects=False"), 4)
+
+    def test_global_budget_disk_io_is_offloaded(self):
+        self.assertNotIn('self.global_budget.acquire("responses")', self.source)
+        self.assertIn('await asyncio.to_thread(self.global_budget.acquire, "responses")', self.source)
+        self.assertIn('await asyncio.to_thread(self.global_budget.acquire, "images")', self.source)
+        self.assertIn('await asyncio.to_thread(self.global_budget.acquire, "audio")', self.source)
+
+    def test_keyed_lock_registries_are_reference_counted(self):
+        self.assertIn("self.guild_lock_refs", self.source)
+        self.assertIn("self.user_image_lock_refs", self.source)
+        self.assertIn("self.guild_locks.pop(key, None)", self.source)
+        self.assertIn("self.bot_ref.user_image_locks.pop(self.uid, None)", self.source)
+
+    def test_diagnostic_function_arguments_are_sanitized(self):
+        self.assertIn("safe_args = scrub_secrets", self.source)
