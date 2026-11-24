@@ -104,9 +104,9 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("NESTED PPTX CONTENT", text)
 
     def test_reads_pdf_nested_inside_zip(self):
-        raw = self.make_zip([("docs/report.pdf", self.make_pdf("NESTED PDF CONTENT WITH ENOUGH TEXT FOR NATIVE EXTRACTION"))])
+        raw = self.make_zip([("docs/report.pdf", self.make_pdf("NESTED PDF CONTENT WITH ENOUGH CHARACTERS FOR TEXT EXTRACTION WITH ENOUGH TEXT FOR NATIVE EXTRACTION"))])
         text, _ = self.bot.extract_generic_zip_content(raw, "bundle.zip")
-        self.assertIn("NESTED PDF CONTENT WITH ENOUGH TEXT FOR NATIVE EXTRACTION", text)
+        self.assertIn("NESTED PDF CONTENT WITH ENOUGH CHARACTERS FOR TEXT EXTRACTION WITH ENOUGH TEXT FOR NATIVE EXTRACTION", text)
 
     def test_reads_nested_zip_one_level(self):
         inner = self.make_zip([("inside.txt", "NESTED ZIP CONTENT")])
