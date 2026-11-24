@@ -132,6 +132,9 @@ MAX_CONCURRENT_ATTACHMENTS = _env_int_capped("MAX_CONCURRENT_ATTACHMENTS", 3, mi
 MAX_TEXT_FILE_CHARS = _env_int_capped("MAX_TEXT_FILE_CHARS", 60_000, minimum=1_000, maximum=100_000)
 MAX_DOCUMENT_TEXT_CHARS = _env_int_capped("MAX_DOCUMENT_TEXT_CHARS", 50_000, minimum=5_000, maximum=100_000)
 MAX_ATTACHMENT_CONTEXT_CHARS = _env_int_capped("MAX_ATTACHMENT_CONTEXT_CHARS", 100_000, minimum=10_000, maximum=200_000)
+# Antrean per percakapan dibatasi agar satu pengguna tidak dapat menumpuk tugas tanpa batas.
+MAX_QUEUE_PENDING_PER_SCOPE = _env_int_capped("MAX_QUEUE_PENDING_PER_SCOPE", 10, minimum=1, maximum=10)
+QUEUE_WAIT_TIMEOUT_SECONDS = min(600.0, _env_float("QUEUE_WAIT_TIMEOUT_SECONDS", 300.0, minimum=1.0))
 
 # Pemakaian API: konkurensi provider dan anggaran panjang prompt riwayat.
 MAX_CONCURRENT_AI_CALLS = _env_int_capped("MAX_CONCURRENT_AI_CALLS", 4, minimum=1, maximum=8)
@@ -2114,16 +2117,73 @@ class ClouzerBot(commands.Bot):
         return user_id in self.image_busy_users
 
     @asynccontextmanager
-    async def guild_lock(self, key: str):
+    async def guild_lock(self, key: str, status_message=None):
         lock = self.guild_locks.get(key)
         if lock is None:
             lock = asyncio.Lock()
             self.guild_locks[key] = lock
-        self.guild_lock_refs[key] = self.guild_lock_refs.get(key, 0) + 1
+
+        current_refs = self.guild_lock_refs.get(key, 0)
+        # Ref pertama adalah pemroses aktif; sisanya adalah waiter FIFO.
+        if status_message is not None and current_refs >= MAX_QUEUE_PENDING_PER_SCOPE + 1:
+            try:
+                await status_message.edit(
+                    content=(
+                        "⚠️ Antrean percakapan penuh. Pesan ini belum diproses; "
+                        "tunggu giliran yang ada selesai lalu kirim ulang."
+                    )
+                )
+            except Exception:
+                logging.debug("Gagal memperbarui status antrean penuh", exc_info=True)
+            yield False
+            return
+
+        self.guild_lock_refs[key] = current_refs + 1
+        acquired = False
         try:
-            async with lock:
-                yield
+            try:
+                if status_message is None:
+                    await lock.acquire()
+                else:
+                    await asyncio.wait_for(
+                        lock.acquire(),
+                        timeout=QUEUE_WAIT_TIMEOUT_SECONDS,
+                    )
+                acquired = True
+            except asyncio.TimeoutError:
+                if status_message is not None:
+                    try:
+                        await status_message.edit(
+                            content=(
+                                "⚠️ Waktu tunggu antrean habis. Pesan ini belum diproses; "
+                                "kirim ulang setelah antrean lebih longgar."
+                            )
+                        )
+                    except Exception:
+                        logging.debug("Gagal memperbarui status timeout antrean", exc_info=True)
+                yield False
+                return
+
+            try:
+                yield True
+            except asyncio.CancelledError:
+                if status_message is not None:
+                    try:
+                        edit_task = asyncio.create_task(
+                            status_message.edit(
+                                content=(
+                                    "⚠️ Proses dibatalkan karena bot berhenti atau tugas terputus. "
+                                    "Pesan ini belum dijamin selesai; kirim ulang setelah bot online."
+                                )
+                            )
+                        )
+                        await asyncio.shield(edit_task)
+                    except BaseException:
+                        logging.debug("Tidak dapat memperbarui status tugas yang dibatalkan", exc_info=True)
+                raise
         finally:
+            if acquired:
+                lock.release()
             remaining = self.guild_lock_refs.get(key, 1) - 1
             if remaining <= 0:
                 self.guild_lock_refs.pop(key, None)
@@ -4566,7 +4626,9 @@ class ClouzerBot(commands.Bot):
         )
         _turn_diag["queue_status_send_seconds"] = _turn_loop.time() - _queue_status_started
         _queue_wait_started = _turn_loop.time()
-        async with self.guild_lock(scope_key):
+        async with self.guild_lock(scope_key, status_message=status_msg) as _queue_acquired:
+            if not _queue_acquired:
+                return
             _turn_diag["queue_wait_seconds"] = _turn_loop.time() - _queue_wait_started
             guild_state = self.get_guild_state(guild, user.id, channel_id)
             mode = guild_state["thread_modes"].get(str(target_channel.id), "fast")
