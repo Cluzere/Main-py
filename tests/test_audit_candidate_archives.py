@@ -676,8 +676,8 @@ class ArchiveReaderTests(unittest.TestCase):
 
     def test_rejects_encrypted_zip_flag_before_reading_members(self):
         raw = bytearray(self.make_zip([("secret.txt", "encrypted payload")]))
-        local = raw.find(b"PK\\x03\\x04")
-        central = raw.find(b"PK\\x01\\x02")
+        local = raw.find(b"PK\x03\x04")
+        central = raw.find(b"PK\x01\x02")
         self.assertGreaterEqual(local, 0)
         self.assertGreaterEqual(central, 0)
         raw[local + 6] |= 0x01
