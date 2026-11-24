@@ -102,6 +102,84 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("symlink dilewati", text)
         self.assertNotIn("not a real file", text)
 
+
+    def test_attachment_semaphore_waits_instead_of_dropping_upload(self):
+        import asyncio
+        from types import SimpleNamespace
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot.attachment_semaphore = asyncio.Semaphore(1)
+        active = 0
+        maximum_active = 0
+
+        async def fake_encode(_attachment):
+            nonlocal active, maximum_active
+            active += 1
+            maximum_active = max(maximum_active, active)
+            await asyncio.sleep(0.01)
+            active -= 1
+            return None, [], [], "image"
+
+        bot._encode_attachment_impl = fake_encode
+
+        async def run_batch():
+            attachments = [SimpleNamespace(filename=f"image-{i}.png") for i in range(5)]
+            return await asyncio.gather(*(bot.encode_attachment(a) for a in attachments))
+
+        results = asyncio.run(run_batch())
+        self.assertEqual(len(results), 5)
+        self.assertTrue(all(result[3] == "image" for result in results))
+        self.assertEqual(maximum_active, 1)
+
+    def test_retry_once_for_explicit_gateway_failure_before_stream(self):
+        import asyncio
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+        class Budget:
+            def acquire(self, _category):
+                return True, 0.0
+
+        bot.global_budget = Budget()
+        bot.ai_semaphore = asyncio.Semaphore(1)
+        attempts = 0
+
+        async def fake_impl(*args, _diag_timing=None, **kwargs):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise RuntimeError("Responses HTTP 502: Unable to forward upstream stream")
+            return "jawaban pulih", []
+
+        bot._run_responses_ai_impl = fake_impl
+        result = asyncio.run(bot.run_responses_ai([], None))
+        self.assertEqual(result[0], "jawaban pulih")
+        self.assertEqual(attempts, 2)
+
+    def test_no_retry_after_stream_event_has_started(self):
+        import asyncio
+
+        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+        class Budget:
+            def acquire(self, _category):
+                return True, 0.0
+
+        bot.global_budget = Budget()
+        bot.ai_semaphore = asyncio.Semaphore(1)
+        attempts = 0
+
+        async def fake_impl(*args, _diag_timing=None, **kwargs):
+            nonlocal attempts
+            attempts += 1
+            _diag_timing["first_event_seconds"] = 0.01
+            raise RuntimeError("Responses HTTP 502: ambiguous failure after stream event")
+
+        bot._run_responses_ai_impl = fake_impl
+        with self.assertRaisesRegex(RuntimeError, "HTTP 502"):
+            asyncio.run(bot.run_responses_ai([], None))
+        self.assertEqual(attempts, 1)
+
     def test_default_attachment_limit_is_ten(self):
         self.assertEqual(module.MAX_ATTACHMENTS_PER_MESSAGE, 10)
 
