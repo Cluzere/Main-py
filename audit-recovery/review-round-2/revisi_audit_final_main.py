@@ -3624,7 +3624,7 @@ class ClouzerBot(commands.Bot):
                 allow_tools=allow_tools, allow_image_tool=allow_image_tool, extra_input=extra_input,
                 _diag_timing=diag,
             )
-        logging.info(
+        logging.warning(
             "[TTFT-DIAG] mode=%s budget=%.3fs semaphore=%.3fs request_to_first_event=%s request_to_first_text=%s total=%.3fs",
             mode, diag["budget_seconds"], diag["semaphore_seconds"],
             f'{diag["first_event_seconds"]:.3f}s' if "first_event_seconds" in diag else "n/a",
