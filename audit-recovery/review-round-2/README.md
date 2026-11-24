@@ -22,10 +22,10 @@
 
 ## Dependensi tambahan
 
-Parser 7Z memerlukan `py7zr`. Untuk staging Wispbyte, pasang:
+Parser 7Z memerlukan `py7zr`, dan parser XML aman memerlukan `defusedxml`. Untuk staging Wispbyte, pasang:
 
 ```bash
-pip install --no-cache-dir "py7zr>=1.0,<2"
+pip install --no-cache-dir "py7zr>=1.0,<2" defusedxml
 ```
 
 Lihat `requirements-audit.txt` untuk daftar dependensi audit. Jika `py7zr` tidak terpasang, file 7Z ditandai unsupported dan tidak diklaim sudah dibaca.
