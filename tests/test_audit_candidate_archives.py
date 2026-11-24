@@ -465,6 +465,7 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIsNotNone(bot.turn)
         self.assertIn("READ 10.csv", bot.turn["additional_file_text"])
         self.assertIn("03.docx gagal diproses", bot.turn["additional_file_text"])
+        self.assertIn("simulated parser failure", bot.turn["additional_file_text"])
 
     def test_on_message_caps_eleven_attachments_at_ten_with_notice(self):
         import asyncio
