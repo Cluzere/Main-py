@@ -278,10 +278,10 @@ class ArchiveReaderTests(unittest.TestCase):
         )
         with patch.object(module.discord, "Message", FakeMessage):
             result = asyncio.run(bot.resolve_replied_files(
-                message, remaining_bytes=4, remaining_chars=10
+                message, remaining_bytes=4, remaining_chars=30
             ))
         self.assertIn("first.docx", result)
-        self.assertIn("dipotong", result.lower())
+        self.assertIn("batas total ukuran", result.lower())
         self.assertNotIn("CONTENT-second.docx", result)
 
 
