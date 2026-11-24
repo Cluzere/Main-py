@@ -7,3 +7,4 @@ python-docx
 python-pptx
 openpyxl
 py7zr>=1.0,<2
+defusedxml
