@@ -1845,5 +1845,44 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("30", pptx_text)
         self.assertIn("70", pptx_text)
 
+    def test_core_metadata_is_extracted_from_docx_pptx_and_xlsx(self):
+        from docx import Document
+        from pptx import Presentation
+        from pptx.util import Inches
+        import openpyxl
+
+        doc = Document()
+        doc.add_paragraph("DOCX BODY")
+        doc.core_properties.title = "DOCX AUDIT TITLE"
+        doc.core_properties.author = "DOCX AUDIT AUTHOR"
+        doc.core_properties.subject = "DOCX AUDIT SUBJECT"
+        docx_bytes = io.BytesIO()
+        doc.save(docx_bytes)
+        docx_text, _ = self.bot.extract_docx_content(docx_bytes.getvalue(), "metadata.docx")
+        self.assertIn("DOCX AUDIT TITLE", docx_text)
+        self.assertIn("DOCX AUDIT AUTHOR", docx_text)
+        self.assertIn("DOCX AUDIT SUBJECT", docx_text)
+
+        prs = Presentation()
+        prs.slides.add_slide(prs.slide_layouts[6])
+        prs.core_properties.title = "PPTX AUDIT TITLE"
+        prs.core_properties.author = "PPTX AUDIT AUTHOR"
+        pptx_bytes = io.BytesIO()
+        prs.save(pptx_bytes)
+        pptx_text, _ = self.bot.extract_pptx_content(pptx_bytes.getvalue(), "metadata.pptx")
+        self.assertIn("PPTX AUDIT TITLE", pptx_text)
+        self.assertIn("PPTX AUDIT AUTHOR", pptx_text)
+
+        wb = openpyxl.Workbook()
+        wb.active["A1"] = "XLSX BODY"
+        wb.properties.title = "XLSX AUDIT TITLE"
+        wb.properties.creator = "XLSX AUDIT CREATOR"
+        xlsx_bytes = io.BytesIO()
+        wb.save(xlsx_bytes)
+        wb.close()
+        xlsx_text, _ = self.bot.extract_xlsx_content(xlsx_bytes.getvalue(), "metadata.xlsx")
+        self.assertIn("XLSX AUDIT TITLE", xlsx_text)
+        self.assertIn("XLSX AUDIT CREATOR", xlsx_text)
+
 if __name__ == "__main__":
     unittest.main()
