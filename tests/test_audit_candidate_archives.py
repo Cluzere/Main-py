@@ -1560,5 +1560,98 @@ class ArchiveReaderTests(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_ingress_lock_cancellation_cleans_waiter_and_preserves_next_turn(self):
+        async def run():
+            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+            bot.ingress_locks = {}
+            bot.ingress_lock_refs = {}
+            lock = asyncio.Lock()
+            await lock.acquire()
+            bot.ingress_locks["scope"] = lock
+            bot.ingress_lock_refs["scope"] = 1
+
+            async def waiter():
+                async with bot.ingress_lock("scope"):
+                    self.fail("cancelled waiter must not acquire")
+
+            task = asyncio.create_task(waiter())
+            await asyncio.sleep(0)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+            self.assertEqual(bot.ingress_lock_refs["scope"], 1)
+            lock.release()
+            bot.ingress_lock_refs["scope"] = 0
+            bot.ingress_locks.pop("scope", None)
+
+            async with bot.ingress_lock("scope") as (acquired, reason):
+                self.assertTrue(acquired, reason)
+            self.assertEqual(bot.ingress_lock_refs, {})
+            self.assertEqual(bot.ingress_locks, {})
+
+        asyncio.run(run())
+
+    def test_on_message_waits_for_ingress_turn_before_parsing_next_attachment(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        class FakeRateLimiter:
+            def acquire(self, *args, **kwargs):
+                return True, 0.0
+
+        async def run():
+            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+            bot.user = SimpleNamespace(id=999)
+            bot.rate_limiter = FakeRateLimiter()
+            bot.ingress_locks = {}
+            bot.ingress_lock_refs = {}
+            bot.is_channel_allowed = lambda channel, guild: True
+            parsed = []
+            first_parse_started = asyncio.Event()
+            release_first = asyncio.Event()
+            completed = []
+
+            async def encode_attachment(attachment):
+                parsed.append(attachment.filename)
+                if attachment.filename == "first.txt":
+                    first_parse_started.set()
+                    await release_first.wait()
+                return "CONTENT-" + attachment.filename, [], [], "text"
+
+            async def process_ai_turn(**kwargs):
+                completed.append(kwargs["clean_content"])
+
+            bot.encode_attachment = encode_attachment
+            bot.process_ai_turn = process_ai_turn
+            channel = SimpleNamespace(id=7)
+
+            def make_message(label):
+                return SimpleNamespace(
+                    author=SimpleNamespace(bot=False, id=42, display_name="tester"),
+                    guild=None,
+                    channel=channel,
+                    content=label,
+                    attachments=[SimpleNamespace(
+                        filename=label + ".txt", size=10, content_type="text/plain"
+                    )],
+                    reference=None,
+                )
+
+            with patch.object(module, "bot", bot):
+                first = asyncio.create_task(module.on_message(make_message("first")))
+                await first_parse_started.wait()
+                second = asyncio.create_task(module.on_message(make_message("second")))
+                await asyncio.sleep(0)
+                self.assertEqual(parsed, ["first.txt"])
+                release_first.set()
+                await asyncio.gather(first, second)
+
+            self.assertEqual(parsed, ["first.txt", "second.txt"])
+            self.assertEqual(completed, ["first", "second"])
+            self.assertEqual(bot.ingress_lock_refs, {})
+            self.assertEqual(bot.ingress_locks, {})
+        
+        asyncio.run(run())
+
 if __name__ == "__main__":
     unittest.main()
