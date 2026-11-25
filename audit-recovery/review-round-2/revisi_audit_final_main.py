@@ -2957,6 +2957,21 @@ class ClouzerBot(commands.Bot):
             logging.warning("Embedded ZIP images unavailable: %s", type(exc).__name__)
         return images_out
 
+    @staticmethod
+    def _format_core_metadata(properties, field_names: tuple[str, ...]) -> list[str]:
+        lines: list[str] = []
+        for field_name in field_names:
+            try:
+                value = getattr(properties, field_name, None)
+            except Exception:
+                continue
+            if not isinstance(value, (str, int, float, bool)):
+                continue
+            rendered = str(value).strip()
+            if rendered:
+                lines.append(f"- {field_name}: {rendered[:500]}")
+        return lines
+
     def extract_docx_content(self, docx_bytes: bytes, filename: str) -> tuple[str, list[str]]:
         try:
             with self._validate_zip_archive(docx_bytes):
@@ -2975,6 +2990,14 @@ class ClouzerBot(commands.Bot):
         parts: list[str] = []
         total_chars = 0
         max_chars = MAX_DOCUMENT_TEXT_CHARS
+        metadata = self._format_core_metadata(
+            doc.core_properties,
+            ("title", "subject", "author", "keywords", "comments", "category", "language", "identifier", "last_modified_by"),
+        )
+        if metadata:
+            metadata_block = "[Metadata inti DOCX]\\n" + "\\n".join(metadata)
+            parts.append(metadata_block)
+            total_chars += len(metadata_block) + 2
 
         for p in doc.paragraphs:
             txt = (p.text or "").strip()
@@ -3046,6 +3069,14 @@ class ClouzerBot(commands.Bot):
 
         if Presentation is not None:
             prs = Presentation(io.BytesIO(pptx_bytes))
+            metadata = self._format_core_metadata(
+                prs.core_properties,
+                ("title", "subject", "author", "keywords", "comments", "category", "language", "identifier", "last_modified_by"),
+            )
+            if metadata:
+                metadata_block = "[Metadata inti PPTX]\\n" + "\\n".join(metadata)
+                parts.append(metadata_block)
+                total_chars += len(metadata_block) + 2
             for s_idx, slide in enumerate(prs.slides, start=1):
                 slide_lines: list[str] = []
                 for shape in slide.shapes:
@@ -3141,6 +3172,14 @@ class ClouzerBot(commands.Bot):
             parts: list[str] = []
             total_chars = 0
             max_chars = MAX_DOCUMENT_TEXT_CHARS
+            metadata = self._format_core_metadata(
+                wb.properties,
+                ("title", "subject", "creator", "keywords", "description", "category", "identifier", "language", "lastModifiedBy"),
+            )
+            if metadata:
+                metadata_block = "[Metadata inti XLSX]\\n" + "\\n".join(metadata)
+                parts.append(metadata_block)
+                total_chars += len(metadata_block) + 2
 
             for sheet_name in wb.sheetnames[:15]:
                 ws = wb[sheet_name]
