@@ -1293,6 +1293,8 @@ def merge_image_sources(*groups, limit: int | None = None) -> list[str]:
     if limit is None:
         limit = MAX_VISION_IMAGES_PER_TURN
     limit = max(0, int(limit))
+    if limit == 0:
+        return []
     merged: list[str] = []
     seen: set[str] = set()
     for group in groups:
