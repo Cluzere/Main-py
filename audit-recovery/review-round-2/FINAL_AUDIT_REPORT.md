@@ -8,12 +8,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit terakhir yang mengubah file kandidat: `4f7043cec8c9df88f90dac16a313208d3f80777f`
-- Commit branch terbaru yang diuji pada CI: `c735e75717c0bdb50cfcf0501befae728858ec14`.
+- Commit terakhir yang mengubah file kandidat: `3b57a0c528e8e99da3a0ee97ff8a59f782d4cadb`
+- Commit branch terbaru yang diuji pada CI: `ee139b9de945b2837a1910f34bd1f1c3119a22f7`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat terbaru: `fa79b307051fc7e49e5e9c547c80b47d0f7fcff0`
-- Jumlah baris kandidat: 5.875
-- CI terbaru: [Run #45564530192 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45564530192)
+- Blob kandidat terbaru: `0297c534300cce5751294356efd647aeef2e4513`
+- Jumlah baris kandidat: 5.881
+- CI terbaru: [Run #45564734576 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45564530192)
 
 ## Bukti CI terakhir
 
@@ -55,7 +55,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 16. Environment override resource diberi hard cap: 10 lampiran, 10 gambar vision, 100 MB total lampiran, batas teks dokumen/konteks, serta batas konkurensi AI/image/audio.
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 18. Anggota PDF/Office/audio dalam ZIP dan 7Z diperiksa signature-nya sebelum diparse; file dengan ekstensi yang tidak cocok ditolak dan dilaporkan.
-19. Container DOCX/PPTX/XLSX wajib memiliki part inti OOXML. ODT/ODS/ODP dan EPUB memeriksa mimetype format. Container juga dibatasi jumlah anggota, ukuran per anggota, dan total ukuran sebelum parser dokumen dijalankan.
+19. Container DOCX/PPTX/XLSX wajib memiliki part inti OOXML. ODT/ODS/ODP dan EPUB memeriksa mimetype yang benar; entri mimetype wajib pertama dan tidak dikompresi. Container juga dibatasi jumlah anggota, ukuran per anggota, dan total ukuran sebelum parser dokumen dijalankan.
 
 19. Sumber gambar edit menggabungkan lampiran baru dan gambar reply dengan deduplikasi, urutan prioritas, dan batas visual.
 20. Provenance ZIP memberi path penuh, tipe, dan asal `ROOT`/`NESTED`; dua tes memastikan file root tidak salah diatribusikan ke arsip nested.
@@ -222,7 +222,7 @@ Temuan bahwa parsing lampiran berlangsung sebelum lock percakapan telah diperbai
 ## Verifikasi CI dan runtime terbaru
 
 - Run GitHub Actions `45564530192`: seluruh job selesai dengan `success` pada commit `c735e75717c0bdb50cfcf0501befae728858ec14`.
-- Candidate suite: **79/79 PASS**; regresi lama: **76/76 PASS** (155 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB, dan file binary terpotong/salah label.
+- Candidate suite: **79/79 PASS**; regresi lama: **76/76 PASS** (155 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB (termasuk urutan dan metode penyimpanan ODF), dan file binary terpotong/salah label.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
 - Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (kode blob `fa79b307051fc7e49e5e9c547c80b47d0f7fcff0`, dites pada commit `c735e75717c0bdb50cfcf0501befae728858ec14`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
