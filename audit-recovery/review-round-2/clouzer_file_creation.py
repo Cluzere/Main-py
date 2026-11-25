@@ -4,6 +4,9 @@ import io, json, re, textwrap, time, zipfile
 
 MAX_GENERATED_FILE_BYTES = 8 * 1024 * 1024
 MAX_GENERATED_TEXT_CHARS = 400_000
+MAX_TABLE_ROWS = 10_000
+MAX_TABLE_COLUMNS = 256
+MAX_ZIP_ENTRIES = 100
 _FORMAT_PATTERNS = {
     "txt": re.compile(r"(?<![a-z0-9])(?:\.txt|txt|plain text|teks biasa)(?![a-z0-9])", re.I),
     "pdf": re.compile(r"(?<![a-z0-9])(?:\.pdf|pdf)(?![a-z0-9])", re.I),
@@ -80,11 +83,22 @@ def detect_requested_file_format(prompt: str) -> str | None:
 
 def _safe_title(content: str, prompt: str) -> str:
     for line in str(content or "").splitlines():
-        title = re.sub(r"^\s{0,3}#{1,6}\s*", "", line).strip()
-        if title:
-            return title[:100]
-    return re.sub(r"\s+", " ", str(prompt or "Dokumen CLOUZER")).strip()[:100] or "Dokumen CLOUZER"
+        match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)\s*$", line)
+        if match and match.group(1).strip():
+            return match.group(1).strip()[:100]
+    return "Dokumen CLOUZER"
 
+
+def _safe_sheet_title(prompt: str) -> str:
+    value = str(prompt or "")
+    match = re.search(
+        r"(?:nama\s+)?(?:worksheet|work\s*sheet|sheet|lembar\s+kerja)"
+        r"\s*(?:bernama|dengan\s+nama|name|:)?\s*[\"']?([A-Za-z0-9 _-]{1,31})",
+        value, re.I,
+    )
+    title = match.group(1).strip(" _-") if match else "Data"
+    title = re.sub(r"[\[\]:*?/\\]", " ", title).strip()[:31]
+    return title or "Data"
 
 def _safe_filename(prompt: str, extension: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", str(prompt or "").lower()).strip("_")[:36] or "dokumen"
@@ -119,11 +133,16 @@ def _make_pdf(content: str, title: str) -> bytes:
             page = doc.new_page(width=595, height=842)
             page.insert_text((48, 48), title[:90], fontsize=14, fontname="helv")
             page.draw_line((48, 60), (547, 60), color=(0.35, 0.35, 0.35), width=0.6)
-            page.insert_textbox(fitz.Rect(48, 76, 547, 790), "\n".join(wrapped[offset:offset + 52]), fontsize=9.5, fontname="helv", lineheight=1.2)
+            remaining = page.insert_textbox(
+                fitz.Rect(48, 76, 547, 790),
+                "\n".join(wrapped[offset:offset + 52]),
+                fontsize=9.5, fontname="helv", lineheight=1.2,
+            )
+            if remaining < 0:
+                raise ValueError("Teks PDF tidak muat pada layout; konten tidak akan dipotong diam-diam.")
         return doc.tobytes(deflate=True)
     finally:
         doc.close()
-
 
 def _make_docx(content: str, title: str) -> bytes:
     try:
@@ -161,13 +180,13 @@ def _make_xlsx(content: str, title: str) -> bytes:
         raise RuntimeError("openpyxl belum terpasang; XLSX tidak bisa dibuat.") from exc
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = re.sub(r"[\[\]:*?/\\]", " ", title).strip()[:31] or "Data"
+    sheet.title = _safe_sheet_title(title)
     rows = []
     for line in content.splitlines():
         stripped = line.strip()
         if not stripped:
-            rows.append([""])
-        elif stripped.startswith("|") and stripped.endswith("|"):
+            continue
+        if stripped.startswith("|") and stripped.endswith("|"):
             cells = [cell.strip() for cell in stripped.strip("|").split("|")]
             if cells and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
                 continue
@@ -176,8 +195,21 @@ def _make_xlsx(content: str, title: str) -> bytes:
             rows.append([cell.strip() for cell in line.split("\t")])
         else:
             rows.append([line])
-    for row in rows or [[content]]:
-        sheet.append([str(cell)[:32767] for cell in row])
+    if not rows:
+        rows = [[content]]
+    _check_table(rows, "", "XLSX")
+    headers = [str(value).strip().casefold() for value in rows[0]]
+    numeric_headers = re.compile(r"(?:harga|price|biaya|cost|stok|stock|qty|kuantitas|jumlah|quantity|nomor|^no\.?$)")
+    for row_index, row in enumerate(rows):
+        values = []
+        for column_index, cell in enumerate(row):
+            value = str(cell)[:32767]
+            if row_index > 0 and column_index < len(headers) and numeric_headers.search(headers[column_index]):
+                candidate = value.strip()
+                if re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", candidate):
+                    value = float(candidate) if "." in candidate else int(candidate)
+            values.append(value)
+        sheet.append(values)
     for cell in sheet[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="365F91")
@@ -188,7 +220,6 @@ def _make_xlsx(content: str, title: str) -> bytes:
     output = io.BytesIO()
     workbook.save(output)
     return output.getvalue()
-
 
 def _make_pptx(content: str, title: str) -> bytes:
     try:
@@ -204,6 +235,8 @@ def _make_pptx(content: str, title: str) -> bytes:
         paragraphs = [part.strip() for part in content.splitlines() if part.strip()]
         if len(paragraphs) > 9:
             chunks = ["\n".join(paragraphs[index:index + 8]) for index in range(0, len(paragraphs), 8)]
+    if len(chunks) > 100:
+        raise ValueError("PPTX melebihi batas 100 slide.")
     for index, chunk in enumerate(chunks):
         lines = [line.strip() for line in chunk.splitlines() if line.strip()]
         slide_title = title if index == 0 else f"{title} — {index + 1}"
@@ -216,15 +249,14 @@ def _make_pptx(content: str, title: str) -> bytes:
         body = slide.placeholders[1].text_frame
         body.clear()
         body.word_wrap = True
-        for line_index, line in enumerate(lines[:30]):
+        for line_index, line in enumerate(lines):
             paragraph = body.paragraphs[0] if line_index == 0 else body.add_paragraph()
-            paragraph.text = line[:1000]
+            paragraph.text = line
             paragraph.font.size = Pt(18)
             paragraph.level = 0
     output = io.BytesIO()
     presentation.save(output)
     return output.getvalue()
-
 
 def _make_zip(content: str, title: str) -> bytes:
     output = io.BytesIO()
@@ -247,39 +279,49 @@ def _unfence(value: str) -> str:
 
 def _rows_from_text(value: str) -> list[list[str]]:
     import csv
-    rows = []
-    for line in value.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        if line.startswith("|") and line.endswith("|"):
-            cells = [x.strip() for x in line.strip("|").split("|")]
-            if all(re.fullmatch(r":?-{3,}:?", x.replace(" ", "")) for x in cells):
+    lines = [line for line in value.splitlines() if line.strip()]
+    if not lines:
+        return []
+    if all(line.strip().startswith("|") and line.strip().endswith("|") for line in lines):
+        rows = []
+        for line in lines:
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if cells and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
                 continue
             rows.append(cells)
-        elif "\t" in line:
-            rows.append([x.strip() for x in line.split("\t")])
-        elif "," in line:
-            rows.append([x.strip() for x in next(csv.reader([line]))])
-    if rows:
-        width = max(map(len, rows))
-        return [r + [""] * (width-len(r)) for r in rows]
-    return []
-
+    else:
+        delimiter = "\t" if "\t" in lines[0] else ","
+        rows = list(csv.reader(io.StringIO(value), delimiter=delimiter))
+        rows = [[cell.strip() for cell in row] for row in rows if any(cell.strip() for cell in row)]
+    if not rows:
+        return []
+    width = max(map(len, rows))
+    if width > MAX_TABLE_COLUMNS or len(rows) > MAX_TABLE_ROWS + 1:
+        raise ValueError("Tabel melewati batas 10.000 baris data atau 256 kolom.")
+    return [row + [""] * (width - len(row)) for row in rows]
 
 def _check_table(rows: list[list[str]], prompt: str, label: str) -> None:
     if len(rows) < 2 or not rows[0]:
         raise ValueError(label + " harus memiliki header dan setidaknya satu baris data.")
+    if len(rows) - 1 > MAX_TABLE_ROWS or len(rows[0]) > MAX_TABLE_COLUMNS:
+        raise ValueError(label + " melewati batas 10.000 baris data atau 256 kolom.")
     low = prompt.lower()
     row_match = re.search(r"\b(\d{1,4})\s*(?:baris data|baris|rows?|produk(?:s)?|products?|records?)\b", low)
     col_match = re.search(r"\b(\d{1,3})\s*(?:kolom|columns?)\b", low)
-    if row_match and len(rows)-1 < int(row_match.group(1)):
-        raise ValueError(f"{label} hanya berisi {len(rows)-1} baris data; permintaan minimal {row_match.group(1)}.")
-    if col_match and len(rows[0]) < int(col_match.group(1)):
-        raise ValueError(f"{label} hanya memiliki {len(rows[0])} kolom; permintaan {col_match.group(1)} kolom.")
-    if any(len(r) != len(rows[0]) for r in rows):
+    allow_more = bool(re.search(r"\b(?:minimal|setidaknya|paling sedikit|at least)\b", low))
+    if row_match:
+        expected = int(row_match.group(1))
+        actual = len(rows) - 1
+        if (actual < expected) if allow_more else (actual != expected):
+            qualifier = "minimal" if allow_more else "tepat"
+            raise ValueError(f"{label} berisi {actual} baris data; permintaan {qualifier} {expected}.")
+    if col_match:
+        expected = int(col_match.group(1))
+        actual = len(rows[0])
+        if actual != expected:
+            raise ValueError(f"{label} memiliki {actual} kolom; permintaan tepat {expected} kolom.")
+    if any(len(row) != len(rows[0]) for row in rows):
         raise ValueError(label + " memiliki jumlah kolom yang tidak konsisten.")
-
 
 def _make_csv(content: str, prompt: str) -> bytes:
     import csv
@@ -303,33 +345,36 @@ def _make_json(content: str) -> bytes:
 
 
 def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
+    from pathlib import PurePosixPath
     marker = re.compile(r"(?m)^===\s*FILE:\s*([^=\r\n]+?)\s*===\s*$")
     matches = list(marker.finditer(content))
     files = {}
     if matches:
-        from pathlib import PurePosixPath
         for i, match in enumerate(matches):
             name = match.group(1).strip().replace("\\", "/")
             path = PurePosixPath(name)
-            if not name or path.is_absolute() or ".." in path.parts or name in files or re.match(r"^[A-Za-z]:", name):
+            if (not name or "\x00" in name or path.is_absolute() or ".." in path.parts
+                    or name in files or re.match(r"^[A-Za-z]:", name)):
                 raise ValueError("Nama anggota ZIP tidak aman atau duplikat: " + name)
-            end = matches[i+1].start() if i+1 < len(matches) else len(content)
+            if len(name) > 240:
+                raise ValueError("Nama anggota ZIP terlalu panjang.")
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
             files[name] = content[match.end():end].strip() + "\n"
     else:
         files = {"README.txt": f"Arsip dibuat oleh CLOUZER.\n{title}\n", "konten.txt": content}
-    required = set(re.findall(r"\b[\w.-]+\.(?:txt|json|csv)\b", prompt, re.I))
+    required = set(re.findall(r"(?<![\w.-])(?:[\w.-]+/)*[\w.-]+\.(?:txt|json|csv)\b", prompt, re.I))
     missing = sorted(required - set(files))
     if missing:
         raise ValueError("ZIP tidak memiliki anggota yang diminta: " + ", ".join(missing))
-    if len(files) > 100:
+    if len(files) > MAX_ZIP_ENTRIES:
         raise ValueError("ZIP melebihi batas 100 anggota.")
     import csv
     for name, value in files.items():
         if name.lower().endswith(".json"):
             json.loads(_unfence(value))
         elif name.lower().endswith(".csv"):
-            rows = list(csv.reader(io.StringIO(_unfence(value))))
-            if len(rows) < 2 or any(len(r) != len(rows[0]) for r in rows):
+            rows = _rows_from_text(_unfence(value))
+            if len(rows) < 2 or any(len(row) != len(rows[0]) for row in rows):
                 raise ValueError("CSV internal tidak valid: " + name)
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
@@ -341,33 +386,45 @@ def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
             raise RuntimeError("Validasi integritas ZIP gagal.")
     return data
 
-
 def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
     fmt = str(format_name or "").lower().lstrip(".")
+    if fmt not in _FORMAT_PATTERNS:
+        raise ValueError("Format validasi tidak didukung.")
     if not isinstance(data, bytes) or not data or len(data) > MAX_GENERATED_FILE_BYTES:
         raise ValueError("File kosong atau melewati batas 8 MB.")
     result = {"format": fmt, "bytes": len(data), "valid": False}
     if fmt == "txt":
-        if len(data.decode("utf-8-sig").strip()) < 20:
-            raise ValueError("TXT kosong atau terlalu pendek.")
+        if not data.decode("utf-8-sig").strip():
+            raise ValueError("TXT kosong.")
     elif fmt == "pdf":
         import pymupdf
         with pymupdf.open(stream=data, filetype="pdf") as doc:
-            if doc.page_count < 1 or len("".join(p.get_text() for p in doc).strip()) < 20:
-                raise ValueError("PDF tidak memiliki halaman atau teks cukup.")
+            if doc.page_count < 1 or not "".join(page.get_text() for page in doc).strip():
+                raise ValueError("PDF tidak memiliki halaman atau teks.")
             result["pages"] = doc.page_count
     elif fmt == "docx":
         from docx import Document
         doc = Document(io.BytesIO(data))
-        if len("\n".join(p.text for p in doc.paragraphs).strip()) < 20:
-            raise ValueError("DOCX tidak memiliki teks cukup.")
+        text_content = "\n".join(p.text for p in doc.paragraphs)
+        text_content += "\n" + "\n".join(cell.text for table in doc.tables for row in table.rows for cell in row.cells)
+        if not text_content.strip():
+            raise ValueError("DOCX tidak memiliki teks.")
     elif fmt == "xlsx":
         from openpyxl import load_workbook
         wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
         try:
-            rows = [[str(c or "") for c in row] for row in wb.active.iter_rows(values_only=True)]
+            if not wb.sheetnames or wb.active.max_row > MAX_TABLE_ROWS + 1 or wb.active.max_column > MAX_TABLE_COLUMNS:
+                raise ValueError("XLSX melewati batas tabel atau tidak memiliki worksheet.")
+            rows = [[str(cell or "") for cell in row] for row in wb.active.iter_rows(values_only=True)]
             _check_table(rows, prompt, "XLSX")
-            result.update({"rows": len(rows)-1, "columns": len(rows[0]), "sheets": len(wb.sheetnames)})
+            headers = [str(value).strip().casefold() for value in rows[0]]
+            for index, header in enumerate(headers):
+                if re.search(r"(?:harga|price|biaya|cost)", header):
+                    for row_number, row in enumerate(wb.active.iter_rows(min_row=2, values_only=False), 2):
+                        value = row[index].value if index < len(row) else None
+                        if not isinstance(value, (int, float)) or isinstance(value, bool):
+                            raise ValueError(f"Kolom {rows[0][index]} harus berisi angka pada baris {row_number}.")
+            result.update({"rows": len(rows) - 1, "columns": len(rows[0]), "sheets": len(wb.sheetnames), "sheet_name": wb.active.title})
         finally:
             wb.close()
     elif fmt == "pptx":
@@ -375,9 +432,11 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
         prs = Presentation(io.BytesIO(data))
         if not prs.slides:
             raise ValueError("PPTX tidak memiliki slide.")
+        if len(prs.slides) > 100:
+            raise ValueError("PPTX melebihi batas 100 slide.")
         for i, slide in enumerate(prs.slides, 1):
-            text = " ".join(s.text.strip() for s in slide.shapes if getattr(s, "has_text_frame", False))
-            if len(text.strip()) < 10 or "gagal: file" in text.lower():
+            text = " ".join(shape.text.strip() for shape in slide.shapes if getattr(shape, "has_text_frame", False))
+            if not text.strip() or "gagal: file" in text.lower():
                 raise ValueError(f"Slide {i} kosong atau berisi pesan kegagalan.")
         match = re.search(r"\b(\d{1,2})\s*slide", prompt, re.I)
         if match and len(prs.slides) != int(match.group(1)):
@@ -385,11 +444,23 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
         result["slides"] = len(prs.slides)
     elif fmt == "zip":
         import csv
+        from pathlib import PurePosixPath
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             if archive.testzip():
                 raise ValueError("ZIP rusak.")
-            names = archive.namelist()
-            missing = sorted(set(re.findall(r"\b[\w.-]+\.(?:txt|json|csv)\b", prompt, re.I)) - set(names))
+            infos = archive.infolist()
+            names = [info.filename for info in infos]
+            if len(names) > MAX_ZIP_ENTRIES or len(names) != len(set(names)):
+                raise ValueError("ZIP memiliki anggota berlebih atau nama anggota duplikat.")
+            if sum(info.file_size for info in infos) > MAX_GENERATED_FILE_BYTES:
+                raise ValueError("Isi ZIP melewati batas total 8 MB.")
+            for name in names:
+                normalized = name.replace("\\", "/")
+                path = PurePosixPath(normalized)
+                if not normalized or "\x00" in normalized or path.is_absolute() or ".." in path.parts or re.match(r"^[A-Za-z]:", normalized):
+                    raise ValueError("ZIP memiliki path anggota tidak aman.")
+            required = set(re.findall(r"(?<![\w.-])(?:[\w.-]+/)*[\w.-]+\.(?:txt|json|csv)\b", prompt, re.I))
+            missing = sorted(required - set(names))
             if missing:
                 raise ValueError("ZIP kehilangan anggota wajib: " + ", ".join(missing))
             for name in names:
@@ -397,22 +468,18 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 if name.lower().endswith(".json"):
                     json.loads(raw.decode("utf-8-sig"))
                 elif name.lower().endswith(".csv"):
-                    rows = list(csv.reader(io.StringIO(raw.decode("utf-8-sig"))))
-                    if len(rows) < 2 or any(len(r) != len(rows[0]) for r in rows):
+                    rows = _rows_from_text(raw.decode("utf-8-sig"))
+                    if len(rows) < 2 or any(len(row) != len(rows[0]) for row in rows):
                         raise ValueError("CSV internal tidak valid: " + name)
             result["members"] = names
     elif fmt == "csv":
-        import csv
-        rows = list(csv.reader(io.StringIO(data.decode("utf-8-sig"))))
+        rows = _rows_from_text(data.decode("utf-8-sig"))
         _check_table(rows, prompt, "CSV")
-        result.update({"rows": len(rows)-1, "columns": len(rows[0])})
+        result.update({"rows": len(rows) - 1, "columns": len(rows[0])})
     elif fmt == "json":
-        json.loads(data.decode("utf-8"))
-    else:
-        raise ValueError("Format validasi tidak didukung.")
+        json.loads(data.decode("utf-8-sig"))
     result["valid"] = True
     return result
-
 
 def create_document_file(format_name: str, prompt: str, content: str) -> tuple[bytes, str, str]:
     fmt = str(format_name or "").lower().lstrip(".")
