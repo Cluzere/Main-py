@@ -189,14 +189,68 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("VALID MEMBER STILL READ", text)
 
     def test_original_clouzer_package_four_gap_regressions(self):
+        import base64
+        import openpyxl
+
         package_path = os.getenv("CLOUZER_AUDIT_PACKAGE")
         if not package_path or not os.path.isfile(package_path):
             self.skipTest("Original ZIP fixture is supplied by the GitHub Actions workflow")
-        with zipfile.ZipFile(package_path) as package:
+
+        package_bytes = open(package_path, "rb").read()
+        with zipfile.ZipFile(io.BytesIO(package_bytes)) as package:
+            # Verify CRCs of the original package itself, including the stored
+            # bytes of the intentionally corrupt nested-ZIP test member.
+            self.assertIsNone(package.testzip())
             xlsx = package.read("09_data_uji.xlsx")
             nested = package.read("12_arsip_bersarang.zip")
             mixed = package.read("11_arsip_campuran.zip")
-            corrupt = package.read("14_file_rusak.zip")
+
+            # Inspect every member of the real nested archive and its child ZIP.
+            with zipfile.ZipFile(io.BytesIO(nested)) as nested_zip:
+                self.assertIsNone(nested_zip.testzip())
+                inner_bytes = nested_zip.read("folder/inner_test.zip")
+            with zipfile.ZipFile(io.BytesIO(inner_bytes)) as inner_zip:
+                self.assertIsNone(inner_zip.testzip())
+                self.assertEqual(
+                    inner_zip.read("02_catatan_b.txt").decode("utf-8").strip(),
+                    "DOKUMEN UJI B\\nNama proyek: Kebun Kota\\nLokasi: Blok Selatan\\n"
+                    "Jumlah tanaman: 18\\nCatatan: Kompos ditambahkan setiap hari Jumat.",
+                )
+
+            # The nested image bytes used by the vision payload must be byte-for-byte
+            # identical to the image member stored in the original nested archive.
+            with zipfile.ZipFile(io.BytesIO(mixed)) as mixed_zip:
+                self.assertIsNone(mixed_zip.testzip())
+                original_image_bytes = mixed_zip.read("05_gambar_uji_a.png")
+
+        formula_book = openpyxl.load_workbook(io.BytesIO(xlsx), data_only=False, read_only=False)
+        cached_book = openpyxl.load_workbook(io.BytesIO(xlsx), data_only=True, read_only=False)
+        try:
+            self.assertEqual(formula_book.sheetnames, ["Utara", "Selatan", "Ringkasan"])
+            self.assertEqual(formula_book["Utara"].max_row, 3)
+            self.assertEqual(formula_book["Utara"].max_column, 2)
+            self.assertEqual(formula_book["Selatan"].max_row, 3)
+            self.assertEqual(formula_book["Selatan"].max_column, 2)
+            self.assertEqual(formula_book["Ringkasan"].max_row, 3)
+            self.assertEqual(formula_book["Ringkasan"].max_column, 2)
+            self.assertEqual(formula_book["Utara"]["A2"].value, "Tomat")
+            self.assertEqual(formula_book["Utara"]["B2"].value, 10)
+            self.assertEqual(formula_book["Utara"]["A3"].value, "Cabai")
+            self.assertEqual(formula_book["Utara"]["B3"].value, 14)
+            self.assertEqual(formula_book["Selatan"]["A2"].value, "Bayam")
+            self.assertEqual(formula_book["Selatan"]["B2"].value, 8)
+            self.assertEqual(formula_book["Selatan"]["A3"].value, "Kangkung")
+            self.assertEqual(formula_book["Selatan"]["B3"].value, 10)
+            self.assertEqual(formula_book["Ringkasan"]["A2"].value, "Utara")
+            self.assertEqual(formula_book["Ringkasan"]["B2"].value, "=SUM(Utara!B2:B3)")
+            self.assertEqual(formula_book["Ringkasan"]["A3"].value, "Selatan")
+            self.assertEqual(formula_book["Ringkasan"]["B3"].value, "=SUM(Selatan!B2:B3)")
+            # Record cache behavior without pretending formulas were recalculated.
+            self.assertEqual(cached_book["Ringkasan"]["B2"].value, None)
+            self.assertEqual(cached_book["Ringkasan"]["B3"].value, None)
+        finally:
+            formula_book.close()
+            cached_book.close()
 
         xlsx_text, _ = self.bot.extract_xlsx_content(xlsx, "09_data_uji.xlsx")
         self.assertIn("B2==SUM(Utara!B2:B3)", xlsx_text)
@@ -215,13 +269,15 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("VISUAL IMAGE #1 SOURCE: 11_arsip_campuran.zip!/05_gambar_uji_a.png", mixed_text)
         self.assertEqual(len(mixed_images), 1)
         self.assertTrue(mixed_images[0].startswith("data:image/"))
+        self.assertEqual(base64.b64decode(mixed_images[0].split(",", 1)[1]), original_image_bytes)
 
-        corrupt_text, _ = self.bot.extract_generic_zip_content(
-            self.make_zip([("14_file_rusak.zip", corrupt), ("keep.txt", "CONTINUE AFTER BAD ZIP")]),
-            "corrupt-regression.zip",
-        )
-        self.assertIn("BadZipFile: File is not a zip file", corrupt_text)
-        self.assertIn("CONTINUE AFTER BAD ZIP", corrupt_text)
+        # Run the reader against the actual original package, not a synthetic
+        # wrapper, and prove that the corrupt member does not block real siblings.
+        package_text, _ = self.bot.extract_generic_zip_content(package_bytes, "CLOUZER_paket_tes_manual.zip")
+        self.assertIn("14_file_rusak.zip", package_text)
+        self.assertIn("BadZipFile: File is not a zip file", package_text)
+        self.assertIn("04_readme_proyek.txt", package_text)
+        self.assertIn("Kebun Kota", package_text)
 
     def test_skips_symlink_entries(self):
         buffer = io.BytesIO()
