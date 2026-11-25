@@ -37,7 +37,7 @@ Active audit branch: `audit-recovery-gpt-2026-11-23`
 
 ### Current branch and CI
 
-- Branch head at handoff refresh: `97a70d44429d8c86db76c32cee113b7e763842b7`
+- Commit yang diuji CI terakhir: `2ec913a3b3a698daca317e0a71cd3d3705cdd02a`; perubahan setelahnya hanya dokumentasi/handoff.
 - Candidate source's latest code commit: `675cd774c7d8a68caefde717f81f33f425611b18`
 - Latest verified candidate CI: run `45514556079`, SUCCESS.
 - Candidate suite: 57/57 PASS; existing regression suite: 74/74 PASS; total 131 tests.
