@@ -5223,7 +5223,10 @@ class ClouzerBot(commands.Bot):
                         )
                         delivered_message = await status_msg.edit(content=caption, attachments=[generated_file], view=None)
                         delivered_attachments = getattr(delivered_message, "attachments", None)
-                        if delivered_attachments is not None and not any(getattr(item, "filename", None) == generated_name for item in delivered_attachments):
+                        if delivered_attachments is None or not any(
+                            getattr(item, "filename", None) == generated_name
+                            for item in delivered_attachments
+                        ):
                             raise RuntimeError("Discord tidak mengonfirmasi attachment file pada pesan hasil edit.")
                         logging.info("[FILE-STAGE] scope=%s format=%s stage=discord_attachment_confirmed filename=%s", scope_key, requested_file_format, generated_name)
                         if not attachment_processing_failed:
