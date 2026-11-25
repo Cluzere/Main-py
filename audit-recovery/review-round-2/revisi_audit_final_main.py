@@ -32,7 +32,7 @@ if _SCRIPT_MODULE_DIR not in sys.path:
 from clouzer_file_creation import (
     detect_requested_file_format,
     create_document_file,
-    is_file_retry_command,
+    is_retry_command,
     normalize_pending_retry_task,
 )
 
@@ -4987,7 +4987,7 @@ class ClouzerBot(commands.Bot):
             _turn_diag["queue_wait_seconds"] = _turn_loop.time() - _queue_wait_started
             guild_state = self.get_guild_state(guild, user.id, channel_id)
             pending_retry_task = normalize_pending_retry_task(guild_state.get("pending_retry_task"))
-            retrying_pending_task = bool(is_file_retry_command(clean_content) and pending_retry_task)
+            retrying_pending_task = bool(is_retry_command(clean_content) and pending_retry_task)
             retry_source_message_id = None
             retry_attachment_failed = False
             if retrying_pending_task:
