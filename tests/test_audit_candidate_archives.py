@@ -175,7 +175,7 @@ class ArchiveReaderTests(unittest.TestCase):
         # Keep a ZIP local-file signature so this reaches the ZIP parser,
         # then fails as a malformed archive rather than at the signature gate.
         raw = self.make_zip([
-            ("14_file_rusak.zip", b"PK\\x03\\x04not a valid ZIP archive"),
+            ("14_file_rusak.zip", b"PK\x03\x04not a valid ZIP archive"),
             ("valid.txt", "VALID MEMBER STILL READ"),
         ])
         text, _ = self.bot.extract_generic_zip_content(raw, "package.zip")
