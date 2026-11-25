@@ -169,7 +169,15 @@ def _validate_content(content: str) -> str:
         raise ValueError("Model tidak menghasilkan isi dokumen.")
     if len(content) > MAX_GENERATED_TEXT_CHARS:
         raise ValueError("Isi dokumen melewati batas 400.000 karakter.")
-    if any(x in content.lower() for x in ("gagal membuat file", "gagal: file", "tidak bisa membuat file", "tidak dapat membuat file", "tidak tersedia tool", "tidak dapat melampirkan", "cannot create a file")):
+    failure_markers = (
+        "gagal membuat file", "gagal: file", "tidak bisa membuat file",
+        "tidak dapat membuat file", "tidak tersedia tool", "tidak menyediakan alat",
+        "tidak tersedia alat", "tidak punya alat", "tidak memiliki alat",
+        "belum bisa melampirkan", "tidak bisa melampirkan",
+        "tidak dapat melampirkan", "cannot create a file", "cannot attach",
+        "no file-generation tool",
+    )
+    if any(marker in content.lower() for marker in failure_markers):
         raise ValueError("Model mengembalikan pesan kegagalan, bukan isi dokumen; tidak dikemas sebagai file.")
     return content
 
