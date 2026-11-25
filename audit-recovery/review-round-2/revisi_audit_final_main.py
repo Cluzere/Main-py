@@ -36,6 +36,7 @@ from clouzer_file_creation import (
     normalize_pending_retry_task,
     validate_document_file,
 )
+from clouzer_box_oauth import start_box_oauth_server
 
 try:
     import py7zr
@@ -6226,7 +6227,17 @@ async def main():
     for config_warning in check_runtime_config():
         logging.warning(config_warning)
     async with bot:
-        await bot.start(DISCORD_TOKEN)
+        oauth_runner = None
+        try:
+            oauth_runner = await start_box_oauth_server()
+        except Exception:
+            # OAuth listener failure must not prevent the Discord bot from starting.
+            logging.exception("Box OAuth listener could not start; Discord bot will continue.")
+        try:
+            await bot.start(DISCORD_TOKEN)
+        finally:
+            if oauth_runner is not None:
+                await oauth_runner.cleanup()
 
 
 if __name__ == "__main__":
