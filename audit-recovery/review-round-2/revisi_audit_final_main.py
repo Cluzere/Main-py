@@ -5210,6 +5210,24 @@ class ClouzerBot(commands.Bot):
                                 "Model menolak tugas pembuatan file sebelum menghasilkan isi dokumen. "
                                 "Respons penolakan tidak akan dikemas sebagai file."
                             )
+                        if requested_file_format == "xlsx":
+                            _xlsx_diag_text = reply_text or ""
+                            _xlsx_diag_lines = [line for line in _xlsx_diag_text.splitlines() if line.strip()]
+                            _xlsx_diag_tab_rows = sum(1 for line in _xlsx_diag_lines if "\\t" in line)
+                            _xlsx_diag_md_rows = sum(
+                                1 for line in _xlsx_diag_lines
+                                if line.strip().startswith("|") and line.strip().endswith("|")
+                            )
+                            logging.warning(
+                                "[XLSX-DIAG] scope=%s response_type=%s chars=%d nonempty_lines=%d "
+                                "tab_rows=%d markdown_pipe_rows=%d",
+                                scope_key,
+                                type(reply_text).__name__,
+                                len(_xlsx_diag_text),
+                                len(_xlsx_diag_lines),
+                                _xlsx_diag_tab_rows,
+                                _xlsx_diag_md_rows,
+                            )
                         generated_bytes, generated_name, generated_mime = create_document_file(
                             requested_file_format, clean_content, reply_text or ""
                         )
