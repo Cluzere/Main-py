@@ -581,3 +581,105 @@ For all future tests, record separately:
 Never infer stages 2–5 from stage 1 or from generic `TURN-PIPELINE result=success`.
 
 ---
+
+
+## 15. ADDENDUM — hasil lanjutan tes format file (25 November 2026)
+
+Bagian ini **ditambahkan** setelah bagian-bagian sebelumnya. Seluruh isi Master Memory sebelum bagian ini dipertahankan; tidak ada riwayat lama yang ditimpa atau dihapus.
+
+### 15.1 Rekap status terbaru
+
+| Format | Status terbaru | Tingkat bukti |
+|---|---|---|
+| TXT | Berhasil menurut laporan pengguna | Belum inspeksi file asli |
+| DOCX | Berhasil menurut laporan pengguna | Belum inspeksi file asli |
+| XLSX | Berhasil menurut laporan pengguna | Belum inspeksi workbook asli |
+| PPTX | Berhasil menurut laporan pengguna | Belum inspeksi presentasi asli |
+| ZIP | Berhasil menurut laporan pengguna | Belum inspeksi arsip dan isinya |
+| PDF | **GAGAL menurut klarifikasi terbaru pengguna; sudah diperiksa** | Detail teknis kegagalan belum diberikan dalam percakapan ini; jangan lagi menyebutnya sekadar belum dites |
+| CSV | **GAGAL: output yang diterima berupa gambar, bukan CSV** | Dilaporkan pengguna dan sudah tercatat di §14.4 |
+| JSON | **GAGAL: file tidak dibuat atau dikirim** | Respons model menyatakan tidak tersedia tool untuk membuat/mengirim attachment; log tidak menunjukkan function call atau attachment |
+
+Penting: “berhasil menurut laporan pengguna” tidak sama dengan “lulus validasi independen”. PPTX dan ZIP belum diperiksa dari file aslinya. Status PDF diperbarui berdasarkan klarifikasi pengguna bahwa PDF sudah diperiksa dan hasilnya gagal. Catatan historis PDF di §14.3 tetap dipertahankan sebagai bukti saat percobaan sebelumnya; bagian ini mencatat hasil pemeriksaan yang lebih baru.
+
+### 15.2 PPTX — clouzer_test.pptx — user-reported success
+
+Pengguna melaporkan: **“Pptx berhasil dibuat.”**
+
+Permintaan: presentasi 5 slide “Pengenalan CLOUZER AI” dengan topik:
+1. Judul dan pengenalan CLOUZER AI.
+2. Tujuan dan fungsi utama.
+3. Cara kerja sistem secara ringkas.
+4. Manfaat dan kemampuan.
+5. Kesimpulan.
+
+Telemetry:
+```
+[RESPONSES-DETAIL] request_id=1575173560195092562 mode=fast allow_tools=True allow_image_tool=False continuation_items=0 headers=5.882s first_event=5.883s first_text=11.710s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=71.273s
+2026-11-25 17:38:33,962 WARNING root: [TTFT-DIAG] request_id=1575173560195092562 mode=fast budget=0.015s semaphore=0.000s request_to_first_event=5.883s request_to_first_text=11.710s total=71.293s
+```
+
+Interpretasi:
+- Status: **USER-REPORTED SUCCESS / NOT INDEPENDENTLY VERIFIED**.
+- Respons model selesai dalam 71.273 s; first event 5.883 s; first text 11.710 s.
+- `function_calls=0`; log ini tidak membuktikan generator file dipanggil atau file benar-benar valid.
+- Belum ada inspeksi file .pptx asli, jumlah slide, isi slide, struktur OOXML, atau bukti pembukaan tanpa repair warning.
+- Tindak lanjut: minta file asli dari pengguna; validasi ZIP container, `[Content_Types].xml`, relasi, `ppt/presentation.xml`, jumlah slide, teks per slide, dan kemampuan dibuka di PowerPoint/aplikasi kompatibel.
+
+### 15.3 JSON — clouzer_test.json — failed, no file and no attachment
+
+Pengguna melaporkan respons CLOUZER:
+“File `clouzer_test.json` belum dibuat atau dikirim. Sesi ini tidak menyediakan tool untuk membuat file dan mengirim attachment Discord.”
+Model juga menyatakan tidak akan mengganti file dengan gambar atau mengklaim teks chat sebagai attachment.
+
+Telemetry:
+```
+[RESPONSES-DETAIL] request_id=1575174616480092222 mode=fast allow_tools=True allow_image_tool=True continuation_items=0 headers=4.499s first_event=4.499s first_text=4.688s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=none web_events=none function_calls=0 response_completed=5.794s
+2026-11-25 17:41:40,162 WARNING root: [TTFT-DIAG] request_id=1575174616480092222 mode=fast budget=0.006s semaphore=0.000s request_to_first_event=4.499s request_to_first_text=4.688s total=5.801s
+2026-11-25 17:41:40,688 WARNING root: [TURN-PIPELINE] message_id=1575174614923878454 status_message_id=1575174616480092222 pre_attachment=0.000s attachments=0.000s prompt_prep=0.451s status_send=0.287s first_responses_call=0.000s memory_save=0.008s discord_delivery=0.464s total=7.065s result=success
+```
+
+Interpretasi:
+- Status: **FAILED — NOT CREATED / NOT SENT**.
+- `allow_tools=True` tetapi `function_calls=0`.
+- `attachments=0.000s`; tidak ada attachment yang dikirim.
+- `TURN-PIPELINE result=success` hanya menandakan alur respons Discord selesai, bukan file JSON berhasil dibuat.
+- Ini mengindikasikan model/flow tidak menjalankan kemampuan pembuatan file untuk permintaan JSON pada percobaan ini, meskipun tools diizinkan pada telemetry. Akar penyebab kode belum dipastikan; jangan menyimpulkan tanpa audit jalur pemilihan tool dan file generator.
+- Permintaan JSON: file UTF-8 asli bernama `clouzer_test.json`, berisi project, version, features, test_results, metadata, lalu dikirim sebagai attachment Discord.
+
+### 15.4 ZIP — clouzer_test.zip — user-reported success
+
+Pengguna melaporkan: **“Zip berhasil dibuat.”**
+
+Permintaan: ZIP asli berisi tiga file:
+1. `README.txt` — penjelasan singkat CLOUZER AI.
+2. `data.json` — JSON valid berisi nama proyek, deskripsi, dan minimal 3 fitur.
+3. `data.csv` — CSV valid dengan kolom `id,nama,status` dan minimal 3 baris data.
+
+Telemetry:
+```
+[RESPONSES-DETAIL] request_id=1575175325334118483 mode=fast allow_tools=True allow_image_tool=False continuation_items=0 headers=29.796s first_event=29.797s first_text=29.992s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=30.649s
+2026-11-25 17:44:53,996 WARNING root: [TTFT-DIAG] request_id=1575175325334118483 mode=fast budget=0.008s semaphore=0.000s request_to_first_event=29.797s request_to_first_text=29.992s total=30.660s
+```
+
+Interpretasi:
+- Status: **USER-REPORTED SUCCESS / NOT INDEPENDENTLY VERIFIED**.
+- Respons selesai dalam 30.649 s; first event 29.797 s; first text 29.992 s.
+- `function_calls=0`; log tidak membuktikan cara ZIP dibuat maupun bahwa attachment terkirim.
+- Belum ada file asli untuk memeriksa ZIP integrity, daftar anggota, nama/path anggota, isi README, parse JSON, dan jumlah baris CSV.
+- Tindak lanjut: minta file ZIP asli dari pengguna; uji `unzip -t`, daftar isi, ekstrak ke direktori sementara, parse JSON, dan validasi header serta jumlah baris CSV.
+
+### 15.5 Status tes file gabungan setelah percobaan terbaru
+
+- **5 format user-reported success:** TXT, DOCX, XLSX, PPTX, ZIP.
+- **3 format gagal:** PDF, CSV, JSON.
+- Ini adalah rekap status berdasarkan laporan pengguna, bukan hasil validasi independen atas lima file yang dilaporkan berhasil.
+- Jangan menyamakan `response_completed` atau `TURN-PIPELINE result=success` dengan pembuatan file, pengiriman attachment, unduhan/pembukaan file, atau validitas struktur.
+- Untuk setiap format, pertahankan pemisahan bukti lima tahap:
+  1. respons model selesai;
+  2. file lokal benar-benar dibuat;
+  3. attachment Discord benar-benar dikirim;
+  4. pengguna mengunduh dan membuka file;
+  5. isi/struktur file divalidasi independen.
+- Langkah langsung berikutnya: pengguna akan mengirim file asli PPTX dan ZIP untuk inspeksi. Jangan menyuruh pengguna mengulang tes PDF/CSV/JSON sebelum inspeksi dan audit lanjutan; pengguna sudah menyatakan PDF telah diperiksa dan gagal, CSV gagal, JSON gagal.
+- Tetap patuhi batasan proyek: jangan mengubah production `main.py`, jangan mengubah kode atau melakukan deployment/restart tanpa izin eksplisit. Pembaruan Master Memory ini hanya dokumentasi hasil tes; tidak mengubah kode bot.
