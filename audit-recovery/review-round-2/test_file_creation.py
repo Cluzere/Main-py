@@ -7,6 +7,7 @@ from clouzer_file_creation import (
     detect_requested_file_format,
     is_file_retry_command,
     normalize_pending_file_task,
+    normalize_pending_retry_task,
 )
 
 
@@ -32,6 +33,22 @@ class FileCreationTests(unittest.TestCase):
             with self.subTest(prompt=prompt):
                 self.assertTrue(is_file_retry_command(prompt))
         self.assertFalse(is_file_retry_command("Ulangi penjelasan tentang Discord"))
+
+    def test_pending_retry_task_supports_non_file_operations(self):
+        self.assertEqual(
+            normalize_pending_retry_task({"kind": "image", "prompt": "Generate a landscape"}),
+            {"prompt": "Generate a landscape", "kind": "image"},
+        )
+        self.assertEqual(
+            normalize_pending_retry_task({"kind": "audio", "prompt": "Buat audio narasi"}),
+            {"prompt": "Buat audio narasi", "kind": "audio"},
+        )
+        self.assertEqual(
+            normalize_pending_retry_task({"kind": "file", "format": "TXT", "prompt": "Buat TXT"}),
+            {"prompt": "Buat TXT", "format": "txt", "kind": "file"},
+        )
+        self.assertIsNone(normalize_pending_retry_task({"kind": "file", "format": "exe", "prompt": "Buat"}))
+        self.assertIsNone(normalize_pending_retry_task({"kind": "image", "prompt": ""}))
 
     def test_pending_file_task_is_validated_and_bounded(self):
         self.assertEqual(
