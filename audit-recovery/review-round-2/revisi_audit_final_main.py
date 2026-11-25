@@ -33,7 +33,7 @@ from clouzer_file_creation import (
     detect_requested_file_format,
     create_document_file,
     is_file_retry_command,
-    normalize_pending_file_task,
+    normalize_pending_retry_task,
 )
 
 try:
@@ -2087,6 +2087,7 @@ class AIResponseView(discord.ui.View):
                                 except Exception:
                                     logging.exception("Continuation sukses gambar gagal saat Regenerate (%s)", scope_key)
 
+                            guild_state.pop("pending_retry_task", None)
                             if channel_id:
                                 context_image = await asyncio.to_thread(
                                     self.bot_instance._compress_image_bytes_to_data_url, img_bytes
@@ -2475,7 +2476,7 @@ class ClouzerBot(commands.Bot):
             "messages": [],
             "turn_count": 0,
             "users": {},
-            "pending_file_task": None,
+            "pending_retry_task": None,
         }
         if not isinstance(raw_state, dict):
             return base
@@ -2521,10 +2522,14 @@ class ClouzerBot(commands.Bot):
             safe_messages.append({"role": role, "content": safe_content})
         merged["messages"] = safe_messages[-MAX_RECENT_MESSAGES:]
 
-        pending_file_task = normalize_pending_file_task(raw_state.get("pending_file_task"))
-        if pending_file_task:
-            pending_file_task["prompt"] = scrub_secrets(pending_file_task["prompt"])
-            merged["pending_file_task"] = pending_file_task
+        # Migrate older file-only retry state, then normalize all failed operations.
+        pending_retry_raw = raw_state.get("pending_retry_task")
+        if not isinstance(pending_retry_raw, dict):
+            pending_retry_raw = raw_state.get("pending_file_task")
+        pending_retry_task = normalize_pending_retry_task(pending_retry_raw)
+        if pending_retry_task:
+            pending_retry_task["prompt"] = scrub_secrets(pending_retry_task["prompt"])
+            merged["pending_retry_task"] = pending_retry_task
 
         summary_val = raw_state.get("summary")
         if isinstance(summary_val, str):
@@ -4982,23 +4987,18 @@ class ClouzerBot(commands.Bot):
                 return
             _turn_diag["queue_wait_seconds"] = _turn_loop.time() - _queue_wait_started
             guild_state = self.get_guild_state(guild, user.id, channel_id)
-            pending_file_task = normalize_pending_file_task(guild_state.get("pending_file_task"))
-            retrying_pending_file = bool(is_file_retry_command(clean_content) and pending_file_task)
-            if retrying_pending_file:
-                clean_content = pending_file_task["prompt"]
-                requested_file_format = pending_file_task["format"]
+            pending_retry_task = normalize_pending_retry_task(guild_state.get("pending_retry_task"))
+            retrying_pending_task = bool(is_file_retry_command(clean_content) and pending_retry_task)
+            if retrying_pending_task:
+                clean_content = pending_retry_task["prompt"]
+                requested_file_format = pending_retry_task.get("format")
                 logging.warning(
-                    "[FILE-RETRY-CONTEXT] scope=%s format=%s action=reuse_previous_prompt",
-                    scope_key, requested_file_format,
+                    "[OPERATION-RETRY-CONTEXT] scope=%s kind=%s format=%s action=replay_failed_prompt",
+                    scope_key, pending_retry_task.get("kind", "other"), requested_file_format or "n/a",
                 )
-            elif requested_file_format:
-                guild_state["pending_file_task"] = {
-                    "format": requested_file_format,
-                    "prompt": clean_content[:10_000],
-                }
             else:
-                # Permintaan baru yang bukan pengulangan menutup konteks retry lama.
-                guild_state.pop("pending_file_task", None)
+                # Hanya operasi yang benar-benar gagal yang boleh menjadi konteks Ulangi.
+                guild_state.pop("pending_retry_task", None)
             allow_img_tool = should_allow_image_tool(
                 clean_content,
                 has_file_or_pdf=bool(additional_file_text),
@@ -5074,7 +5074,7 @@ class ClouzerBot(commands.Bot):
                         payload_messages,
                         status_msg,
                         mode=mode,
-                        allow_tools=not retrying_pending_file,
+                        allow_tools=not (retrying_pending_task and bool(requested_file_format)),
                         allow_image_tool=allow_img_tool,
                     )
                 except ResponsesStreamInterrupted as stream_exc:
@@ -5147,7 +5147,7 @@ class ClouzerBot(commands.Bot):
                             + "Ukuran: " + format(len(generated_bytes), ",") + " byte"
                         )
                         await status_msg.edit(content=caption, attachments=[generated_file], view=None)
-                        guild_state.pop("pending_file_task", None)
+                        guild_state.pop("pending_retry_task", None)
                         history_msgs.append({
                             "role": "assistant",
                             "content": "[File dibuat: " + generated_name + " | " + generated_mime + " | "
@@ -5161,7 +5161,8 @@ class ClouzerBot(commands.Bot):
                         return
                     except Exception as file_exc:
                         logging.exception("Pembuatan/pengiriman file %s gagal (%s)", requested_file_format, scope_key)
-                        guild_state["pending_file_task"] = {
+                        guild_state["pending_retry_task"] = {
+                            "kind": "file",
                             "format": requested_file_format,
                             "prompt": clean_content[:10_000],
                         }
@@ -5383,6 +5384,10 @@ class ClouzerBot(commands.Bot):
                                         )
                                     except Exception:
                                         logging.exception("Continuation exception gambar gagal (%s)", scope_key)
+                            guild_state["pending_retry_task"] = {
+                                "kind": "image",
+                                "prompt": clean_content[:10_000],
+                            }
                             if is_edit:
                                 fail_msg = (
                                     f"⚠️ Edit gambar gagal dilakukan ({safe_exc_text(img_exc)}). "
@@ -5448,11 +5453,13 @@ class ClouzerBot(commands.Bot):
                     _turn_diag.get("request_id"),
                 )
                 partial_text = getattr(e, "partial_text", "")
+                retry_kind = "file" if requested_file_format else ("image" if allow_img_tool else "other")
+                retry_task = {"kind": retry_kind, "prompt": clean_content[:10_000]}
                 if requested_file_format:
-                    guild_state["pending_file_task"] = {
-                        "format": requested_file_format,
-                        "prompt": clean_content[:10_000],
-                    }
+                    retry_task["format"] = requested_file_format
+                if clean_content and not is_file_retry_command(clean_content):
+                    guild_state["pending_retry_task"] = retry_task
+                if requested_file_format:
                     err_msg = (
                         "⚠️ Penyusunan file " + requested_file_format.upper() + " gagal sebelum lampiran selesai dibuat. "
                         "Konteks permintaan disimpan. Ketik **Ulangi** untuk mencoba lagi."
@@ -5465,9 +5472,12 @@ class ClouzerBot(commands.Bot):
                         + "bot tidak mengulang operasi otomatis. Detail: `"
                         + safe_exc_text(e)
                         + "`"
+                        + "\n\nKonteks permintaan disimpan. Ketik **Ulangi** untuk mencoba operasi yang sama."
                     )[:1990]
                 else:
                     err_msg = f"⚠️ Error: `{safe_exc_text(e)}`"[:1990]
+                    if clean_content and not is_file_retry_command(clean_content):
+                        err_msg += "\n\nKonteks permintaan disimpan. Ketik **Ulangi** untuk mencoba operasi yang sama."
                 preserve_failed_turn_history(history_msgs, turn_user_message, err_msg)
                 try:
                     await self.save_memory()
