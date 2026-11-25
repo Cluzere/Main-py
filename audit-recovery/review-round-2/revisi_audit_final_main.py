@@ -1910,6 +1910,36 @@ class AIResponseView(discord.ui.View):
                 )
 
                 _turn_diag["first_responses_call_seconds"] = _turn_loop.time() - _main_response_started
+
+                if is_file_creation_request(clean_content):
+                    filename = infer_generated_filename(clean_content)
+                    await status_msg.edit(content=f"📝 *Sedang menyusun {filename}...*")
+                    file_request = (
+                        "Buat isi file yang diminta pengguna. Balas HANYA isi file final, tanpa pengantar, "
+                        "tanpa penjelasan, tanpa code fence Markdown, dan tanpa menyebut proses. "
+                        "Jika format spreadsheet, keluarkan tabel dengan pemisah koma atau tab. "
+                        "Jika presentasi, pisahkan slide dengan heading '# Judul Slide'. "
+                        "Permintaan pengguna: " + clean_content
+                    )
+                    file_messages = list(payload_messages) + [{"role": "user", "content": file_request}]
+                    generated_content, _ = await self.run_responses_ai(
+                        file_messages, status_msg, mode=mode,
+                        allow_tools=False, allow_image_tool=False,
+                    )
+                    file_bytes, file_mime = build_generated_file_bytes(filename, generated_content)
+                    discord_file = discord.File(fp=io.BytesIO(file_bytes), filename=filename)
+                    file_notice = f"✅ File berhasil dibuat: **{filename}** ({len(file_bytes):,} byte)."
+                    history_msgs.append({"role": "assistant", "content": file_notice})
+                    guild_state["turn_count"] = guild_state.get("turn_count", 0) + 1
+                    await self.save_memory()
+                    await status_msg.edit(content=file_notice, attachments=[discord_file])
+                    _turn_diag["total_seconds"] = _turn_loop.time() - _turn_started_at
+                    logging.warning(
+                        "[FILE-CREATE] user_id=%s filename=%s bytes=%s mime=%s result=success",
+                        user.id, filename, len(file_bytes), file_mime,
+                    )
+                    return
+
                 img_calls = [fc for fc in function_calls if fc.get("name") == "generate_image"]
                 unsupported_calls = [fc for fc in function_calls if fc.get("name") != "generate_image"]
                 if unsupported_calls:
@@ -2186,6 +2216,126 @@ async def send_turn_status_message(target_channel, reply_to_message=None):
                 exc_info=True,
             )
     return await target_channel.send(status_text)
+
+
+
+
+# ---------------------------------------------------------------------------
+# Local file creation: no provider-side function calling required.
+# ---------------------------------------------------------------------------
+FILE_CREATE_INTENT_RE = re.compile(
+    r"\b(?:buat(?:kan)?|bikin|create|generate|jadikan|simpan)\b.{0,60}\b(?:file|dokumen|laporan|spreadsheet|presentasi)\b"
+    r"|\b(?:file|dokumen)\b.{0,40}\b(?:buat|bikin|generate|create)\b",
+    re.IGNORECASE | re.DOTALL,
+)
+FILE_EXT_RE = re.compile(r"(?<![\w])([A-Za-z0-9_-][A-Za-z0-9_. -]{0,70}\.(?:txt|md|py|json|csv|docx|pdf|xlsx|pptx))(?!\w)", re.IGNORECASE)
+FILE_FORMAT_ALIASES = {
+    "word": ".docx", "docx": ".docx", "pdf": ".pdf",
+    "excel": ".xlsx", "spreadsheet": ".xlsx", "xlsx": ".xlsx",
+    "powerpoint": ".pptx", "presentasi": ".pptx", "pptx": ".pptx",
+    "json": ".json", "csv": ".csv", "python": ".py", "py": ".py",
+    "markdown": ".md", "md": ".md", "text": ".txt", "txt": ".txt",
+}
+MAX_GENERATED_FILE_BYTES = 8 * 1024 * 1024
+
+
+def is_file_creation_request(text: str) -> bool:
+    return bool(FILE_CREATE_INTENT_RE.search(text or ""))
+
+
+def infer_generated_filename(request: str) -> str:
+    match = FILE_EXT_RE.search(request or "")
+    if match:
+        candidate = os.path.basename(match.group(1).strip().strip(" ."))
+    else:
+        low = (request or "").lower()
+        ext = ".txt"
+        for alias, mapped in FILE_FORMAT_ALIASES.items():
+            if re.search(rf"\b{re.escape(alias)}\b", low):
+                ext = mapped
+                break
+        candidate = "hasil_clouzer" + ext
+    candidate = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", candidate)
+    candidate = re.sub(r"\s+", "_", candidate).strip("._")[:90]
+    if not os.path.splitext(candidate)[1]:
+        candidate += ".txt"
+    allowed = {".txt", ".md", ".py", ".json", ".csv", ".docx", ".pdf", ".xlsx", ".pptx"}
+    if os.path.splitext(candidate)[1].lower() not in allowed:
+        candidate += ".txt"
+    return candidate or "hasil_clouzer.txt"
+
+
+def build_generated_file_bytes(filename: str, content: str) -> tuple[bytes, str]:
+    ext = os.path.splitext(filename)[1].lower()
+    text_content = (content or "").strip()
+    if not text_content:
+        raise ValueError("Konten file kosong.")
+    if ext == ".json":
+        parsed = json.loads(text_content)
+        data = json.dumps(parsed, ensure_ascii=False, indent=2).encode("utf-8")
+        mime = "application/json"
+    elif ext == ".csv":
+        data, mime = text_content.encode("utf-8-sig"), "text/csv"
+    elif ext in {".txt", ".md", ".py"}:
+        data = text_content.encode("utf-8")
+        mime = {".txt": "text/plain", ".md": "text/markdown", ".py": "text/x-python"}[ext]
+    elif ext == ".docx":
+        if docx is None:
+            raise RuntimeError("Library python-docx belum terpasang di hosting.")
+        document = docx.Document()
+        for line in text_content.splitlines():
+            document.add_paragraph(line)
+        stream = io.BytesIO()
+        document.save(stream)
+        data, mime = stream.getvalue(), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif ext == ".xlsx":
+        if openpyxl is None:
+            raise RuntimeError("Library openpyxl belum terpasang di hosting.")
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "Hasil"
+        for line in text_content.splitlines():
+            sheet.append(next(csv.reader([line], delimiter="\t")) if "\t" in line else next(csv.reader([line])))
+        stream = io.BytesIO()
+        workbook.save(stream)
+        data, mime = stream.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    elif ext == ".pptx":
+        if Presentation is None:
+            raise RuntimeError("Library python-pptx belum terpasang di hosting.")
+        presentation = Presentation()
+        sections = re.split(r"(?m)^#\s+", text_content)
+        for section in sections:
+            if not section.strip():
+                continue
+            lines = section.strip().splitlines()
+            slide = presentation.slides.add_slide(presentation.slide_layouts[1])
+            slide.shapes.title.text = lines[0][:180]
+            body = slide.placeholders[1].text_frame
+            body.clear()
+            for line in lines[1:]:
+                body.add_paragraph().text = line[:1000]
+        if not presentation.slides:
+            slide = presentation.slides.add_slide(presentation.slide_layouts[1])
+            slide.shapes.title.text = "Dokumen CLOUZER"
+            slide.placeholders[1].text = text_content[:3000]
+        stream = io.BytesIO()
+        presentation.save(stream)
+        data, mime = stream.getvalue(), "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    elif ext == ".pdf":
+        if fitz is None:
+            raise RuntimeError("Library PyMuPDF belum terpasang; PDF belum bisa dibuat.")
+        pdf = fitz.open()
+        for start in range(0, len(text_content), 2800):
+            page = pdf.new_page()
+            page.insert_textbox(fitz.Rect(48, 48, 547, 790), text_content[start:start + 2800], fontsize=10)
+        data, mime = pdf.tobytes(), "application/pdf"
+        pdf.close()
+    else:
+        raise ValueError("Format file belum didukung.")
+    if len(data) > MAX_GENERATED_FILE_BYTES:
+        raise ValueError("File hasil melebihi batas 8 MB.")
+    return data, mime
+
 
 
 class ClouzerBot(commands.Bot):
