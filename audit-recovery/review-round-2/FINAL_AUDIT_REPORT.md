@@ -8,12 +8,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit yang mengubah file kandidat: `16a94040f9587f8dbc20d1c84c3a7bf5f57fc79c`
-- Commit branch terbaru yang diuji pada CI: `05842e8f846bc755f81d889f5ac219aa6024d06f`.
+- Commit yang mengubah file kandidat: `406a9c360e2f2d94623b2a5e2a4a88457a6d3352`
+- Commit branch terbaru yang diuji pada CI: `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat terbaru: `e07cb20b407a1f17270ec8254b01ace4a0810f47`
+- Blob kandidat terbaru: `2f53ba0c4d534bfef2f7db30b5a16a6b87e8fecb`
 - Jumlah baris kandidat: 5.738
-- CI terbaru: [Run #45558598976 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45558598976)
+- CI terbaru: [Run #45560134372 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45560134372)
 
 ## Bukti CI terakhir
 
@@ -22,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat: **69/69 PASS**.
+- Tes kandidat: **70/70 PASS**.
 - Regresi audit yang sudah ada: **76/76 PASS**.
-- Total dua suite pada run terbaru: **145 tes PASS** (69 tes kandidat + 76 regresi lama).
+- Total dua suite pada run terbaru: **146 tes PASS** (70 tes kandidat + 76 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -62,6 +62,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 22. Gambar reply yang sudah diproses saat ingress digunakan ulang saat image-edit, tanpa unduh/kompres ulang.
 23. Nested ZIP dan ZIP di dalam 7Z memberi penanda truncation dan jumlah karakter yang tidak dimasukkan; anggota teks/dokumen 7Z juga menandai truncation.
 24. Peringatan gambar dilewati menghitung jumlah yang benar-benar tidak tertampung.
+25. Anggaran byte dekompresi dibagi bersama antara ZIP utama dan semua ZIP bersarang; ZIP di dalam 7Z memakai sisa budget hasil ekstraksi 7Z agar banyak arsip kecil tidak menggandakan batas dekompresi.
 
 ## Audit 64 butir — status jujur
 
@@ -111,7 +112,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 |---:|---|---|
 | 24 | DONE | Antrean attachment tidak meminta unggah ulang karena semaphore timeout; rate-limit tetap dapat menolak spam. |
 | 25 | DONE | Status menunggu dikirim sebelum lock. |
-| 26 | DONE | Lock FIFO per user/channel, diuji urutan waiter dan concurrency antar-user; bukan antrean global seluruh server. |
+| 26 | PARTIAL | Lock FIFO per user/channel diuji untuk waiter yang sudah mencapai lock; preprocessing lampiran terjadi sebelum lock, sehingga pesan teks yang datang belakangan berpotensi masuk antrean lebih dulu daripada pesan sebelumnya yang masih membaca lampiran. Urutan ingress end-to-end belum dijamin. |
 | 27 | DONE | Pesan diproses otomatis saat lock tersedia. |
 | 28 | DONE | Status dan hasil diedit pada reply pesan asal; live delivery Discord tetap perlu staging. |
 | 29 | DONE | Scope percakapan dibedakan per user/channel. |
@@ -174,7 +175,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 ## Status antrean setelah hardening terbaru
 
 - Chat dan pesan berlampiran tidak lagi ditolak oleh cooldown minimum default; sliding-window tetap berlaku (chat 10/60 detik, file 6/300 detik), ditambah kuota harian dan global.
-- Antrean AI per user/channel menerima maksimal 10 waiter, menunggu FIFO, timeout default 300 detik (hard cap 600 detik), dan memberi status eksplisit jika penuh, timeout, atau task dibatalkan.
+- Antrean AI per user/channel menerima maksimal 10 waiter, menunggu FIFO setelah task mencapai lock, timeout default 300 detik (hard cap 600 detik), dan memberi status eksplisit jika penuh, timeout, atau task dibatalkan. Karena parsing lampiran berjalan sebelum lock, FIFO belum menjamin urutan kedatangan pesan Discord.
 - Pembatalan task saat menunggu lock maupun saat sedang diproses mencoba memperbarui status Discord dan selalu membersihkan referensi lock.
 - Ini bukan antrean persisten. Jika proses hosting mati mendadak sebelum handler cancellation berjalan, antrean yang menunggu tidak dipulihkan otomatis. User perlu mengirim ulang pesan yang belum selesai.
 
@@ -193,26 +194,27 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 
 ## Temuan re-audit statis sebelumnya — 2026-11-25 (sudah diperbaiki)
 
-Audit sebelumnya terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fed` menemukan empat temuan. Patch kandidat sekarang ada pada commit `16a94040f9587f8dbc20d1c84c3a7bf5f57fc79c`; tes regresinya ditambahkan pada commit `05842e8f846bc755f81d889f5ac219aa6024d06f`.
+Audit sebelumnya terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fed` menemukan empat temuan. Patch kandidat sekarang ada pada commit `406a9c360e2f2d94623b2a5e2a4a88457a6d3352`; tes regresinya ditambahkan pada commit `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
 
 1. **Vision duplicate — FIXED.** `select_vision_images()` mengutamakan data URL lokal; URL remote hanya dipakai sebagai fallback. Tes membuktikan satu gambar lokal tidak ditambah lagi sebagai CDN URL.
 2. **Reply image reprocessing — FIXED.** `process_ai_turn()` tidak lagi memanggil `resolve_replied_images()` ulang di image tool handler; memakai `image_data_urls` yang sudah diproses ingress.
 3. **Nested archive truncation — FIXED.** Nested ZIP dan ZIP di dalam 7Z menambahkan marker truncation serta jumlah karakter yang tidak dimasukkan. Anggota teks/dokumen 7Z juga menandai truncation.
 4. **ZIP image skip warning — FIXED.** Kode menghitung gambar yang diterima dan benar-benar dilewati sebelum membuat peringatan.
+5. **Nested archive aggregate decompression budget — FIXED.** ZIP utama dan nested ZIP berbagi satu batas byte dekompresi; ZIP dalam 7Z menggunakan sisa budget hasil ekstraksi 7Z. Tes baru membuktikan ZIP bersarang kedua ditolak ketika budget gabungan habis.
 
 Keempat perbaikan diuji pada suite kandidat: tes sumber vision, ZIP image budget, nested ZIP truncation, nested ZIP-in-7Z truncation, dan 7Z text truncation. Tidak ada live Discord/provider test dalam run ini.
 
 ## Verifikasi CI dan runtime terbaru
 
-- Run GitHub Actions `45558598976`: seluruh job selesai dengan `success` pada commit `05842e8f846bc755f81d889f5ac219aa6024d06f`.
-- Candidate suite: **69/69 PASS**; regresi lama: **76/76 PASS** (145 tes total). Log job menunjukkan kedua suite selesai `OK`.
+- Run GitHub Actions `45560134372`: seluruh job selesai dengan `success` pada commit `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
+- Candidate suite: **70/70 PASS**; regresi lama: **76/76 PASS** (146 tes total). Log job menunjukkan kedua suite selesai `OK`.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
-- Wispbyte runtime terakhir yang dikonfirmasi pengguna masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; patch terbaru belum di-deploy ke runtime. Blob kandidat sekarang `e07cb20b407a1f17270ec8254b01ace4a0810f47`. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
+- Wispbyte runtime terakhir yang dikonfirmasi pengguna masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; patch terbaru (commit `406a9c360e2f2d94623b2a5e2a4a88457a6d3352`, blob `2f53ba0c4d534bfef2f7db30b5a16a6b87e8fecb`) belum di-deploy ke runtime. Blob kandidat sekarang `2f53ba0c4d534bfef2f7db30b5a16a6b87e8fecb`. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
 
 ## Keputusan
 
-Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 69 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
+Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 70 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
 
 Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
 
