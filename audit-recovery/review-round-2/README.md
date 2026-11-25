@@ -33,6 +33,6 @@ Lihat `requirements-audit.txt` untuk daftar dependensi audit. Jika `py7zr` tidak
 
 ## Gerbang verifikasi
 
-CI terbaru (run #45514190007) memeriksa Python 3.12, kompilasi, Bandit medium/high severity, 56 tes kandidat, pip check, pip-audit, dan 74 tes regresi yang sudah ada: total 130 tes lulus. CI bukan pengganti tes staging Discord/Wispbyte.
+CI terbaru (run #45514190007) memeriksa Python 3.12, kompilasi, Bandit medium/high severity, 57 tes kandidat, pip check, pip-audit, dan 74 tes regresi yang sudah ada: total 130 tes lulus. CI bukan pengganti tes staging Discord/Wispbyte.
 
 Jangan mengganti file produksi sebelum checklist staging di `FINAL_AUDIT_REPORT.md` selesai.
