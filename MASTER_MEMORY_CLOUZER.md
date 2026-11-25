@@ -868,3 +868,39 @@ Titik awal kelanjutan berdasarkan status §21:
 Jika sesi baru dimulai, jangan meminta pengguna mengulang informasi yang sudah tersedia di Master Memory. Jangan menyatakan pekerjaan selesai jika belum ada bukti. Jika akses ke branch atau file tidak tersedia, jelaskan keterbatasannya dan jangan mengarang status.
 
 **Prinsip kelanjutan:** lanjutkan dari progres terakhir yang terbukti; audit ulang hanya bagian yang berubah, belum terverifikasi, atau memang membutuhkan pemeriksaan ulang.
+
+
+---
+
+## 23. KEWAJIBAN PEMBARUAN MASTER MEMORY SETIAP SELESAI AUDIT, EDIT, ATAU PENAMBAHAN FITUR
+
+Instruksi ini berlaku untuk setiap sesi GPT dan setiap orang/agen yang melanjutkan proyek CLOUZER.
+
+**Setiap kali selesai melakukan audit, mengedit file, memperbaiki bug, menambahkan fitur, mengubah konfigurasi, menambah/mengubah tes, atau menjalankan pengujian yang menghasilkan temuan baru, wajib langsung memperbarui file Master Memory yang sama: `MASTER_MEMORY_CLOUZER.md`.** Pembaruan dilakukan pada sesi/pekerjaan yang sama, segera setelah hasil dan bukti tersedia; jangan menunggu pengguna mengingatkan atau meminta rekap.
+
+### Data spesifik yang wajib dicatat
+
+Untuk setiap pekerjaan, tulis informasi konkret yang relevan, bukan sekadar kalimat umum seperti “audit selesai” atau “fitur diperbaiki”:
+
+1. **Waktu dan konteks:** tanggal, tujuan pekerjaan, branch, serta commit dasar yang digunakan.
+2. **File yang diperiksa/diubah:** path lengkap setiap file; untuk audit kode, sebutkan fungsi, kelas, blok, atau rentang baris yang relevan jika tersedia.
+3. **Temuan audit:** perilaku aktual, penyebab/akar masalah yang didukung bukti, dampak, dan contoh reproduksi/log/request ID bila ada.
+4. **Perubahan yang dilakukan:** apa yang ditambahkan, diubah, atau dihapus; alasan teknis; dan perilaku sebelum/sesudah. Jangan hanya menulis nama fitur.
+5. **Pengujian:** nama tes/perintah/workflow, skenario dan acceptance criteria, jumlah lulus/gagal/skip, serta hasil aktual. Cantumkan tautan run CI atau bukti lain bila tersedia.
+6. **Artefak dan runtime:** nama/lokasi file hasil, format, ukuran/struktur/isi yang diperiksa, status validasi, status pengiriman attachment, dan status uji live. Bedakan keberhasilan unit test dari keberhasilan runtime/Discord.
+7. **Git:** branch, commit SHA, file yang berubah, dan status push. Jangan mengklaim sudah tersimpan jika commit/push belum terkonfirmasi.
+8. **Sisa pekerjaan dan risiko:** temuan yang belum diperbaiki, pengujian yang belum dilakukan, dependensi/akses yang dibutuhkan, serta langkah berikutnya yang spesifik.
+9. **Batas produksi:** tegaskan apakah production `main.py`, deployment, merge ke `main`, atau restart layanan disentuh. Secara default semuanya tetap dilarang tanpa izin eksplisit terpisah.
+
+### Aturan append-only dan perlindungan riwayat
+
+- **Jangan pernah menimpa, mengganti seluruh isi, mereset, atau menulis ulang Master Memory** hanya untuk memasukkan temuan baru.
+- Ambil versi terbaru dari branch yang benar terlebih dahulu, lalu tambahkan catatan baru di bagian paling akhir dengan nomor bagian berikutnya.
+- Pertahankan seluruh bagian, catatan, keputusan, log, hasil tes, SHA, dan instruksi sebelumnya. Jangan menghapus catatan lama meskipun statusnya sudah berubah; tambahkan koreksi/status terbaru dengan rujukan ke bagian lama.
+- Gunakan update GitHub dengan blob SHA terkini sebagai dasar optimistic concurrency. Jika SHA berubah atau terjadi konflik, fetch ulang versi terbaru, gabungkan perubahan tanpa kehilangan kontribusi, lalu ulangi update secara aman.
+- Setelah update, verifikasi hasil fetch dari branch yang sama dan catat commit SHA serta blob SHA baru.
+- Jika akses GitHub gagal, jangan berpura-pura pembaruan tersimpan. Simpan isi catatan untuk dilanjutkan dan laporkan dengan jelas bahwa Master Memory belum berhasil diperbarui.
+- Jangan membuat dokumen handoff/master memory pengganti. Satu sumber riwayat proyek tetap file `MASTER_MEMORY_CLOUZER.md` ini.
+
+**Kriteria selesai untuk setiap pekerjaan:** pekerjaan belum dianggap terdokumentasi/selesai sampai temuan atau perubahan spesifik, bukti tes, commit/status Git, serta pekerjaan tersisa sudah ditambahkan ke Master Memory ini dan pembaruannya berhasil diverifikasi di GitHub.
+
