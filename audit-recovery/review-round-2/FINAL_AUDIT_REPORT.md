@@ -182,6 +182,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 7. **Provider behavior:** verifikasi Xingchi, Cloudflare, Discord CDN, dan fallback image dari jaringan Wispbyte.
 8. **Cost control:** kuota request global bukan billing hard cap; pasang alert/cap di provider jika tersedia.
 9. **Single process:** global budget menggunakan lock proses lokal. Jangan jalankan beberapa replica dengan file budget yang sama tanpa koordinasi lintas proses.
+10. **Credential/API smoke test:** workflow manual `.github/workflows/staging-smoke-test.yml` tersedia untuk memvalidasi `STAGING_DISCORD_BOT_TOKEN` dan `STAGING_XINGCHI_API_KEY`. Workflow ini belum dijalankan; jalankan dari GitHub Actions setelah memastikan secrets staging memang disetel. Tes ini hanya memvalidasi autentikasi Discord dan satu chat Xingchi, bukan startup bot atau Wispbyte end-to-end.
 
 ## Keputusan
 
