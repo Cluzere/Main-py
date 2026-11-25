@@ -1801,5 +1801,49 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIsNone(self.bot.get_last_user_image(1, 2, 10))
         self.assertNotIn((1, 2, 10), self.bot.last_channel_images)
 
+    def test_pie_chart_series_are_extracted_from_xlsx_and_pptx(self):
+        import openpyxl
+        from openpyxl.chart import PieChart, Reference
+        from pptx import Presentation
+        from pptx.chart.data import CategoryChartData
+        from pptx.enum.chart import XL_CHART_TYPE
+        from pptx.util import Inches
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Segment", "Share"])
+        ws.append(["Alpha", 30])
+        ws.append(["Beta", 70])
+        pie = PieChart()
+        pie.title = "XLSX Segment Share"
+        pie.add_data(Reference(ws, min_col=2, min_row=1, max_row=3), titles_from_data=True)
+        pie.set_categories(Reference(ws, min_col=1, min_row=2, max_row=3))
+        ws.add_chart(pie, "D2")
+        xlsx = io.BytesIO()
+        wb.save(xlsx)
+        wb.close()
+        xlsx_text, _ = self.bot.extract_xlsx_content(xlsx.getvalue(), "pie.xlsx")
+        self.assertIn("XLSX Segment Share", xlsx_text)
+        self.assertIn("Alpha", xlsx_text)
+        self.assertIn("30", xlsx_text)
+
+        prs = Presentation()
+        slide = prs.slides.add_slide(prs.slide_layouts[6])
+        data = CategoryChartData()
+        data.categories = ["Alpha", "Beta"]
+        data.add_series("Share", (30, 70))
+        chart = slide.shapes.add_chart(
+            XL_CHART_TYPE.PIE, Inches(1), Inches(1), Inches(5), Inches(3), data
+        ).chart
+        chart.has_title = True
+        chart.chart_title.text_frame.text = "PPTX Segment Share"
+        pptx = io.BytesIO()
+        prs.save(pptx)
+        pptx_text, _ = self.bot.extract_pptx_content(pptx.getvalue(), "pie.pptx")
+        self.assertIn("PPTX Segment Share", pptx_text)
+        self.assertIn("Share", pptx_text)
+        self.assertIn("30", pptx_text)
+        self.assertIn("70", pptx_text)
+
 if __name__ == "__main__":
     unittest.main()
