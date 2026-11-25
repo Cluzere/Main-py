@@ -1312,6 +1312,19 @@ def merge_image_sources(*groups, limit: int | None = None) -> list[str]:
     return merged
 
 
+def select_vision_images(local_images, remote_images, limit: int | None = None) -> list[str]:
+    """Prefer locally encoded images so each Discord attachment is sent only once.
+
+    Discord attachment encoding returns both a data URL and a CDN URL for the
+    same image. Sending both representations duplicates the visual payload.
+    Remote URLs are a fallback only when no local image could be produced.
+    """
+    local = merge_image_sources(local_images, limit=limit)
+    if local:
+        return local
+    return merge_image_sources(remote_images, limit=limit)
+
+
 def _content_to_text(content) -> tuple[str, int]:
     """Ratakan content pesan (str atau list blok) jadi teks. Return (teks, jumlah_gambar)."""
     if isinstance(content, str):
@@ -3273,12 +3286,14 @@ class ClouzerBot(commands.Bot):
                             total_chars += len(clipped)
                             if len(parsed_text) > remaining:
                                 parts.append("[Konten dokumen arsip dipotong karena batas total teks ZIP.]")
-                        for data_url in parsed_images:
-                            if len(images) >= _image_budget:
-                                break
-                            images.append(data_url)
-                        if len(parsed_images) > max(0, _image_budget - len(images)):
-                            parts.append(f"[Sebagian gambar dari {display_path[:100]} dilewati karena batas visual.]")
+                        remaining_image_budget = max(0, _image_budget - len(images))
+                        accepted_images = parsed_images[:remaining_image_budget]
+                        images.extend(accepted_images)
+                        skipped_images = len(parsed_images) - len(accepted_images)
+                        if skipped_images:
+                            parts.append(
+                                f"[{skipped_images} gambar dari {display_path[:100]} dilewati karena batas visual per giliran.]"
+                            )
                         continue
 
                     if ext == ".zip":
@@ -3292,10 +3307,15 @@ class ClouzerBot(commands.Bot):
                                 _path_prefix=f"{display_path}!/",
                                 _image_budget=max(0, _image_budget - len(images)),
                             )
-                            remaining = max_chars - total_chars
+                            remaining = max(0, max_chars - total_chars)
                             clipped = nested_text[:remaining]
                             parts.append(clipped)
                             total_chars += len(clipped)
+                            if len(nested_text) > len(clipped):
+                                parts.append(
+                                    f"[KONTEN ARSIP BERSARANG DIPOTONG: {display_path[:120]}; "
+                                    f"{len(nested_text) - len(clipped)} karakter tidak dimasukkan.]"
+                                )
                             images.extend(nested_images[:max(0, _image_budget - len(images))])
                         continue
 
@@ -3438,6 +3458,11 @@ class ClouzerBot(commands.Bot):
                     content = scan.text[:remaining]
                     parts_out.append("[%s]\n%s" % (member_name[:160], content))
                     total_chars += len(content)
+                    if len(scan.text) > len(content):
+                        parts_out.append(
+                            "[KONTEN ANGGOTA 7Z DIPOTONG: %s; %s karakter tidak dimasukkan.]"
+                            % (member_name[:120], len(scan.text) - len(content))
+                        )
                 elif ext in {".pdf", ".docx", ".pptx", ".xlsx"}:
                     if ext == ".pdf":
                         parsed_text, parsed_images = self.extract_pdf_content(member_bytes, member_name)
@@ -3447,20 +3472,42 @@ class ClouzerBot(commands.Bot):
                         parsed_text, parsed_images = self.extract_pptx_content(member_bytes, member_name)
                     else:
                         parsed_text, parsed_images = self.extract_xlsx_content(member_bytes, member_name)
-                    remaining = max_chars - total_chars
+                    remaining = max(0, max_chars - total_chars)
                     if parsed_text and remaining > 0:
-                        parts_out.append(parsed_text[:remaining])
-                        total_chars += min(len(parsed_text), remaining)
-                    for data_url in parsed_images:
-                        if len(images) >= MAX_VISION_IMAGES_PER_TURN:
-                            break
-                        images.append(data_url)
+                        clipped_text = parsed_text[:remaining]
+                        parts_out.append(clipped_text)
+                        total_chars += len(clipped_text)
+                        if len(parsed_text) > len(clipped_text):
+                            parts_out.append(
+                                "[KONTEN DOKUMEN 7Z DIPOTONG: %s; %s karakter tidak dimasukkan.]"
+                                % (member_name[:120], len(parsed_text) - len(clipped_text))
+                            )
+                    remaining_image_budget = max(0, MAX_VISION_IMAGES_PER_TURN - len(images))
+                    accepted_images = parsed_images[:remaining_image_budget]
+                    images.extend(accepted_images)
+                    skipped_images = len(parsed_images) - len(accepted_images)
+                    if skipped_images:
+                        parts_out.append(
+                            "[%s gambar dari %s dilewati karena batas visual per giliran.]"
+                            % (skipped_images, member_name[:100])
+                        )
                 elif ext == ".zip":
-                    nested_text, nested_images = self.extract_generic_zip_content(member_bytes, member_name, _depth=1)
-                    remaining = max_chars - total_chars
-                    if remaining > 0:
-                        parts_out.append(nested_text[:remaining])
-                        total_chars += min(len(nested_text), remaining)
+                    nested_text, nested_images = self.extract_generic_zip_content(
+                        member_bytes,
+                        member_name,
+                        _depth=1,
+                        _path_prefix=f"{member_name}!/",
+                        _image_budget=max(0, MAX_VISION_IMAGES_PER_TURN - len(images)),
+                    )
+                    remaining = max(0, max_chars - total_chars)
+                    clipped_text = nested_text[:remaining]
+                    parts_out.append(clipped_text)
+                    total_chars += len(clipped_text)
+                    if len(nested_text) > len(clipped_text):
+                        parts_out.append(
+                            "[KONTEN ZIP DI DALAM 7Z DIPOTONG: %s; %s karakter tidak dimasukkan.]"
+                            % (member_name[:120], len(nested_text) - len(clipped_text))
+                        )
                     images.extend(nested_images[:max(0, MAX_VISION_IMAGES_PER_TURN - len(images))])
                 elif ext == ".7z":
                     parts_out.append("[Arsip 7Z bersarang dilewati: kedalaman arsip tidak diperluas.]")
@@ -4657,13 +4704,9 @@ class ClouzerBot(commands.Bot):
         channel_id = getattr(target_channel, "id", 0)
         guild_id = guild.id if guild is not None else 0
         scope_key = self.get_scope_key(guild, user.id, channel_id)
-        http_img_urls = [u for u in (llm_image_urls or []) if u.startswith(("http://", "https://"))]
-        current_turn_images: list[str] = []
-        for u in (image_data_urls or []) + http_img_urls:
-            if isinstance(u, str) and u.startswith(("http://", "https://", "data:image/")) and u not in current_turn_images:
-                current_turn_images.append(u)
-                if len(current_turn_images) >= MAX_VISION_IMAGES_PER_TURN:
-                    break
+        local_vision_images = merge_image_sources(image_data_urls)
+        http_img_urls = [] if local_vision_images else merge_image_sources(llm_image_urls)
+        current_turn_images = select_vision_images(local_vision_images, http_img_urls)
 
         allow_img_tool = should_allow_image_tool(
             clean_content,
@@ -4823,20 +4866,18 @@ class ClouzerBot(commands.Bot):
                             use_attached = bool(args_dict.get("use_attached_image", False))
                             req_ratio = args_dict.get("aspect_ratio") or extract_aspect_ratio_from_text(clean_content)
 
-                            replied_imgs: list[str] = []
-                            if reply_to_message is not None:
-                                replied_imgs, _ = await self.resolve_replied_images(reply_to_message)
-
+                            # on_message() has already resolved and encoded reply images.
+                            # Re-fetching here downloads/compresses the same attachment twice.
                             wants_edit = use_attached or any(w in clean_content.lower() for w in EDIT_INTENT_KEYWORDS)
 
                             source_imgs: list[str] | None = None
                             if use_attached:
-                                source_imgs = merge_image_sources(image_data_urls, replied_imgs)
+                                source_imgs = merge_image_sources(image_data_urls)
                                 if not source_imgs:
                                     source_imgs = self.get_last_user_image(guild_id, channel_id, user.id)
-                            elif image_data_urls or replied_imgs:
+                            elif image_data_urls:
                                 if wants_edit:
-                                    source_imgs = merge_image_sources(image_data_urls, replied_imgs)
+                                    source_imgs = merge_image_sources(image_data_urls)
                             elif wants_edit:
                                 source_imgs = self.get_last_user_image(guild_id, channel_id, user.id)
 
