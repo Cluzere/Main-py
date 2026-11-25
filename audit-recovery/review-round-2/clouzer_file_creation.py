@@ -93,23 +93,63 @@ def _safe_title(content: str, prompt: str) -> str:
     return "Dokumen CLOUZER"
 
 
-def _safe_sheet_title(prompt: str) -> str:
+def _requested_sheet_title(prompt: str) -> str | None:
     value = str(prompt or "")
     pattern = r"\b(?:worksheet|work\s*sheet|sheet|lembar\s+kerja)\b"
-    quoted = re.search(pattern + r"\s*(?:bernama|dengan\s+nama|name|:)?\s*[\"']([^\"']{1,80})[\"']", value, re.I)
+    quoted = re.search(pattern + r"\s*(?:bernama|dengan\s+nama|name|:)?\s*[\x60\"']([^\x60\"']{1,80})[\x60\"']", value, re.I)
     match = quoted or re.search(
         pattern + r"\s*(?:bernama|dengan\s+nama|name|:)?\s*([A-Za-z0-9 _-]{1,80})",
         value, re.I,
     )
-    title = match.group(1).strip(" _-") if match else "Data"
+    if not match:
+        return None
+    title = match.group(1).strip(" _-")
     title = re.split(r"\s+(?:dengan|berisi|untuk|yang|sebanyak)\b", title, maxsplit=1, flags=re.I)[0]
     title = re.sub(r"[\[\]:*?/\\]", " ", title).strip()[:31]
-    return title or "Data"
+    return title or None
+
+
+def _safe_sheet_title(prompt: str) -> str:
+    return _requested_sheet_title(prompt) or "Data"
+
+
+_NUMERIC_XLSX_HEADER_RE = re.compile(
+    r"(?:harga|price|biaya|cost|stok|stock|qty|kuantitas|jumlah|quantity|nomor|umur|usia|age|^no\.?$)",
+    re.I,
+)
+
+
+def _prompt_pipe_table(prompt: str) -> list[list[str]]:
+    candidates = []
+    for line in str(prompt or "").splitlines():
+        stripped = line.strip()
+        if "|" not in stripped:
+            if candidates:
+                break
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if len(cells) > 1:
+            if all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
+                continue
+            candidates.append(cells)
+    if len(candidates) >= 2 and len({len(row) for row in candidates}) == 1:
+        return candidates
+    return []
+
+
 def _safe_filename(prompt: str, extension: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "_", str(prompt or "").lower()).strip("_")[:36] or "dokumen"
+    value = str(prompt or "")
+    ext = re.escape(str(extension or "").lower().lstrip("."))
+    quoted = re.search(r"[\x60\"']([A-Za-z0-9][A-Za-z0-9_-]{0,100}\." + ext + r")[\x60\"']", value, re.I)
+    explicit = quoted or re.search(
+        r"(?<![A-Za-z0-9_./\\])([A-Za-z0-9][A-Za-z0-9_-]{0,100}\." + ext + r")(?![A-Za-z0-9_])",
+        value, re.I,
+    )
+    if explicit:
+        return explicit.group(1)
+    slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")[:36] or "dokumen"
     stamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
     return f"clouzer_{slug}_{stamp}.{extension}"
-
 
 def _validate_content(content: str) -> str:
     if not isinstance(content, str):
@@ -199,28 +239,35 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
             continue
         if stripped.startswith("|") and stripped.endswith("|"):
             cells = [cell.strip() for cell in stripped.strip("|").split("|")]
-            if cells and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
-                continue
-            rows.append(cells)
         elif "\t" in line:
-            rows.append([cell.strip() for cell in line.split("\t")])
+            cells = [cell.strip() for cell in line.split("\t")]
+        elif "|" in line:
+            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
         else:
             rows.append([line])
+            continue
+        if cells and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
+            continue
+        rows.append(cells)
     if not rows:
         rows = [[content]]
-    _check_table(rows, "", "XLSX")
+    _check_table(rows, prompt, "XLSX")
+    expected_rows = _prompt_pipe_table(prompt)
+    if expected_rows and rows != expected_rows:
+        raise ValueError("Data XLSX tidak sama persis dengan tabel sumber pada prompt; pembuatan dibatalkan.")
     headers = [str(value).strip().casefold() for value in rows[0]]
-    numeric_headers = re.compile(r"(?:harga|price|biaya|cost|stok|stock|qty|kuantitas|jumlah|quantity|nomor|^no\.?$)")
     for row_index, row in enumerate(rows):
         values = []
         for column_index, cell in enumerate(row):
             value = str(cell)
             if len(value) > 32767:
                 raise ValueError("Satu cell XLSX melebihi batas 32.767 karakter.")
-            if row_index > 0 and column_index < len(headers) and numeric_headers.search(headers[column_index]):
+            if row_index > 0 and column_index < len(headers) and _NUMERIC_XLSX_HEADER_RE.search(headers[column_index]):
                 candidate = value.strip()
                 if re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", candidate):
                     value = float(candidate) if "." in candidate else int(candidate)
+                else:
+                    raise ValueError(f"Kolom {rows[0][column_index]} harus berupa angka pada baris {row_index + 1}.")
             values.append(value)
         sheet.append(values)
     for cell in sheet[1]:
@@ -230,6 +277,10 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
         letter = column_cells[0].column_letter
         max_width = max((len(str(cell.value or "")) for cell in column_cells), default=10)
         sheet.column_dimensions[letter].width = min(max(max_width + 2, 12), 48)
+    if sheet.max_row != len(rows) or sheet.max_column != len(rows[0]):
+        raise ValueError("Validasi XLSX sebelum penyimpanan gagal: dimensi worksheet tidak sesuai.")
+    if not any(cell.value is not None for row in sheet.iter_rows() for cell in row):
+        raise ValueError("Validasi XLSX sebelum penyimpanan gagal: worksheet kosong.")
     output = io.BytesIO()
     workbook.save(output)
     return output.getvalue()
@@ -418,11 +469,20 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
         try:
             if not wb.sheetnames or wb.active.max_row > MAX_TABLE_ROWS + 1 or wb.active.max_column > MAX_TABLE_COLUMNS:
                 raise ValueError("XLSX melewati batas tabel atau tidak memiliki worksheet.")
+            for name in wb.sheetnames:
+                if not any(cell.value is not None for row in wb[name].iter_rows() for cell in row):
+                    raise ValueError(f"XLSX memiliki worksheet kosong: {name}.")
+            requested_sheet = _requested_sheet_title(prompt)
+            if requested_sheet and wb.active.title != requested_sheet:
+                raise ValueError(f"Worksheet bernama {wb.active.title}; prompt meminta {requested_sheet}.")
             rows = [[str(cell or "") for cell in row] for row in wb.active.iter_rows(values_only=True)]
             _check_table(rows, prompt, "XLSX")
+            expected_rows = _prompt_pipe_table(prompt)
+            if expected_rows and rows != expected_rows:
+                raise ValueError("Data XLSX berbeda dari tabel sumber pada prompt.")
             headers = [str(value).strip().casefold() for value in rows[0]]
             for index, header in enumerate(headers):
-                if re.search(r"(?:harga|price|biaya|cost)", header):
+                if _NUMERIC_XLSX_HEADER_RE.search(header):
                     for row_number, row in enumerate(wb.active.iter_rows(min_row=2, values_only=False), 2):
                         value = row[index].value if index < len(row) else None
                         if not isinstance(value, (int, float)) or isinstance(value, bool):
