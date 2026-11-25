@@ -95,7 +95,7 @@ def _safe_title(content: str, prompt: str) -> str:
 
 
 def _requested_sheet_title(prompt: str) -> str | None:
-    value = str(prompt or "")
+    value = re.sub(r"[*_]{1,2}([^*_]+)[*_]{1,2}", r"\1", str(prompt or ""))
     pattern = r"\b(?:worksheet|work\s*sheet|sheet|lembar\s+kerja)\b"
     quoted = re.search(pattern + r"\s*(?:bernama|dengan\s+nama|name|:)?\s*[\x60\"']([^\x60\"']{1,80})[\x60\"']", value, re.I)
     match = quoted or re.search(
@@ -132,7 +132,7 @@ def _xlsx_formula_specs(headers: list[str], prompt: str) -> dict[int, tuple[str,
 def _xlsx_date_value(value: str):
     """Parse ISO-8601 calendar dates into native Excel date cells."""
     candidate = str(value or "").strip()
-    if re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", candidate):
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", candidate):
         try:
             return _datetime.date.fromisoformat(candidate)
         except ValueError as exc:
@@ -329,7 +329,7 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
                 value = _xlsx_date_value(value)
             elif row_index > 0 and column_index < len(headers) and _NUMERIC_XLSX_HEADER_RE.search(headers[column_index]):
                 candidate = value.strip()
-                if re.fullmatch(r"[+-]?(?:0|[1-9]\\d*)(?:\\.\\d+)?", candidate):
+                if re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", candidate):
                     value = float(candidate) if "." in candidate else int(candidate)
                 else:
                     raise ValueError(f"Kolom {rows[0][column_index]} harus berupa angka pada baris {row_index + 1}.")
@@ -575,7 +575,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                         calculated = source_values[0] + source_values[1] - source_values[2]
                         if expected_rows and row_number - 1 < len(expected_rows):
                             expected_value = expected_rows[row_number - 1][index].strip()
-                            if not re.fullmatch(r"[+-]?(?:0|[1-9]\\d*)(?:\\.\\d+)?", expected_value) or calculated != float(expected_value):
+                            if not re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", expected_value) or calculated != float(expected_value):
                                 raise ValueError(f"Hasil rumus stok berbeda dari tabel sumber pada baris {row_number}.")
                             canonical.append(expected_value)
                         else:
