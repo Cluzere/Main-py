@@ -1381,5 +1381,61 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("4 detik", message)
 
 
+
+    def test_vision_selection_prefers_local_image_over_same_attachment_cdn_url(self):
+        local = ["data:image/png;base64,LOCAL"]
+        remote = ["https://cdn.discordapp.com/attachments/1/same.png"]
+        self.assertEqual(module.select_vision_images(local, remote), local)
+
+    def test_vision_selection_uses_remote_images_only_as_fallback(self):
+        remote = ["https://cdn.discordapp.com/attachments/1/fallback.png"]
+        self.assertEqual(module.select_vision_images([], remote), remote)
+
+    def test_zip_document_image_warning_counts_only_images_actually_skipped(self):
+        from unittest.mock import patch
+
+        pdf = self.make_pdf("PDF IMAGE BUDGET TEST")
+        two_images = ["data:image/png;base64,ONE", "data:image/png;base64,TWO"]
+        with patch.object(self.bot, "extract_pdf_content", return_value=("", two_images)):
+            raw = self.make_zip([("images.pdf", pdf)])
+            text, images = self.bot.extract_generic_zip_content(
+                raw, "images.zip", _image_budget=1
+            )
+        self.assertEqual(images, [two_images[0]])
+        self.assertIn("1 gambar dari images.pdf dilewati", text)
+
+    def test_zip_document_image_warning_is_absent_when_nothing_was_skipped(self):
+        from unittest.mock import patch
+
+        pdf = self.make_pdf("PDF IMAGE BUDGET TEST")
+        one_image = ["data:image/png;base64,ONE"]
+        with patch.object(self.bot, "extract_pdf_content", return_value=("", one_image)):
+            raw = self.make_zip([("images.pdf", pdf)])
+            text, images = self.bot.extract_generic_zip_content(
+                raw, "images.zip", _image_budget=1
+            )
+        self.assertEqual(images, one_image)
+        self.assertNotIn("dilewati karena batas visual per giliran", text)
+
+    def test_nested_zip_truncation_is_explicit(self):
+        inner = self.make_zip([("large.txt", "X" * 30000)])
+        outer = self.make_zip([("nested/inner.zip", inner)])
+        text, _ = self.bot.extract_generic_zip_content(outer, "outer.zip")
+        self.assertIn("KONTEN ARSIP BERSARANG DIPOTONG", text)
+        self.assertIn("karakter tidak dimasukkan", text)
+
+    def test_7z_nested_zip_is_read_with_explicit_truncation_marker(self):
+        inner = self.make_zip([("large.txt", "Y" * 30000)])
+        outer = self.make_7z([("nested/inner.zip", inner)])
+        text, _ = self.bot.extract_7z_content(outer, "outer.7z")
+        self.assertIn("KONTEN ZIP DI DALAM 7Z DIPOTONG", text)
+        self.assertIn("karakter tidak dimasukkan", text)
+
+    def test_7z_text_member_truncation_is_explicit(self):
+        raw = self.make_7z([("large.txt", "Z" * 30050)])
+        text, _ = self.bot.extract_7z_content(raw, "large.7z")
+        self.assertIn("KONTEN ANGGOTA 7Z DIPOTONG", text)
+        self.assertIn("karakter tidak dimasukkan", text)
+
 if __name__ == "__main__":
     unittest.main()
