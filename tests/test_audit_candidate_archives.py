@@ -427,6 +427,43 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("7Z ARCHIVE CONTENT", text)
         self.assertEqual(images, [])
 
+    def test_7z_directory_entries_do_not_count_as_skipped_files(self):
+        import tempfile
+        from pathlib import Path
+        import py7zr
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "catatan").mkdir()
+            (root / "data").mkdir()
+            (root / "README.txt").write_text(
+                "PAKET UJI NOMOR 13 - ARSIP 7Z\\nTEST-13-7Z-ROOT\\n",
+                encoding="utf-8",
+            )
+            (root / "catatan" / "observasi.md").write_text(
+                "# Catatan Observasi\\nTotal tanaman: 35.\\n",
+                encoding="utf-8",
+            )
+            (root / "data" / "tanaman.csv").write_text(
+                "lokasi,jenis,jumlah\\nBlok Utara,Cabai,12\\n"
+                "Blok Selatan,Tomat,8\\nBlok Timur,Kangkung,15\\n",
+                encoding="utf-8",
+            )
+            archive_buffer = io.BytesIO()
+            with py7zr.SevenZipFile(archive_buffer, mode="w") as archive:
+                archive.writeall(str(root), arcname="")
+
+        text, images = self.bot.extract_7z_content(
+            archive_buffer.getvalue(), "13_arsip_uji.7z"
+        )
+        self.assertIn("TEST-13-7Z-ROOT", text)
+        self.assertIn("Total tanaman: 35", text)
+        self.assertIn("Blok Timur,Kangkung,15", text)
+        self.assertIn("3 file; seluruh file dipilih untuk ekstraksi", text)
+        self.assertNotIn("dilewati karena batas pemrosesan", text)
+        self.assertNotIn("file; 3 dipilih untuk ekstraksi; 2 dilewati", text)
+        self.assertEqual(images, [])
+
     def test_reads_docx_member_from_7z(self):
         raw = self.make_7z([("inside.docx", self.make_docx("7Z NESTED DOCX CONTENT"))])
         text, _ = self.bot.extract_7z_content(raw, "docs.7z")
