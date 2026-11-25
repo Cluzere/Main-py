@@ -117,7 +117,8 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("NESTED ZIP CONTENT", text)
 
     def test_rejects_deeper_nested_zip(self):
-        level3 = self.make_zip([("deep.txt", "TOO DEEP")])
+        deepest = self.make_zip([("deep.txt", "TOO DEEP")])
+        level3 = self.make_zip([("deepest.zip", deepest)])
         level2 = self.make_zip([("level3.zip", level3)])
         level1 = self.make_zip([("level2.zip", level2)])
         text, _ = self.bot.extract_generic_zip_content(level1, "outer.zip")
