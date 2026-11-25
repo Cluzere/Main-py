@@ -214,8 +214,8 @@ class ArchiveReaderTests(unittest.TestCase):
                 self.assertIsNone(inner_zip.testzip())
                 self.assertEqual(
                     inner_zip.read("02_catatan_b.txt").decode("utf-8").strip(),
-                    "DOKUMEN UJI B\\nNama proyek: Kebun Kota\\nLokasi: Blok Selatan\\n"
-                    "Jumlah tanaman: 18\\nCatatan: Kompos ditambahkan setiap hari Jumat.",
+                    "DOKUMEN UJI B\nNama proyek: Kebun Kota\nLokasi: Blok Selatan\n"
+                    "Jumlah tanaman: 18\nCatatan: Kompos ditambahkan setiap hari Jumat.",
                 )
 
             # The nested image bytes used by the vision payload must be byte-for-byte
