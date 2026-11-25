@@ -760,3 +760,15 @@ Urutan kerja:
 **Instruksi tegas:** jangan mengulang tes PDF yang sudah dinyatakan gagal, jangan mengarahkan ke tes baru yang tidak diminta, dan jangan melebar ke audit lain. Fokus pada file yang belum selesai diperiksa dan diagnosis pembuatan/pengiriman file berdasarkan bukti.
 
 ---
+
+
+---
+
+## 17. ADDENDUM — perbaikan generator file dan validasi kandidat (26 November 2026)
+
+Temuan kode yang dikonfirmasi: helper hanya mendukung enam format; CSV dan JSON tidak memiliki generator dan karena tidak terdeteksi dapat jatuh ke image tool. ZIP memiliki anggota hardcoded. XLSX tidak memeriksa jumlah baris/kolom yang diminta. PPTX tidak memeriksa jumlah slide dan isi slide. Pipeline perlu memisahkan validasi file dari konfirmasi attachment Discord.
+
+Perbaikan yang dikerjakan di branch audit: dukungan CSV/JSON, pemeriksaan tabel dan JSON, ZIP dinamis memakai marker === FILE: nama_file.ext ===, validasi format sebelum dikirim, penolakan pesan kegagalan model, pencatatan tahap validasi, pemeriksaan konfirmasi attachment Discord, dan tes untuk delapan format.
+
+Batas: production main.py tidak diubah. Tidak ada deployment atau restart. CI dan tes unit bukan bukti live Discord delivery; staging memerlukan kredensial staging.
+

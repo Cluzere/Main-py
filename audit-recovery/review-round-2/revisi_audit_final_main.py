@@ -34,6 +34,7 @@ from clouzer_file_creation import (
     create_document_file,
     is_retry_command,
     normalize_pending_retry_task,
+    validate_document_file,
 )
 
 try:
@@ -5065,13 +5066,16 @@ class ClouzerBot(commands.Bot):
                     "format": requested_file_format,
                     "prompt": clean_content[:10_000],
                 }
-                format_labels = {"txt": "teks biasa", "pdf": "dokumen PDF", "docx": "dokumen Word", "xlsx": "spreadsheet Excel", "pptx": "presentasi PowerPoint", "zip": "arsip ZIP"}
+                format_labels = {"txt": "teks biasa", "pdf": "dokumen PDF", "docx": "dokumen Word", "xlsx": "spreadsheet Excel", "pptx": "presentasi PowerPoint", "zip": "arsip ZIP", "csv": "tabel CSV", "json": "data JSON"}
                 full_user_prompt += (
                     "\n\n[INSTRUKSI PEMBUATAN FILE " + requested_file_format.upper() + "]\n"
                     + "Susun isi lengkap untuk " + format_labels[requested_file_format] + " berdasarkan permintaan pengguna. "
                     + "Keluarkan hanya konten dokumen, tanpa kalimat pembuka atau penjelasan di luar dokumen. "
-                    + "Untuk spreadsheet, susun tabel dengan pemisah TAB antar kolom. "
-                    + "Untuk presentasi, pisahkan setiap slide menggunakan baris persis: --- SLIDE ---."
+                    + "Untuk spreadsheet, buat tabel lengkap dengan header dan semua baris/kolom yang diminta; pisahkan kolom dengan TAB. "
+                    + "Untuk CSV, keluarkan header dan semua baris data sebagai CSV valid. "
+                    + "Untuk JSON, keluarkan hanya satu objek atau array JSON valid tanpa markdown fence. "
+                    + "Untuk presentasi, pisahkan setiap slide menggunakan baris persis: --- SLIDE ---. "
+                    + "Untuk ZIP, tandai setiap anggota dengan baris === FILE: nama_file.ext === lalu isi file; sertakan semua nama file yang diminta."
                 )
             if additional_file_text:
                 full_user_prompt += f"\n\n{additional_file_text}\n(Tolong baca dan analisis file serta gambar yang disertakan di atas!)"
@@ -5208,13 +5212,19 @@ class ClouzerBot(commands.Bot):
                         generated_bytes, generated_name, generated_mime = create_document_file(
                             requested_file_format, clean_content, reply_text or ""
                         )
+                        validation_summary = validate_document_file(requested_file_format, clean_content, generated_bytes)
+                        logging.info("[FILE-STAGE] scope=%s format=%s stage=validated details=%s", scope_key, requested_file_format, json.dumps(validation_summary, ensure_ascii=False))
                         generated_file = discord.File(fp=io.BytesIO(generated_bytes), filename=generated_name)
                         caption = (
                             "📎 **File " + requested_file_format.upper() + " berhasil dibuat.**\n"
                             + "Nama file: " + generated_name + "\n"
                             + "Ukuran: " + format(len(generated_bytes), ",") + " byte"
                         )
-                        await status_msg.edit(content=caption, attachments=[generated_file], view=None)
+                        delivered_message = await status_msg.edit(content=caption, attachments=[generated_file], view=None)
+                        delivered_attachments = getattr(delivered_message, "attachments", None)
+                        if delivered_attachments is not None and not any(getattr(item, "filename", None) == generated_name for item in delivered_attachments):
+                            raise RuntimeError("Discord tidak mengonfirmasi attachment file pada pesan hasil edit.")
+                        logging.info("[FILE-STAGE] scope=%s format=%s stage=discord_attachment_confirmed filename=%s", scope_key, requested_file_format, generated_name)
                         if not attachment_processing_failed:
                             guild_state.pop("pending_retry_task", None)
                         history_msgs.append({

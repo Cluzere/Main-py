@@ -11,6 +11,8 @@ _FORMAT_PATTERNS = {
     "xlsx": re.compile(r"(?<![a-z0-9])(?:\.xlsx|xlsx|excel|spreadsheet)(?![a-z0-9])", re.I),
     "pptx": re.compile(r"(?<![a-z0-9])(?:\.pptx|pptx|powerpoint|power point|presentasi|slide)(?![a-z0-9])", re.I),
     "zip": re.compile(r"(?<![a-z0-9])(?:\.zip|zip|arsip zip)(?![a-z0-9])", re.I),
+    "csv": re.compile(r"(?<![a-z0-9])(?:\.csv|csv|comma[- ]separated values)(?![a-z0-9])", re.I),
+    "json": re.compile(r"(?<![a-z0-9])(?:\.json|json)(?![a-z0-9])", re.I),
 }
 _CREATE_RE = re.compile(r"\b(?:buatkan|bikinkan|bikin|buat|jadikan|simpan|ekspor|export|generate|create|susun)\b", re.I)
 _EXPLICIT_ACTION_RE = re.compile(r"\b(?:buatkan|bikinkan|tolong buat|tolong bikin|buat file|bikin file|jadikan file|simpan sebagai|export ke)\b", re.I)
@@ -98,6 +100,8 @@ def _validate_content(content: str) -> str:
         raise ValueError("Model tidak menghasilkan isi dokumen.")
     if len(content) > MAX_GENERATED_TEXT_CHARS:
         raise ValueError("Isi dokumen melewati batas 400.000 karakter.")
+    if len(content) < 20 or any(x in content.lower() for x in ("gagal membuat file", "gagal: file", "tidak bisa membuat file", "tidak dapat membuat file", "tidak tersedia tool", "tidak dapat melampirkan", "cannot create a file")):
+        raise ValueError("Model mengembalikan isi kosong, terlalu pendek, atau pesan kegagalan; tidak dikemas sebagai file.")
     return content
 
 
@@ -229,6 +233,182 @@ def _make_zip(content: str, title: str) -> bytes:
     return output.getvalue()
 
 
+
+def _unfence(value: str) -> str:
+    lines = value.strip().splitlines()
+    tick = chr(96) * 3
+    if len(lines) >= 3 and lines[0].startswith(tick) and lines[-1].strip() == tick:
+        return "\n".join(lines[1:-1]).strip()
+    return value.strip()
+
+
+def _rows_from_text(value: str) -> list[list[str]]:
+    import csv
+    rows = []
+    for line in value.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("|") and line.endswith("|"):
+            cells = [x.strip() for x in line.strip("|").split("|")]
+            if all(re.fullmatch(r":?-{3,}:?", x.replace(" ", "")) for x in cells):
+                continue
+            rows.append(cells)
+        elif "\t" in line:
+            rows.append([x.strip() for x in line.split("\t")])
+        elif "," in line:
+            rows.append([x.strip() for x in next(csv.reader([line]))])
+    if rows:
+        width = max(map(len, rows))
+        return [r + [""] * (width-len(r)) for r in rows]
+    return []
+
+
+def _check_table(rows: list[list[str]], prompt: str, label: str) -> None:
+    if len(rows) < 2 or not rows[0]:
+        raise ValueError(label + " harus memiliki header dan setidaknya satu baris data.")
+    low = prompt.lower()
+    row_match = re.search(r"\b(\d{1,4})\s*(?:baris data|baris|rows?|produk|records?)\b", low)
+    col_match = re.search(r"\b(\d{1,3})\s*(?:kolom|columns?)\b", low)
+    if row_match and len(rows)-1 < int(row_match.group(1)):
+        raise ValueError(f"{label} hanya berisi {len(rows)-1} baris data; permintaan minimal {row_match.group(1)}.")
+    if col_match and len(rows[0]) < int(col_match.group(1)):
+        raise ValueError(f"{label} hanya memiliki {len(rows[0])} kolom; permintaan {col_match.group(1)} kolom.")
+    if any(len(r) != len(rows[0]) for r in rows):
+        raise ValueError(label + " memiliki jumlah kolom yang tidak konsisten.")
+
+
+def _make_csv(content: str, prompt: str) -> bytes:
+    import csv
+    value = _unfence(content)
+    rows = _rows_from_text(value)
+    if not rows:
+        rows = list(csv.reader(io.StringIO(value)))
+    _check_table(rows, prompt, "CSV")
+    out = io.StringIO(newline="")
+    csv.writer(out, lineterminator="\n").writerows(rows)
+    return out.getvalue().encode("utf-8-sig")
+
+
+def _make_json(content: str) -> bytes:
+    value = _unfence(content)
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"JSON tidak valid pada baris {exc.lineno}, kolom {exc.colno}.") from exc
+    return (json.dumps(parsed, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
+    marker = re.compile(r"(?m)^===\s*FILE:\s*([^=\r\n]+?)\s*===\s*$")
+    matches = list(marker.finditer(content))
+    files = {}
+    if matches:
+        from pathlib import PurePosixPath
+        for i, match in enumerate(matches):
+            name = match.group(1).strip().replace("\\", "/")
+            path = PurePosixPath(name)
+            if not name or path.is_absolute() or ".." in path.parts or name in files:
+                raise ValueError("Nama anggota ZIP tidak aman atau duplikat: " + name)
+            end = matches[i+1].start() if i+1 < len(matches) else len(content)
+            files[name] = content[match.end():end].strip() + "\n"
+    else:
+        files = {"README.txt": f"Arsip dibuat oleh CLOUZER.\n{title}\n", "konten.txt": content}
+    required = set(re.findall(r"\b[\w.-]+\.(?:txt|json|csv)\b", prompt, re.I))
+    missing = sorted(required - set(files))
+    if missing:
+        raise ValueError("ZIP tidak memiliki anggota yang diminta: " + ", ".join(missing))
+    import csv
+    for name, value in files.items():
+        if name.lower().endswith(".json"):
+            json.loads(_unfence(value))
+        elif name.lower().endswith(".csv"):
+            rows = list(csv.reader(io.StringIO(_unfence(value))))
+            if len(rows) < 2 or any(len(r) != len(rows[0]) for r in rows):
+                raise ValueError("CSV internal tidak valid: " + name)
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+        for name, value in files.items():
+            archive.writestr(name, value)
+    data = out.getvalue()
+    with zipfile.ZipFile(io.BytesIO(data)) as check:
+        if check.testzip() or set(check.namelist()) != set(files):
+            raise RuntimeError("Validasi integritas ZIP gagal.")
+    return data
+
+
+def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
+    fmt = str(format_name or "").lower().lstrip(".")
+    if not isinstance(data, bytes) or not data or len(data) > MAX_GENERATED_FILE_BYTES:
+        raise ValueError("File kosong atau melewati batas 8 MB.")
+    result = {"format": fmt, "bytes": len(data), "valid": False}
+    if fmt == "txt":
+        if len(data.decode("utf-8-sig").strip()) < 20:
+            raise ValueError("TXT kosong atau terlalu pendek.")
+    elif fmt == "pdf":
+        import pymupdf
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            if doc.page_count < 1 or len("".join(p.get_text() for p in doc).strip()) < 20:
+                raise ValueError("PDF tidak memiliki halaman atau teks cukup.")
+            result["pages"] = doc.page_count
+    elif fmt == "docx":
+        from docx import Document
+        doc = Document(io.BytesIO(data))
+        if len("\n".join(p.text for p in doc.paragraphs).strip()) < 20:
+            raise ValueError("DOCX tidak memiliki teks cukup.")
+    elif fmt == "xlsx":
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        try:
+            rows = [[str(c or "") for c in row] for row in wb.active.iter_rows(values_only=True)]
+            _check_table(rows, prompt, "XLSX")
+            result.update({"rows": len(rows)-1, "columns": len(rows[0]), "sheets": len(wb.sheetnames)})
+        finally:
+            wb.close()
+    elif fmt == "pptx":
+        from pptx import Presentation
+        prs = Presentation(io.BytesIO(data))
+        if not prs.slides:
+            raise ValueError("PPTX tidak memiliki slide.")
+        for i, slide in enumerate(prs.slides, 1):
+            text = " ".join(s.text.strip() for s in slide.shapes if getattr(s, "has_text_frame", False))
+            if len(text.strip()) < 10 or "gagal: file" in text.lower():
+                raise ValueError(f"Slide {i} kosong atau berisi pesan kegagalan.")
+        match = re.search(r"\b(\d{1,2})\s*slide", prompt, re.I)
+        if match and len(prs.slides) != int(match.group(1)):
+            raise ValueError(f"PPTX berisi {len(prs.slides)} slide, bukan {match.group(1)}.")
+        result["slides"] = len(prs.slides)
+    elif fmt == "zip":
+        import csv
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            if archive.testzip():
+                raise ValueError("ZIP rusak.")
+            names = archive.namelist()
+            missing = sorted(set(re.findall(r"\b[\w.-]+\.(?:txt|json|csv)\b", prompt, re.I)) - set(names))
+            if missing:
+                raise ValueError("ZIP kehilangan anggota wajib: " + ", ".join(missing))
+            for name in names:
+                raw = archive.read(name)
+                if name.lower().endswith(".json"):
+                    json.loads(raw.decode("utf-8-sig"))
+                elif name.lower().endswith(".csv"):
+                    rows = list(csv.reader(io.StringIO(raw.decode("utf-8-sig"))))
+                    if len(rows) < 2 or any(len(r) != len(rows[0]) for r in rows):
+                        raise ValueError("CSV internal tidak valid: " + name)
+            result["members"] = names
+    elif fmt == "csv":
+        import csv
+        rows = list(csv.reader(io.StringIO(data.decode("utf-8-sig"))))
+        _check_table(rows, prompt, "CSV")
+        result.update({"rows": len(rows)-1, "columns": len(rows[0])})
+    elif fmt == "json":
+        json.loads(data.decode("utf-8"))
+    else:
+        raise ValueError("Format validasi tidak didukung.")
+    result["valid"] = True
+    return result
+
+
 def create_document_file(format_name: str, prompt: str, content: str) -> tuple[bytes, str, str]:
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
@@ -241,7 +421,9 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         "docx": lambda: _make_docx(text, title),
         "xlsx": lambda: _make_xlsx(text, title),
         "pptx": lambda: _make_pptx(text, title),
-        "zip": lambda: _make_zip(text, title),
+        "zip": lambda: _make_zip(text, title, prompt),
+        "csv": lambda: _make_csv(text, prompt),
+        "json": lambda: _make_json(text),
     }
     mime_types = {
         "txt": "text/plain; charset=utf-8",
@@ -250,10 +432,13 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "zip": "application/zip",
+        "csv": "text/csv; charset=utf-8",
+        "json": "application/json; charset=utf-8",
     }
     data = builders[fmt]()
     if not data:
         raise RuntimeError("File hasil pembuatan kosong.")
     if len(data) > MAX_GENERATED_FILE_BYTES:
         raise RuntimeError("File hasil melebihi batas aman 8 MB.")
+    validate_document_file(fmt, prompt, data)
     return data, _safe_filename(prompt, fmt), mime_types[fmt]

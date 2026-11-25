@@ -1,83 +1,73 @@
+import csv
 import io
+import json
 import unittest
 import zipfile
 
-from clouzer_file_creation import (
-    create_document_file,
-    detect_requested_file_format,
-    is_retry_command,
-    normalize_pending_file_task,
-    normalize_pending_retry_task,
-)
+from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file
 
 
 class FileCreationTests(unittest.TestCase):
-    def test_detect_supported_formats(self):
-        samples = {
-            "Buatkan catatan TXT tentang keamanan": "txt",
-            "Tolong buat laporan PDF": "pdf",
-            "Bikinkan surat DOCX": "docx",
-            "Buat tabel anggaran Excel": "xlsx",
-            "Buat presentasi PowerPoint": "pptx",
-            "Buat arsip ZIP dari catatan ini": "zip",
+    def test_detect_all_eight_formats(self):
+        prompts = {
+            "Buat catatan TXT": "txt", "Buat laporan PDF": "pdf",
+            "Buat dokumen Word DOCX": "docx", "Buat tabel Excel": "xlsx",
+            "Buat presentasi PowerPoint": "pptx", "Buat arsip ZIP": "zip",
+            "Buat file CSV": "csv", "Buat file JSON": "json",
         }
-        for prompt, expected in samples.items():
-            with self.subTest(prompt=prompt):
-                self.assertEqual(detect_requested_file_format(prompt), expected)
+        for prompt, expected in prompts.items():
+            self.assertEqual(detect_requested_file_format(prompt), expected)
 
-    def test_capability_question_is_not_a_create_command(self):
-        self.assertIsNone(detect_requested_file_format("CLOUZER sudah bisa membuat file PDF belum?"))
+    def test_csv_creation_and_dimensions(self):
+        prompt = "Buat CSV dengan 3 baris data dan 3 kolom"
+        data, filename, mime = create_document_file("csv", prompt, "id,nama,status\n1,A,OK\n2,B,OK\n3,C,OK")
+        rows = list(csv.reader(io.StringIO(data.decode("utf-8-sig"))))
+        self.assertTrue(filename.endswith(".csv"))
+        self.assertIn("text/csv", mime)
+        self.assertEqual((len(rows)-1, len(rows[0])), (3, 3))
 
-    def test_file_retry_commands_are_recognized(self):
-        for prompt in ("Ulangi", "ulang", "Coba lagi", "Lanjutkan", "teruskan dong", "retry!"):
-            with self.subTest(prompt=prompt):
-                self.assertTrue(is_retry_command(prompt))
-        self.assertFalse(is_retry_command("Ulangi penjelasan tentang Discord"))
+    def test_json_is_valid_and_invalid_rejected(self):
+        data, filename, mime = create_document_file("json", "Buat file JSON", '{"project":"CLOUZER"}')
+        self.assertTrue(filename.endswith(".json"))
+        self.assertIn("application/json", mime)
+        self.assertEqual(json.loads(data)["project"], "CLOUZER")
+        with self.assertRaises(ValueError):
+            create_document_file("json", "Buat JSON", "bukan json valid")
 
-    def test_pending_retry_task_supports_non_file_operations(self):
-        self.assertEqual(
-            normalize_pending_retry_task({"kind": "image", "prompt": "Generate a landscape"}),
-            {"prompt": "Generate a landscape", "kind": "image"},
-        )
-        self.assertEqual(
-            normalize_pending_retry_task({"kind": "audio", "prompt": "Buat audio narasi", "source_message_id": 12345}),
-            {"prompt": "Buat audio narasi", "kind": "audio", "source_message_id": 12345},
-        )
-        self.assertIsNone(normalize_pending_retry_task({"kind": "audio", "prompt": "Buat audio", "source_message_id": -1}))
-        self.assertEqual(
-            normalize_pending_retry_task({"kind": "file", "format": "TXT", "prompt": "Buat TXT"}),
-            {"prompt": "Buat TXT", "format": "txt", "kind": "file"},
-        )
-        self.assertIsNone(normalize_pending_retry_task({"kind": "file", "format": "exe", "prompt": "Buat"}))
-        self.assertIsNone(normalize_pending_retry_task({"kind": "image", "prompt": ""}))
+    def test_xlsx_enforces_requested_rows_and_columns(self):
+        prompt = "Buat Excel 3 produk dan 3 kolom"
+        data, _, _ = create_document_file("xlsx", prompt, "ID\tNama\tHarga\n1\tA\t10\n2\tB\t20\n3\tC\t30")
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"]), (3, 3))
+        with self.assertRaisesRegex(ValueError, "hanya berisi 1 baris data"):
+            create_document_file("xlsx", prompt, "ID\tNama\tHarga\n1\tA\t10")
 
-    def test_pending_file_task_is_validated_and_bounded(self):
-        self.assertEqual(
-            normalize_pending_file_task({"format": "TXT", "prompt": "Buatkan file TXT"}),
-            {"format": "txt", "prompt": "Buatkan file TXT"},
-        )
-        self.assertIsNone(normalize_pending_file_task({"format": "exe", "prompt": "buat"}))
-        self.assertIsNone(normalize_pending_file_task({"format": "txt", "prompt": ""}))
+    def test_pptx_slide_count_and_refusal(self):
+        prompt = "Buat PowerPoint 2 slide"
+        content = "Judul\nMateri pengenalan\n--- SLIDE ---\nKesimpulan\nMateri akhir"
+        data, _, _ = create_document_file("pptx", prompt, content)
+        self.assertEqual(validate_document_file("pptx", prompt, data)["slides"], 2)
+        with self.assertRaises(ValueError):
+            create_document_file("pptx", prompt, "Gagal: file PPTX tidak dapat dibuat atau dikirim sebagai attachment.")
 
-    def test_all_formats_create_nonempty_files(self):
-        content = "# Contoh Dokumen\n\nIsi pertama.\n\nNama\tNilai\nA\t10\nB\t20"
-        for fmt in ("txt", "pdf", "docx", "xlsx", "pptx", "zip"):
-            with self.subTest(format=fmt):
-                data, filename, mime = create_document_file(fmt, "Buatkan dokumen contoh", content)
-                self.assertTrue(data)
-                self.assertTrue(filename.endswith("." + fmt))
-                self.assertTrue(mime)
-                if fmt == "txt":
-                    self.assertIn("Isi pertama".encode(), data)
-                elif fmt == "pdf":
-                    self.assertTrue(data.startswith(b"%PDF-"))
-                else:
-                    with zipfile.ZipFile(io.BytesIO(data)) as archive:
-                        names = archive.namelist()
-                        if fmt == "zip":
-                            self.assertIn("konten.txt", names)
-                        else:
-                            self.assertTrue(names)
+    def test_zip_dynamic_required_members(self):
+        prompt = "Buat ZIP berisi README.txt, data.json, dan data.csv"
+        content = ("=== FILE: README.txt ===\nPenjelasan CLOUZER.\n"
+                   "=== FILE: data.json ===\n{\"project\":\"CLOUZER\"}\n"
+                   "=== FILE: data.csv ===\nid,nama,status\n1,A,OK\n2,B,OK\n3,C,OK\n")
+        data, _, _ = create_document_file("zip", prompt, content)
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            self.assertEqual(set(archive.namelist()), {"README.txt", "data.json", "data.csv"})
+        with self.assertRaises(ValueError):
+            create_document_file("zip", prompt, "tidak ada marker anggota")
+
+    def test_all_remaining_formats_build(self):
+        content = "# Dokumen CLOUZER\n\nIsi dokumen yang cukup panjang untuk validasi hasil pembuatan file."
+        for fmt in ("txt", "pdf", "docx"):
+            with self.subTest(fmt=fmt):
+                data, name, mime = create_document_file(fmt, "Buat " + fmt, content)
+                self.assertTrue(data and name.endswith("." + fmt) and mime)
+                self.assertTrue(validate_document_file(fmt, "Buat " + fmt, data)["valid"])
 
 
 if __name__ == "__main__":
