@@ -86,6 +86,10 @@ def _safe_title(content: str, prompt: str) -> str:
         match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)\s*$", line)
         if match and match.group(1).strip():
             return match.group(1).strip()[:100]
+    for line in str(content or "").splitlines():
+        value = line.strip()
+        if value and "\t" not in value and not (value.startswith("|") and value.endswith("|")):
+            return value[:100]
     return "Dokumen CLOUZER"
 
 
@@ -204,7 +208,9 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
     for row_index, row in enumerate(rows):
         values = []
         for column_index, cell in enumerate(row):
-            value = str(cell)[:32767]
+            value = str(cell)
+            if len(value) > 32767:
+                raise ValueError("Satu cell XLSX melebihi batas 32.767 karakter.")
             if row_index > 0 and column_index < len(headers) and numeric_headers.search(headers[column_index]):
                 candidate = value.strip()
                 if re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", candidate):
@@ -244,7 +250,7 @@ def _make_pptx(content: str, title: str) -> bytes:
         if lines:
             first = re.sub(r"^\s{0,3}#{1,6}\s*", "", lines[0]).strip()
             if first and (lines[0].startswith("#") or index == 0):
-                slide_title, lines = first[:100], lines[1:]
+                slide_title, lines = first, lines[1:]
         slide = presentation.slides.add_slide(presentation.slide_layouts[1])
         slide.shapes.title.text = slide_title
         body = slide.placeholders[1].text_frame
@@ -447,14 +453,14 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
         import csv
         from pathlib import PurePosixPath
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            if archive.testzip():
-                raise ValueError("ZIP rusak.")
             infos = archive.infolist()
             names = [info.filename for info in infos]
             if len(names) > MAX_ZIP_ENTRIES or len(names) != len(set(names)):
                 raise ValueError("ZIP memiliki anggota berlebih atau nama anggota duplikat.")
             if sum(info.file_size for info in infos) > MAX_GENERATED_FILE_BYTES:
                 raise ValueError("Isi ZIP melewati batas total 8 MB.")
+            if archive.testzip():
+                raise ValueError("ZIP rusak.")
             for name in names:
                 normalized = name.replace("\\", "/")
                 path = PurePosixPath(normalized)
