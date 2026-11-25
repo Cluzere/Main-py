@@ -1288,6 +1288,28 @@ class GlobalDailyBudget:
 # ---------------------------------------------------------------------------
 # Penyimpanan state tombol AI (Regenerate / DM) - dibatasi & persisten.
 # ---------------------------------------------------------------------------
+def merge_image_sources(*groups, limit: int | None = None) -> list[str]:
+    """Merge image sources in priority order, deduplicate URLs, and enforce the vision cap."""
+    if limit is None:
+        limit = MAX_VISION_IMAGES_PER_TURN
+    limit = max(0, int(limit))
+    merged: list[str] = []
+    seen: set[str] = set()
+    for group in groups:
+        if not isinstance(group, (list, tuple)):
+            continue
+        for url in group:
+            if not isinstance(url, str) or not url.startswith(("http://", "https://", "data:image/")):
+                continue
+            if url in seen:
+                continue
+            seen.add(url)
+            merged.append(url)
+            if len(merged) >= limit:
+                return merged
+    return merged
+
+
 def _content_to_text(content) -> tuple[str, int]:
     """Ratakan content pesan (str atau list blok) jadi teks. Return (teks, jumlah_gambar)."""
     if isinstance(content, str):
@@ -4802,14 +4824,12 @@ class ClouzerBot(commands.Bot):
 
                             source_imgs: list[str] | None = None
                             if use_attached:
-                                source_imgs = (
-                                    image_data_urls
-                                    or replied_imgs
-                                    or self.get_last_user_image(guild_id, channel_id, user.id)
-                                )
+                                source_imgs = merge_image_sources(image_data_urls, replied_imgs)
+                                if not source_imgs:
+                                    source_imgs = self.get_last_user_image(guild_id, channel_id, user.id)
                             elif image_data_urls or replied_imgs:
                                 if wants_edit:
-                                    source_imgs = image_data_urls or replied_imgs
+                                    source_imgs = merge_image_sources(image_data_urls, replied_imgs)
                             elif wants_edit:
                                 source_imgs = self.get_last_user_image(guild_id, channel_id, user.id)
 
