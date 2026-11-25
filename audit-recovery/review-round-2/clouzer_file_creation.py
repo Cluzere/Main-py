@@ -354,6 +354,9 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
         sheet.auto_filter.ref = sheet.dimensions
     if not any(cell.value is not None for row in sheet.iter_rows() for cell in row):
         raise ValueError("Validasi XLSX sebelum penyimpanan gagal: worksheet kosong.")
+    workbook.calculation.calcMode = "auto"
+    workbook.calculation.fullCalcOnLoad = True
+    workbook.calculation.forceFullCalc = True
     output = io.BytesIO()
     workbook.save(output)
     return output.getvalue()
@@ -538,7 +541,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
             raise ValueError("DOCX tidak memiliki teks.")
     elif fmt == "xlsx":
         from openpyxl import load_workbook
-        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=False)
+        wb = load_workbook(io.BytesIO(data), read_only=False, data_only=False)
         try:
             if not wb.sheetnames or wb.active.max_row > MAX_TABLE_ROWS + 1 or wb.active.max_column > MAX_TABLE_COLUMNS:
                 raise ValueError("XLSX melewati batas tabel atau tidak memiliki worksheet.")
