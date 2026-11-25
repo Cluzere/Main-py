@@ -1663,5 +1663,68 @@ class ArchiveReaderTests(unittest.TestCase):
         
         asyncio.run(run())
 
+    def test_container_signatures_require_format_specific_structure(self):
+        valid_cases = {
+            ".docx": [
+                ("[Content_Types].xml", "<Types/>"),
+                ("word/document.xml", "<document/>"),
+            ],
+            ".pptx": [
+                ("[Content_Types].xml", "<Types/>"),
+                ("ppt/presentation.xml", "<presentation/>"),
+            ],
+            ".xlsx": [
+                ("[Content_Types].xml", "<Types/>"),
+                ("xl/workbook.xml", "<workbook/>"),
+            ],
+        }
+        for ext, entries in valid_cases.items():
+            with self.subTest(ext=ext):
+                self.assertIsNone(module.check_file_signature(ext, self.make_zip(entries)))
+                self.assertIsNotNone(
+                    module.check_file_signature(ext, self.make_zip([("readme.txt", "just text")]))
+                )
+
+    def test_odf_and_epub_signatures_validate_mimetype(self):
+        odf_types = {
+            ".odt": b"application/vnd.oasis.opendocument.text",
+            ".ods": b"application/vnd.oasis.opendocument.spreadsheet",
+            ".odp": b"application/vnd.oasis.opendocument.presentation",
+        }
+        for ext, mimetype in odf_types.items():
+            with self.subTest(ext=ext):
+                raw = self.make_zip([("mimetype", mimetype), ("content.xml", b"<document/>")])
+                self.assertIsNone(module.check_file_signature(ext, raw))
+                wrong = self.make_zip([("mimetype", b"application/zip"), ("content.xml", b"<document/>")])
+                self.assertIsNotNone(module.check_file_signature(ext, wrong))
+
+        epub = io.BytesIO()
+        with zipfile.ZipFile(epub, "w") as archive:
+            info = zipfile.ZipInfo("mimetype")
+            info.compress_type = zipfile.ZIP_STORED
+            archive.writestr(info, b"application/epub+zip")
+            archive.writestr("META-INF/container.xml", b"<container/>")
+        self.assertIsNone(module.check_file_signature(".epub", epub.getvalue()))
+
+        invalid_epub = self.make_zip([("mimetype", "application/epub+zip")])
+        self.assertIsNotNone(module.check_file_signature(".epub", invalid_epub))
+
+    def test_signature_checker_rejects_truncated_and_mislabeled_binary_inputs(self):
+        cases = [
+            (".pdf", b"not a pdf"),
+            (".7z", b"not a 7z"),
+            (".docx", b"PK\\x03\\x04not-a-container"),
+            (".pptx", b"PK\\x03\\x04not-a-container"),
+            (".xlsx", b"PK\\x03\\x04not-a-container"),
+            (".rtf", b"plain text"),
+            (".wav", b"RIFFxxxxNOPE"),
+            (".flac", b"not flac"),
+            (".ogg", b"not ogg"),
+            (".mp3", b"not mp3"),
+        ]
+        for ext, raw in cases:
+            with self.subTest(ext=ext):
+                self.assertIsNotNone(module.check_file_signature(ext, raw))
+
 if __name__ == "__main__":
     unittest.main()
