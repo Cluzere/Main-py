@@ -212,7 +212,7 @@ Keempat perbaikan diuji pada suite kandidat: tes sumber vision, ZIP image budget
 
 ## Keputusan
 
-Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 62 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
+Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 69 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
 
 Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
 
