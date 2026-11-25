@@ -34,6 +34,14 @@ jobs:
         run: pip-audit --strict
       - name: Run medium/high severity security scan
         run: bandit -q -r audit-recovery/review-round-2/revisi_audit_final_main.py -ll
+      - name: Fetch and verify original CLOUZER ZIP fixture
+        run: |
+          fixture="$RUNNER_TEMP/CLOUZER_paket_tes_manual.zip"
+          curl --fail --location --silent --show-error \
+            https://raw.githubusercontent.com/Cluzere/Main-py/main/CLOUZER_paket_tes_manual.zip \
+            --output "$fixture"
+          echo "9944f200e2c0a2b00286611900a5249a57e6626a86437840e3e10237820c52db  $fixture" | sha256sum --check
+          echo "CLOUZER_AUDIT_PACKAGE=$fixture" >> "$GITHUB_ENV"
       - name: Run candidate archive regression tests
         run: python -m unittest discover -s tests -p "test_audit_candidate_*.py" -v
       - name: Run existing audit regression tests when present
