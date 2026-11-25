@@ -12,7 +12,7 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Commit branch terbaru yang diuji pada CI: `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Blob kandidat terbaru: `2f53ba0c4d534bfef2f7db30b5a16a6b87e8fecb`
-- Jumlah baris kandidat: 5.738
+- Jumlah baris kandidat: 5.767
 - CI terbaru: [Run #45560134372 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45560134372)
 
 ## Bukti CI terakhir
@@ -31,8 +31,8 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 
 ## Ringkasan 64 butir
 
-- **32 DONE**: perubahan dan tes relevan tersedia.
-- **32 PARTIAL**: mitigasi ada, tetapi masih perlu live staging, fuzzing, atau cakupan tambahan.
+- **31 DONE**: perubahan dan tes relevan tersedia.
+- **33 PARTIAL**: mitigasi ada, tetapi masih perlu live staging, fuzzing, atau cakupan tambahan.
 - **0 NOT DONE**: tidak ada item yang sama sekali belum disentuh; item PARTIAL tetap belum boleh dianggap selesai.
 
 ## Perubahan nyata pada kandidat
@@ -51,7 +51,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 12. DOCX membaca header/footer; PPTX membaca speaker notes dan judul/data seri grafik; XLSX membaca sheet serta metadata judul/range seri grafik.
 13. Retry Responses maksimal satu kali untuk HTTP 502/503/504, serta HTTP 500 hanya jika error memuat frasa persis `Unable to forward upstream stream`, dan hanya sebelum event stream pertama. Tidak ada retry otomatis setelah stream mulai.
 14. Jika stream terputus setelah sebagian teks diterima, teks parsial dipertahankan dan user request tidak dibuang dari history.
-15. Antrean percakapan FIFO per scope user/channel dibatasi maksimal 10 waiter, timeout 300 detik, dan memberi status bila penuh/timeout/dibatalkan. Cancellation membersihkan referensi lock; scope antar-user terpisah. Antrean tetap in-memory dan tidak dipulihkan setelah hard restart.
+15. Antrean percakapan per scope user/channel dibatasi maksimal 10 waiter, timeout 300 detik, dan memberi status bila penuh/timeout/dibatalkan. Lock FIFO setelah task mencapai lock; preprocessing lampiran masih bisa membuat urutan ingress pesan terbalik. Cancellation membersihkan referensi lock; scope antar-user terpisah. Antrean tetap in-memory dan tidak dipulihkan setelah hard restart.
 16. Environment override resource diberi hard cap: 10 lampiran, 10 gambar vision, 100 MB total lampiran, batas teks dokumen/konteks, serta batas konkurensi AI/image/audio.
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 18. Anggota PDF/Office/audio dalam ZIP dan 7Z diperiksa signature-nya sebelum diparse; file dengan ekstensi yang tidak cocok ditolak dan dilaporkan.
@@ -194,7 +194,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 
 ## Temuan re-audit statis sebelumnya — 2026-11-25 (sudah diperbaiki)
 
-Audit sebelumnya terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fed` menemukan empat temuan. Patch kandidat sekarang ada pada commit `406a9c360e2f2d94623b2a5e2a4a88457a6d3352`; tes regresinya ditambahkan pada commit `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
+Audit sebelumnya terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fed` menemukan lima temuan. Patch kandidat sekarang ada pada commit `406a9c360e2f2d94623b2a5e2a4a88457a6d3352`; tes regresinya ditambahkan pada commit `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
 
 1. **Vision duplicate — FIXED.** `select_vision_images()` mengutamakan data URL lokal; URL remote hanya dipakai sebagai fallback. Tes membuktikan satu gambar lokal tidak ditambah lagi sebagai CDN URL.
 2. **Reply image reprocessing — FIXED.** `process_ai_turn()` tidak lagi memanggil `resolve_replied_images()` ulang di image tool handler; memakai `image_data_urls` yang sudah diproses ingress.
@@ -202,7 +202,7 @@ Audit sebelumnya terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fe
 4. **ZIP image skip warning — FIXED.** Kode menghitung gambar yang diterima dan benar-benar dilewati sebelum membuat peringatan.
 5. **Nested archive aggregate decompression budget — FIXED.** ZIP utama dan nested ZIP berbagi satu batas byte dekompresi; ZIP dalam 7Z menggunakan sisa budget hasil ekstraksi 7Z. Tes baru membuktikan ZIP bersarang kedua ditolak ketika budget gabungan habis.
 
-Keempat perbaikan diuji pada suite kandidat: tes sumber vision, ZIP image budget, nested ZIP truncation, nested ZIP-in-7Z truncation, dan 7Z text truncation. Tidak ada live Discord/provider test dalam run ini.
+Kelima perbaikan diuji pada suite kandidat: tes sumber vision, ZIP image budget, nested ZIP truncation, nested ZIP-in-7Z truncation, dan 7Z text truncation. Tidak ada live Discord/provider test dalam run ini.
 
 ## Verifikasi CI dan runtime terbaru
 
