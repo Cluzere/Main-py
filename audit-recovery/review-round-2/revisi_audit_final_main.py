@@ -5206,9 +5206,16 @@ class ClouzerBot(commands.Bot):
                             "cannot attach", "no file-generation tool",
                         )
                         if any(marker in file_reply_lower for marker in file_refusal_markers):
-                            raise RuntimeError(
-                                "Model menolak tugas pembuatan file sebelum menghasilkan isi dokumen. "
-                                "Respons penolakan tidak akan dikemas sebagai file."
+                            if requested_file_format != "xlsx":
+                                raise RuntimeError(
+                                    "Model menolak tugas pembuatan file sebelum menghasilkan isi dokumen. "
+                                    "Respons penolakan tidak akan dikemas sebagai file."
+                                )
+                            # XLSX helper may safely recover only when the user's original
+                            # prompt contains a complete explicit table; it never invents rows.
+                            logging.warning(
+                                "[XLSX-FALLBACK] scope=%s model_refusal_detected=1 source=explicit_prompt_table",
+                                scope_key,
                             )
                         if requested_file_format == "xlsx":
                             _xlsx_diag_text = reply_text or ""
