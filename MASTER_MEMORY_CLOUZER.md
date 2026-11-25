@@ -1025,3 +1025,39 @@ Urutan kerja yang disarankan:
 - Jangan mengklaim integrasi Box sudah selesai. Status saat ini adalah **akses Box terbukti dari Termux; integrasi OAuth dan runtime CLOUZER di Wispbyte belum dilakukan**.
 
 ---
+
+
+## §25 — Implementasi awal callback OAuth Box di branch terpisah (2026-11-26)
+
+### Perubahan GitHub
+- Repository: `Cluzere/Main-py`.
+- Branch baru: `box-oauth-integration`, dibuat dari `audit-recovery-gpt-2026-11-23` (tidak mengubah branch sumber).
+- Commit implementasi:
+  - `4c49431a428b514b8fb1b14aec7540b2f484fb7c`: menambahkan `audit-recovery/review-round-2/clouzer_box_oauth.py`.
+  - `2b64b4eff730106f36babe698e09c94b34690a83`: mengintegrasikan startup listener OAuth ke kandidat `revisi_audit_final_main.py`.
+  - `fc4a3bde230138481a10e626688dc4d8829d0fdb`: memastikan sesi HTTP OAuth ditutup saat cleanup.
+- Perbandingan GitHub terakhir: branch `box-oauth-integration` ahead 3 commits, behind 0 dari `audit-recovery-gpt-2026-11-23`; hanya 2 file berubah (1 file baru, 1 file kandidat dimodifikasi).
+
+### Isi implementasi
+- Modul baru menyediakan GET `/health`, GET `/login`, dan GET `/callback`.
+- OAuth authorization URL Box: `https://account.box.com/api/oauth2/authorize`; token exchange ke `https://api.box.com/oauth2/token`.
+- State acak, sekali pakai, kedaluwarsa setelah 10 menit; token tidak ditampilkan di halaman browser atau log.
+- Token disimpan sebagai JSON lokal dengan upaya permission file 0600; default path `box_tokens.json` relatif terhadap working directory, dapat diatur lewat `BOX_TOKEN_FILE`.
+- Listener bind ke `0.0.0.0`; port dari `BOX_OAUTH_PORT`, jika kosong dari `PORT`, lalu default `15497`.
+- Kandidat utama memulai listener OAuth bersama bot Discord. Jika listener gagal, error dicatat dan bot Discord tetap dilanjutkan. Listener dibersihkan saat bot berhenti.
+- Implementasi hanya menyimpan access token dan refresh token hasil OAuth. Belum ada refresh otomatis token maupun integrasi pemakaian token ke operasi file Discord.
+
+### Environment yang harus disetel di Wispbyte sebelum deployment
+- `BOX_CLIENT_ID` — Client ID dari Box Developer Console.
+- `BOX_CLIENT_SECRET` — Client Secret; jangan pernah dikirim ke chat atau dimasukkan ke GitHub.
+- `BOX_REDIRECT_URI` — harus persis `https://clouzer-box.wispbyte.app/callback` dan sama dengan Redirect URI di Box Developer Console.
+- Opsional: `BOX_OAUTH_PORT=15497` (atau port primary yang benar-benar dipetakan ke subdomain), `BOX_TOKEN_FILE=/home/container/box_tokens.json`.
+- Setelah deployment, tes `/health`, buka `/login`, selesaikan persetujuan Box, lalu verifikasi token tersimpan tanpa menampilkan nilainya.
+
+### Status dan batas keselamatan
+- Ini implementasi awal di branch terpisah, BELUM di-deploy dan BELUM diuji di Wispbyte.
+- Startup Wispbyte saat ini masih mengambil branch `audit-recovery-gpt-2026-11-23`; jangan ubah startup/branch atau restart sebelum konfigurasi environment dan pemeriksaan deployment disepakati.
+- Production `main.py` tidak disentuh. Branch audit asli juga tidak disentuh.
+- Jangan menghapus domain `clouzer-box.wispbyte.app` atau primary port `15497` tanpa verifikasi pemetaan subdomain.
+- Jangan menyimpan Client Secret, access token, refresh token, authorization code, atau URL callback berisi code ke Master Memory/chat/GitHub.
+- Catatan teknis: kode belum melalui runtime compile/test pada Wispbyte. Sebelum deploy, lakukan pemeriksaan statis dan pastikan port primary benar-benar dapat dipakai listener; listener gagal tidak menghentikan bot tetapi callback tidak akan tersedia.
