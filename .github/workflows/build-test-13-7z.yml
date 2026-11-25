@@ -1,0 +1,51 @@
+name: Build test fixture 13 (7z)
+
+on:
+  push:
+    branches:
+      - test-file-13-7z
+    paths:
+      - .github/workflows/build-test-13-7z.yml
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install 7-Zip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full
+      - name: Create test files and archive
+        run: |
+          mkdir -p fixture-13/data fixture-13/catatan
+          cat > fixture-13/README.txt <<'EOF'
+          PAKET UJI NOMOR 13 - ARSIP 7Z
+          Tujuan: menguji pembukaan arsip 7Z, daftar entri, ekstraksi, path, dan pembacaan isi.
+          Penanda: TEST-13-7Z-ROOT
+          EOF
+          cat > fixture-13/data/tanaman.csv <<'EOF'
+          lokasi,jenis,jumlah
+          Blok Utara,Cabai,12
+          Blok Selatan,Tomat,8
+          Blok Timur,Kangkung,15
+          EOF
+          cat > fixture-13/catatan/observasi.md <<'EOF'
+          # Catatan Observasi
+          Pemeriksaan dilakukan pada hari Jumat.
+          Total tanaman yang tercatat: 35.
+          Penanda: TEST-13-7Z-NESTED-PATH
+          EOF
+          7z a -t7z 13_arsip_uji.7z ./fixture-13/*
+          7z t 13_arsip_uji.7z
+          7z l 13_arsip_uji.7z
+      - name: Upload 7z test archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: file-no-13-arsip-7z
+          path: 13_arsip_uji.7z
+          if-no-files-found: error
+          retention-days: 14
