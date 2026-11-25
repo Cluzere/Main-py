@@ -1476,5 +1476,14 @@ class ArchiveReaderTests(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_last_user_image_context_respects_vision_cap_and_deduplicates(self):
+        self.bot.last_channel_images = module.OrderedDict()
+        images = [f"data:image/png;base64,IMAGE_{i}" for i in range(module.MAX_VISION_IMAGES_PER_TURN + 3)]
+        images.insert(1, images[0])
+        self.bot.set_last_user_image(1, 2, 3, images)
+        stored = self.bot.get_last_user_image(1, 2, 3)
+        self.assertEqual(len(stored), module.MAX_VISION_IMAGES_PER_TURN)
+        self.assertEqual(len(set(stored)), len(stored))
+
 if __name__ == "__main__":
     unittest.main()
