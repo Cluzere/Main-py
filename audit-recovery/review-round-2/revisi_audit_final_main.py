@@ -2320,6 +2320,12 @@ class ClouzerBot(commands.Bot):
     def set_last_user_image(self, guild_id: int, channel_id: int, user_id: int, images: list[str]) -> None:
         if not images or not channel_id:
             return
+        # Keep only the same bounded, deduplicated set that vision can consume.
+        # New attachments plus replied images can otherwise exceed the vision cap
+        # and multiply retained base64 payloads in the in-memory edit context.
+        images = merge_image_sources(images, limit=MAX_VISION_IMAGES_PER_TURN)
+        if not images:
+            return
         self._cleanup_channel_images()
         key = (guild_id, channel_id, user_id)
         self.last_channel_images[key] = (time.monotonic(), images)
