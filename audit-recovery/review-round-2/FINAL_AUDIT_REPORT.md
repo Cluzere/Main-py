@@ -11,9 +11,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Commit terakhir yang mengubah file kandidat: `675cd774c7d8a68caefde717f81f33f425611b18`
 - Commit branch yang diuji CI terakhir: `2ec913a3b3a698daca317e0a71cd3d3705cdd02a`; pembaruan sesudahnya hanya mengubah laporan/README/handoff, bukan kode kandidat.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat: `c528ea4bec13e3f37b5420cb04fa1a155ebe95f6`
+- Blob kandidat: `8b0feabcef8e84e477b1e60987130861714b4fd5`
 - Jumlah baris: 5.670
-- CI terakhir: [Run #45514556079 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45514556079)
+- CI terakhir: [Run #45518612532 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45518612532)
 
 ## Bukti CI terakhir
 
@@ -22,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat tambahan: **57/57 PASS**.
+- Tes kandidat tambahan: **62/62 PASS**.
 - Regresi audit yang sudah ada: **74/74 PASS**.
-- Total dua suite yang dijalankan pada run terakhir: **131 tes PASS** (57 kandidat + 74 regresi lama).
+- Total dua suite yang dijalankan pada run terakhir: **136 tes PASS** (62 kandidat + 74 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -55,6 +55,8 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 16. Environment override resource diberi hard cap: 10 lampiran, 10 gambar vision, 100 MB total lampiran, batas teks dokumen/konteks, serta batas konkurensi AI/image/audio.
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 18. Anggota PDF/Office/audio dalam ZIP dan 7Z diperiksa signature-nya sebelum diparse; file dengan ekstensi yang tidak cocok ditolak dan dilaporkan.
+
+19. Sumber gambar untuk edit sekarang menggabungkan lampiran baru dan gambar dari pesan reply (deduplikasi, urutan prioritas, dan batas visual); 5 tes regresi helper baru lulus.
 
 ## Audit 64 butir — status jujur
 
@@ -186,7 +188,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 
 ## Keputusan
 
-Kandidat saat ini telah melewati compile, Bandit high-severity, 32 tes khusus kandidat, dan 74 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
+Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 62 tes khusus kandidat, dan 74 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
 
 Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
 
