@@ -847,3 +847,24 @@ Tidak ada perubahan pada production-main-py/main (1).py atau root production mai
 
 **Status akhir yang benar:** candidate code and CI regression suite are green; live Discord attachment delivery has not yet been verified against a running staging bot. Jangan klaim semua delapan format sudah lulus uji live. Langkah operasional berikutnya hanya setelah persetujuan terpisah: pasang candidate di lingkungan staging, jalankan tes Discord nyata untuk delapan format, inspeksi artefak baru di Box, dan bandingkan hasilnya dengan acceptance criteria. Production tetap tidak boleh disentuh tanpa izin eksplisit.
 
+
+
+---
+
+## 22. INSTRUKSI WAJIB UNTUK GPT/SESI BERIKUTNYA — LANJUTKAN, JANGAN ULANGI AUDIT DARI AWAL
+
+Saat melanjutkan proyek CLOUZER, baca Master Memory ini dan gunakan seluruh catatan sebelumnya sebagai riwayat kerja yang harus dipertahankan.
+
+**Jangan mengulang seluruh proses audit dari awal dan jangan mengulang pemeriksaan yang sudah selesai tanpa alasan teknis yang jelas.** Mulai dari status terakhir yang tercatat, verifikasi hanya informasi yang memang perlu diperbarui, lalu kerjakan langkah berikutnya yang belum selesai.
+
+Titik awal kelanjutan berdasarkan status §21:
+1. Audit kode kandidat dan regression suite telah selesai; dua workflow CI final berstatus SUCCESS.
+2. Jangan mengulang tes unit, compile, dependency check, pip-audit, atau Bandit yang sudah memiliki bukti CI final, kecuali ada perubahan kode baru, bukti CI kedaluwarsa/tidak cocok, atau kegagalan baru yang perlu direproduksi.
+3. Pekerjaan yang belum selesai adalah pengujian live di lingkungan staging: jalankan kandidat untuk delapan format file, periksa attachment Discord yang benar-benar terkirim, lalu inspeksi artefak baru dan cocokkan dengan acceptance criteria.
+4. Jangan menganggap hasil CI sebagai bukti keberhasilan pengiriman file live. Catat terpisah pembuatan file, validasi, pengiriman attachment, penerimaan/unduhan pengguna, dan validitas isi.
+5. Sebelum melakukan tindakan operasional, patuhi batas otorisasi: jangan mengubah production `main.py`, merge ke `main`, deploy ke produksi, atau restart Wispbyte tanpa izin eksplisit yang terpisah dari pengguna.
+6. Semua pembaruan Master Memory berikutnya harus **append-only**. Pertahankan seluruh bagian lama dan tambahkan catatan baru di bagian paling akhir.
+
+Jika sesi baru dimulai, jangan meminta pengguna mengulang informasi yang sudah tersedia di Master Memory. Jangan menyatakan pekerjaan selesai jika belum ada bukti. Jika akses ke branch atau file tidak tersedia, jelaskan keterbatasannya dan jangan mengarang status.
+
+**Prinsip kelanjutan:** lanjutkan dari progres terakhir yang terbukti; audit ulang hanya bagian yang berubah, belum terverifikasi, atau memang membutuhkan pemeriksaan ulang.
