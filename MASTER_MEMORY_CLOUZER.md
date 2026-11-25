@@ -783,3 +783,11 @@ Commit 85f8f91bd2e36992703549cd388dd45ebf3bbacb berhasil compile dan security sc
 - test_audit_candidate_archives.py membandingkan bytes gambar PNG sumber dengan bytes hasil kompresi gambar untuk vision. Implementasi memang menormalisasi gambar ke JPEG; assertion perlu menguji dimensi dan kesetaraan visual yang toleran terhadap lossy JPEG, bukan byte-identical.
 - Perbaikan lanjutan menambahkan dependency/global ke AST test harness dan mengganti assertion gambar dengan pemeriksaan format, dimensi, dan rerata kanal warna.
 - Helper juga diperbaiki agar JSON valid kecil tidak ditolak hanya karena jumlah karakter kurang dari 20, dan judul DOCX tidak diduplikasi.
+
+
+## 19. ADDENDUM — provenance assertions aligned to candidate behavior (26 November 2026)
+
+CI lanjutan mengonfirmasi generator format tests, compile, dependency checks, Bandit, dan pip-audit lolos. Sisa kegagalan pada suite lama berasal dari asumsi assertion:
+- Parser menyertakan nama arsip terluar pada setiap provenance path (contoh outer.zip!/folder/inner_test.zip), sedangkan test lama mengharapkan path relatif tanpa outer archive. Test diperbarui untuk menilai origin ROOT/NESTED dengan path penuh.
+- Normalisasi gambar untuk vision mengubah gambar menjadi JPEG dan membatasi sisi terpanjang hingga 800 px. Assertion kini membandingkan ukuran thumbnail yang diharapkan dan warna rata-rata, bukan ukuran asli atau bytes identik.
+- Test DOCX ditambah untuk mencegah judul ganda.

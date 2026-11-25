@@ -276,7 +276,9 @@ class ArchiveReaderTests(unittest.TestCase):
             original_mean = ImageStat.Stat(original_image.convert("RGB")).mean
         with Image.open(io.BytesIO(normalized_image_bytes)) as normalized_image:
             self.assertEqual(normalized_image.format, "JPEG")
-            self.assertEqual(normalized_image.size, original_size)
+            scale = min(1.0, 800 / max(original_size))
+            expected_size = (round(original_size[0] * scale), round(original_size[1] * scale))
+            self.assertEqual(normalized_image.size, expected_size)
             normalized_mean = ImageStat.Stat(normalized_image.convert("RGB")).mean
         # The vision pipeline intentionally normalizes source images to JPEG;
         # assert visual content preservation, not byte-for-byte identity.

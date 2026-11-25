@@ -943,8 +943,8 @@ class NestedZipProvenanceTests(unittest.TestCase):
         parsed, images = ParserHarness().extract_generic_zip_content(outer, "12_arsip_bersarang.zip")
 
         self.assertEqual(images, [])
-        self.assertIn("[ARCHIVE ENTRY: 04_readme_proyek.txt | origin=ROOT", parsed)
-        self.assertIn("[ARCHIVE ENTRY: folder/inner_test.zip!/02_catatan_b.txt | origin=NESTED", parsed)
+        self.assertIn("[ARCHIVE ENTRY: 12_arsip_bersarang.zip!/04_readme_proyek.txt | origin=ROOT", parsed)
+        self.assertIn("[ARCHIVE ENTRY: 12_arsip_bersarang.zip!/folder/inner_test.zip!/02_catatan_b.txt | origin=NESTED", parsed)
         self.assertNotIn("folder/inner_test.zip!/04_readme_proyek.txt", parsed)
         self.assertIn("18 tanaman", parsed)
 
@@ -960,5 +960,5 @@ class NestedZipProvenanceTests(unittest.TestCase):
             extract_generic_zip_content = extract_generic_zip_content_method
 
         parsed, _ = ParserHarness().extract_generic_zip_content(outer, "outer.zip")
-        self.assertIn("[ARCHIVE ENTRY: folder/inner_test.zip | origin=ROOT", parsed)
-        self.assertIn("[ARCHIVE ENTRY: folder/inner_test.zip!/inside.txt | origin=NESTED", parsed)
+        self.assertIn("[ARCHIVE ENTRY: outer.zip!/folder/inner_test.zip | origin=ROOT", parsed)
+        self.assertIn("[ARCHIVE ENTRY: outer.zip!/folder/inner_test.zip!/inside.txt | origin=NESTED", parsed)

@@ -63,6 +63,13 @@ class FileCreationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             create_document_file("zip", prompt, "tidak ada marker anggota")
 
+    def test_docx_does_not_duplicate_existing_title(self):
+        from docx import Document
+        data, _, _ = create_document_file("docx", "Buat laporan CLOUZER", "# Laporan CLOUZER\n\nIsi laporan cukup panjang dan dapat dibaca dengan jelas.")
+        doc = Document(io.BytesIO(data))
+        headings = [p.text for p in doc.paragraphs if p.style.name.startswith("Title") or p.style.name.startswith("Heading")]
+        self.assertEqual(headings.count("Laporan CLOUZER"), 1)
+
     def test_all_remaining_formats_build(self):
         content = "# Dokumen CLOUZER\n\nIsi dokumen yang cukup panjang untuk validasi hasil pembuatan file."
         for fmt in ("txt", "pdf", "docx"):
