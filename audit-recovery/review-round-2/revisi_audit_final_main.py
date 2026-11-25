@@ -25,6 +25,7 @@ from discord.ext import commands
 import aiohttp
 from PIL import Image
 from dotenv import load_dotenv
+from clouzer_file_creation import detect_requested_file_format, create_document_file
 
 try:
     import py7zr
@@ -4949,11 +4950,12 @@ class ClouzerBot(commands.Bot):
         http_img_urls = [] if local_vision_images else merge_image_sources(llm_image_urls)
         current_turn_images = select_vision_images(local_vision_images, http_img_urls)
 
+        requested_file_format = detect_requested_file_format(clean_content)
         allow_img_tool = should_allow_image_tool(
             clean_content,
             has_file_or_pdf=bool(additional_file_text),
             has_image=bool(current_turn_images),
-        )
+        ) and not requested_file_format
 
         # Kirim status segera sebelum menunggu lock; asyncio.Lock melayani waiter secara FIFO.
         _queue_status_started = _turn_loop.time()
@@ -4973,6 +4975,15 @@ class ClouzerBot(commands.Bot):
                 self.set_last_user_image(guild_id, channel_id, user.id, image_data_urls)
 
             full_user_prompt = clean_content
+            if requested_file_format:
+                format_labels = {"txt": "teks biasa", "pdf": "dokumen PDF", "docx": "dokumen Word", "xlsx": "spreadsheet Excel", "pptx": "presentasi PowerPoint", "zip": "arsip ZIP"}
+                full_user_prompt += (
+                    "\n\n[INSTRUKSI PEMBUATAN FILE " + requested_file_format.upper() + "]\n"
+                    + "Susun isi lengkap untuk " + format_labels[requested_file_format] + " berdasarkan permintaan pengguna. "
+                    + "Keluarkan hanya konten dokumen, tanpa kalimat pembuka atau penjelasan di luar dokumen. "
+                    + "Untuk spreadsheet, susun tabel dengan pemisah TAB antar kolom. "
+                    + "Untuk presentasi, pisahkan setiap slide menggunakan baris persis: --- SLIDE ---."
+                )
             if additional_file_text:
                 full_user_prompt += f"\n\n{additional_file_text}\n(Tolong baca dan analisis file serta gambar yang disertakan di atas!)"
 
@@ -5005,7 +5016,9 @@ class ClouzerBot(commands.Bot):
                 guild, user.id, channel_id, current_turn_images=current_turn_images
             )
 
-            if additional_file_text or current_turn_images:
+            if requested_file_format:
+                status_badge = "📄 *Sedang menyusun file " + requested_file_format.upper() + "...*"
+            elif additional_file_text or current_turn_images:
                 status_badge = "🔍 *Sedang membaca dan menganalisis file...*"
             elif mode == "full":
                 status_badge = "🧠 *Sedang berpikir mendalam untuk menyusun jawaban...*"
@@ -5051,6 +5064,36 @@ class ClouzerBot(commands.Bot):
                             reply_text = f"⚠️ Tool dari model tidak didukung dan kelanjutan gagal: {type(exc).__name__}."
                     function_calls = []
                     img_calls = []
+
+                if requested_file_format:
+                    try:
+                        generated_bytes, generated_name, generated_mime = create_document_file(
+                            requested_file_format, clean_content, reply_text or ""
+                        )
+                        generated_file = discord.File(fp=io.BytesIO(generated_bytes), filename=generated_name)
+                        caption = (
+                            "📎 **File " + requested_file_format.upper() + " berhasil dibuat.**\n"
+                            + "Nama file: " + generated_name + "\n"
+                            + "Ukuran: " + format(len(generated_bytes), ",") + " byte"
+                        )
+                        await status_msg.edit(content=caption, attachments=[generated_file], view=None)
+                        history_msgs.append({
+                            "role": "assistant",
+                            "content": "[File dibuat: " + generated_name + " | " + generated_mime + " | "
+                                + str(len(generated_bytes)) + " byte]\n" + (reply_text or "")[:5000],
+                        })
+                        guild_state["turn_count"] = guild_state.get("turn_count", 0) + 1
+                        try:
+                            await self.save_memory()
+                        except Exception:
+                            logging.exception("Gagal menyimpan memory setelah file berhasil dikirim (%s)", scope_key)
+                        return
+                    except Exception as file_exc:
+                        logging.exception("Pembuatan file %s gagal (%s)", requested_file_format, scope_key)
+                        reply_text = (
+                            "⚠️ File " + requested_file_format.upper() + " gagal dibuat: "
+                            + safe_exc_text(file_exc) + "\n\n" + (reply_text or "").strip()
+                        ).strip()
 
                 image_block_reason = None
                 image_rate_wait = 0.0
