@@ -1,0 +1,227 @@
+{
+  "schema_version": 1,
+  "document_type": "chatgpt_conversation_memory",
+  "purpose": "Personal continuity memory for future ChatGPT conversations with this user. This file records the user's communication preferences, durable instructions, and recoverable history of the ongoing Audit Bot Discord conversations. It is not a project specification or bot documentation.",
+  "coverage": {
+    "requested_conversation_series": "Audit Bot Discord (1) through (85)",
+    "user_requirement": "Include the full recoverable history and the work currently in progress.",
+    "completeness_note": "The complete verbatim transcripts of all 85 conversations are not available in the current context. This memory consolidates all recoverable facts and milestones. Missing per-conversation details are explicitly marked unknown rather than fabricated."
+  },
+  "user_communication_preferences": {
+    "language": "Indonesian",
+    "conversational_style": "Casual Indonesian; user commonly says bro/gue/lu.",
+    "desired_advisory_style": "Direct, candid, rational, challenge weak assumptions, identify risks and blind spots, and give prioritized concrete actions. Do not flatter, sugarcoat, or agree merely to be agreeable.",
+    "response_preferences": [
+      "Be concise and technically precise.",
+      "Do not repeat completed tests without a concrete reason.",
+      "Do not reopen completed audit work without new evidence.",
+      "Avoid long progress narration and unnecessary questions.",
+      "Do not claim runtime or deployment success from static tests alone.",
+      "Preserve exact branch names, commit hashes, file paths, test counts, and distinctions between PASS, PARTIAL, FAIL, and NOT TESTED."
+    ]
+  },
+  "durable_user_instructions": [
+    "This MEMORY.json is for ChatGPT's continuity with the user, not a memory/documentation file about the user's Discord bot.",
+    "When the user asks to continue Audit Bot Discord work, use this memory and relevant prior conversation context before asking the user to repeat information.",
+    "Do not invent details from missing conversations. Clearly distinguish verified facts, user-reported results, assistant-reported results, and unresolved/unknown state.",
+    "Do not modify production main.py or main (4).py unless explicitly authorized.",
+    "Do not modify candidate/source files unless the user explicitly authorizes the specific change.",
+    "Do not merge, deploy, or switch production to a candidate branch without explicit authorization.",
+    "Do not stop, restart, reinstall, or otherwise interfere with the production bot unless explicitly authorized.",
+    "Keep candidate and staging work separate from production.",
+    "Never run the same bot instance simultaneously on Termux and Wispbyte.",
+    "Never expose, copy, store, or commit API keys, Discord bot tokens, passwords, or other credentials.",
+    "A user report that the bot is ONLINE is not proof that message handling or Discord delivery works.",
+    "A successful CI run is not proof of live runtime correctness.",
+    "Timeout 600 seconds is reserved for reading large files; do not extend ordinary chat/request timeouts unnecessarily."
+  ],
+  "active_work": {
+    "title": "Audit Bot Discord",
+    "repository": "Cluzere/Main-py",
+    "repository_url": "https://github.com/Cluzere/Main-py",
+    "production_host": "Wispbyte",
+    "production_checkout_directory_last_reported": "/home/container/clouzer-audit",
+    "production_branch_last_reported": "audit-recovery-gpt-2026-11-23",
+    "candidate_entrypoint_last_reported": "audit-recovery/review-round-2/revisi_audit_final_main.py",
+    "full_entrypoint_last_reported": "/home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py",
+    "current_state_caution": "Multiple HEAD hashes were observed during the 2026-11-25 work session. Do not assume any one hash is still deployed without checking the latest Wispbyte startup log or Git checkout.",
+    "recent_observed_heads": [
+      {
+        "commit": "0499632",
+        "context": "Wispbyte checkout observed before subsequent updates on 2026-11-25."
+      },
+      {
+        "commit": "028530e",
+        "context": "Wispbyte restart checkout observed; bot reached ONLINE."
+      },
+      {
+        "commit": "3f90565",
+        "context": "Reported as the branch after moving the 7Z patch from 028530e."
+      },
+      {
+        "commit": "f98fe54",
+        "context": "User reported this as deployed HEAD at 2026-11-25 11:04 UTC+7 context; described as 'fix: complete four archive audit gaps'."
+      },
+      {
+        "commit": "933f414",
+        "context": "Later Wispbyte session reported observing this HEAD after f98fe54; bot reached ONLINE. Exact current deployment state must be rechecked."
+      },
+      {
+        "commit": "58f021d",
+        "context": "Diagnostic-only commit reported to add [TURN-EXCEPTION] full traceback for SocketTimeoutError investigation; do not assume it is deployed."
+      }
+    ],
+    "latest_user_reported_runtime": {
+      "date": "2026-11-25",
+      "observations": [
+        "Wispbyte cloned/updated branch audit-recovery-gpt-2026-11-23.",
+        "Candidate entrypoint was used.",
+        "Bot reached [ONLINE].",
+        "One attachment pipeline succeeded: first text response 4.377 seconds, total 28.305 seconds, Discord delivery 0.865 seconds."
+      ],
+      "qualifications": [
+        "The successful single attachment pipeline does not establish that all archive cases pass.",
+        "Startup/shutdown traces containing CancelledError, KeyboardInterrupt, or restart cancellation are not by themselves proof of an application bug.",
+        "A SocketTimeoutError around 122 seconds was observed, including a report that it persisted with no attachments.",
+        "A diagnostic traceback patch was prepared/reported; capture the actual [TURN-EXCEPTION] traceback before diagnosing the timeout."
+      ]
+    }
+  },
+  "recovered_audit_history": [
+    {
+      "date": "2026-11-20",
+      "topic": "Candidate source audit",
+      "facts": [
+        "Candidate file gemini-code-1795185518415.py in Cluzere/Main-py, branch main, was reviewed.",
+        "The audit conclusion was 'LULUS DENGAN CATATAN'.",
+        "Three target revisions passed source review, but were not runtime-tested at that point."
+      ]
+    },
+    {
+      "date": "2026-11-20",
+      "topic": "Initial Wispbyte runtime and test reports",
+      "facts": [
+        "User reported Wispbyte startup/dependencies succeeded.",
+        "User reported tests 1-8 passed, covering text/search, image generation/edit/reply, concurrency queue, regenerate/DM, PDFs, logs, and memory.json.",
+        "These were user-reported runtime results, not independent proof from CI.",
+        "Assistant recommended remaining stress tests and freezing a stable baseline."
+      ]
+    },
+    {
+      "date": "2026-11-25",
+      "topic": "Wispbyte startup and slash command validation",
+      "facts": [
+        "Wispbyte used repository Cluzere/Main-py, branch audit-recovery-gpt-2026-11-23.",
+        "Candidate entrypoint: audit-recovery/review-round-2/revisi_audit_final_main.py.",
+        "Working directory: /home/container/clouzer-audit.",
+        "At different points startup checked out 0499632 and 028530e; bot reached [ONLINE].",
+        "User reported all tested slash '/' commands worked.",
+        "Non-slash paths, failure paths, multi-user behavior, active-work restart behavior, and provider-failure scenarios were not all proven."
+      ]
+    },
+    {
+      "date": "2026-11-25",
+      "topic": "7Z support and timeout investigation",
+      "facts": [
+        "A 7Z patch was reported moved onto audit-recovery-gpt-2026-11-23, from 028530e to 3f90565.",
+        "User was asked to refresh Wispbyte and verify the checkout hash before retesting 7Z.",
+        "A SocketTimeoutError around 122 seconds was observed.",
+        "A diagnostic-only change at 58f021d was reported to add a [TURN-EXCEPTION] full traceback.",
+        "User constraint: the 600-second timeout is only for reading large files, not ordinary chat."
+      ]
+    },
+    {
+      "date": "2026-11-25",
+      "topic": "Manual original-package audit progress",
+      "facts": [
+        "User reported 23 of 24 package files inspected.",
+        "Tally at that checkpoint: 22 PASS, 1 PARTIAL, 0 full FAIL, 1 not yet inspected.",
+        "The sole PARTIAL concerned nested ZIP attribution.",
+        "CLOUZER successfully opened the nested archive and read 04_readme_proyek.txt, but incorrectly attributed that README as belonging to the nested ZIP even though it is directly in the main/root ZIP.",
+        "The remaining uninspected file at that checkpoint was 04_readme_proyek.txt.",
+        "A candidate regression was discussed using ROOT/NESTED classification and the '!/' archive-path separator. The original 24-file package still needed a fresh end-to-end revalidation after the candidate fix at that checkpoint."
+      ]
+    },
+    {
+      "date": "2026-11-25",
+      "topic": "Automated original ZIP audit",
+      "facts": [
+        "An automated GitHub Actions audit examined the original ZIP bytes.",
+        "Original ZIP SHA-256: 9944f200e2c0a2b00286611900a5249a57e6626a86437840e3e10237820c52db.",
+        "Reported result: 30 PASS and 1 intentional corrupt-file FAIL.",
+        "The audit counted 24 root files and 7 nested entries and reached inner_test.zip.",
+        "A workflow and report were added.",
+        "Production main.py was not changed by this workflow/report work.",
+        "Do not reinterpret the intentional corrupt-file FAIL as an unexpected system failure; retain its intentional-test classification."
+      ]
+    },
+    {
+      "date": "2026-11-25",
+      "topic": "Four live archive cases and deeper verification",
+      "facts": [
+        "Four live Discord archive cases had previously been classified PARTIAL, not PASS.",
+        "XLSX: three sheets and formulas were visible, but cached values/binary coverage had not yet been proven at the earlier checkpoint.",
+        "Nested ZIP: content/path was visible, but direct archive-layer attribution and integrity had not yet been proven at the earlier checkpoint.",
+        "Nested image: image was visually shown, but byte provenance/identity with the Vision input had not yet been proven at the earlier checkpoint.",
+        "Corrupt ZIP: BadZipFile ('File is not a zip file') was observed, but continuation and readability of valid members had not yet been proven at the earlier checkpoint.",
+        "Later, user reported performing stronger original-package tests: raw ZIP bytes; XLSX all cells/formulas/cache across three sheets; nested ZIP CRC through innermost layer; nested-image byte identity with Vision input; corrupt ZIP plus valid-member readability.",
+        "These stronger tests should be treated as user-reported completed checks; do not silently assume all four live Discord cases were promoted to PASS without their final observed output."
+      ]
+    }
+  ],
+  "test_and_ci_records": {
+    "ci_record_1": {
+      "commit": "05819815ea152b12560518b356a067a5ca5d9863",
+      "result": "163/163 passed",
+      "breakdown": "87 candidate tests + 76 regression tests",
+      "checks": [
+        "py_compile",
+        "dependency checks",
+        "Bandit",
+        "pip-audit",
+        "GitHub Actions"
+      ],
+      "qualification": "This is a historical CI result and does not prove the current deployed runtime."
+    },
+    "ci_record_2": {
+      "commit": "00762f2862a862ac27228a0decfa9620746b1d56",
+      "workflow_run_id": "45608436905",
+      "url": "https://github.com/Cluzere/Main-py/actions/runs/45608436905",
+      "result": "success",
+      "breakdown": "97 candidate regression tests + 76 previous audit regression tests = 173 tests",
+      "qualification": "This CI belongs to a separate file-creation feature branch; do not confuse it with the live archive audit or claim it proves Wispbyte runtime."
+    },
+    "archive_workflow": {
+      "original_zip_sha256": "9944f200e2c0a2b00286611900a5249a57e6626a86437840e3e10237820c52db",
+      "reported_result": "30 PASS; 1 intentional corrupt-file FAIL",
+      "qualification": "Workflow/report added; exact workflow run URL/commit was not recovered in available context."
+    }
+  },
+  "important_distinctions": {
+    "pass_partial_fail_not_tested": "Keep these statuses distinct. PARTIAL is not PASS; an intentional corrupt-input FAIL is not necessarily an implementation defect; NOT TESTED is not FAIL.",
+    "source_audit_vs_runtime": "Static review, unit tests, GitHub Actions, startup [ONLINE], successful slash commands, and successful Discord delivery are different evidence levels. Never conflate them.",
+    "user_reported_vs_independently_verified": "Label user-reported results as such unless independently confirmed by a retrieved log, CI, or test artifact.",
+    "historical_head_vs_current_head": "Commit hashes listed in the chronology are observations from different points in time, not a claim about the current live deployment."
+  },
+  "current_known_open_items": [
+    "Recover the exact latest Wispbyte HEAD and startup log before stating what is currently running.",
+    "Review the captured [TURN-EXCEPTION] traceback for the SocketTimeoutError if the issue remains active.",
+    "Reconcile the 23/24 manual file-level tally with the later automated ZIP workflow and the later deeper user-reported checks; do not assume they are the same test run.",
+    "Confirm the final outcome of the four live Discord archive cases from actual outputs before changing any PARTIAL to PASS.",
+    "Confirm whether 04_readme_proyek.txt was eventually separately inspected and whether the nested ZIP attribution issue was resolved in a fresh end-to-end retest.",
+    "Do not restart the audit from scratch; continue from the latest known evidence and target only unresolved discrepancies."
+  ],
+  "memory_file_scope": {
+    "this_file": "MEMORY.json",
+    "branch": "docs/clouzer-project-memory",
+    "repository": "Cluzere/Main-py",
+    "note": "This file is intended as ChatGPT's conversation continuity memory. It is not a production bot configuration or source file. Do not deploy it to Wispbyte."
+  },
+  "known_gaps": [
+    "The full verbatim content and exact chronology of all 85 conversations are not present in the currently recoverable context.",
+    "Not every conversation number can be mapped to a specific event with confidence.",
+    "Exact latest archive workflow commit/run URL was not recovered.",
+    "Exact final status of the four live Discord archive cases after the stronger tests is not fully established by the recovered summaries."
+  ],
+  "last_updated": "2026-11-25"
+}
