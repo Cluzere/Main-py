@@ -932,7 +932,7 @@ class NestedZipProvenanceTests(unittest.TestCase):
         ])
 
         class ParserHarness:
-            _validate_zip_archive = staticmethod(validate_zip_archive_method)
+            _validate_zip_archive = staticmethod(lambda raw: validate_zip_archive_method(None, raw))
             _wrap_doc_content = staticmethod(
                 lambda label, filename, body: f"--- KONTEN {label} ({filename}) ---\\n{body}\\n"
             )
@@ -951,7 +951,7 @@ class NestedZipProvenanceTests(unittest.TestCase):
         outer = self.make_zip([("folder/inner_test.zip", inner)])
         
         class ParserHarness:
-            _validate_zip_archive = staticmethod(validate_zip_archive_method)
+            _validate_zip_archive = staticmethod(lambda raw: validate_zip_archive_method(None, raw))
             _wrap_doc_content = staticmethod(
                 lambda label, filename, body: f"--- KONTEN {label} ({filename}) ---\\n{body}\\n"
             )
