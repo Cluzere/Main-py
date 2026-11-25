@@ -5516,7 +5516,7 @@ class ClouzerBot(commands.Bot):
                 )
                 if source_message_id:
                     retry_task["source_message_id"] = source_message_id
-                if clean_content and not is_file_retry_command(clean_content):
+                if clean_content and not is_retry_command(clean_content):
                     guild_state["pending_retry_task"] = retry_task
                 if requested_file_format:
                     err_msg = (
@@ -5535,7 +5535,7 @@ class ClouzerBot(commands.Bot):
                     )[:1990]
                 else:
                     err_msg = f"⚠️ Error: `{safe_exc_text(e)}`"[:1990]
-                    if clean_content and not is_file_retry_command(clean_content):
+                    if clean_content and not is_retry_command(clean_content):
                         err_msg += "\n\nKonteks permintaan disimpan. Ketik **Ulangi** untuk mencoba operasi yang sama."
                 preserve_failed_turn_history(history_msgs, turn_user_message, err_msg)
                 try:
