@@ -9,11 +9,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
 - Commit terakhir yang mengubah file kandidat: `675cd774c7d8a68caefde717f81f33f425611b18`
-- Branch head saat verifikasi terakhir: `610e115a84b24e467cfb935cd3ccf312e48625a8`
+- Commit branch yang diuji CI terakhir: `2ec913a3b3a698daca317e0a71cd3d3705cdd02a`.
+- Branch head saat laporan ini diperbarui: `8f32be564e2f68a17d17e262ce3dd9d8e0b0ef06`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Blob kandidat: `c528ea4bec13e3f37b5420cb04fa1a155ebe95f6`
 - Jumlah baris: 5.670
-- CI terakhir: [Run #45514556079 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45514190007)
+- CI terakhir: [Run #45514556079 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45514556079)
 
 ## Bukti CI terakhir
 
@@ -24,7 +25,7 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
 - Tes kandidat tambahan: **57/57 PASS**.
 - Regresi audit yang sudah ada: **74/74 PASS**.
-- Total dua suite yang dijalankan pada run terakhir: **131 tes PASS**.
+- Total dua suite yang dijalankan pada run terakhir: **131 tes PASS** (57 kandidat + 74 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -148,8 +149,8 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | No. | Status | Catatan |
 |---:|---|---|
 | 55 | PARTIAL | 10 file campuran diuji melalui mocked Discord event; belum 10 upload sungguhan melalui Discord CDN. |
-| 56 | PARTIAL | ZIP berisi beberapa format dites; belum semua kombinasi format/korupsi. |
-| 57 | PARTIAL | 7Z teks/DOCX dan compression-ratio bomb dites; encrypted/arsip dunia nyata belum live diuji. |
+| 56 | PARTIAL | ZIP berisi beberapa format, termasuk PDF/Office, serta mismatch signature PDF; belum semua kombinasi format/korupsi. |
+| 57 | PARTIAL | 7Z teks/DOCX, compression-ratio bomb, dan mismatch signature PDF dites; encrypted/arsip dunia nyata belum live diuji. |
 | 58 | PARTIAL | Reply dokumen dan gambar, termasuk penggabungan gambar baru + gambar reply serta isolasi kegagalan gambar, dites via mock; live Discord staging tetap wajib. |
 | 59 | PARTIAL | Tes image generation/edit sebelumnya sudah dikonfirmasi pengguna; belum dire-run pada kandidat terbaru. |
 | 60 | PARTIAL | Scope user berbeda, konkurensi antar-scope, FIFO, queue timeout/full, dan cancellation dites via mock; belum tes dua user aktif bersamaan di Discord. |
