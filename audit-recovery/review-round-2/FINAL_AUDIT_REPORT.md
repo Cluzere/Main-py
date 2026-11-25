@@ -223,7 +223,7 @@ Temuan bahwa parsing lampiran berlangsung sebelum lock percakapan telah diperbai
 - Run GitHub Actions `45561655560`: seluruh job selesai dengan `success` pada commit `0f78c92d7e80aefb7f1de3985b41d82841534a4a`.
 - Candidate suite: **76/76 PASS**; regresi lama: **76/76 PASS** (152 tes total). Log job menunjukkan kedua suite selesai `OK`; termasuk tes integrasi urutan ingress, cancellation, dan batas waiter.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
-- Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (branch head `0f78c92d7e80aefb7f1de3985b41d82841534a4a`, blob kode `4bf80cda886ae58c734cc34dcced0351697333d6`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
+- Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (kode blob `4bf80cda886ae58c734cc34dcced0351697333d6`, dites pada commit `0f78c92d7e80aefb7f1de3985b41d82841534a4a`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
 
 ## Keputusan
