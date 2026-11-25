@@ -5213,7 +5213,7 @@ class ClouzerBot(commands.Bot):
                         if requested_file_format == "xlsx":
                             _xlsx_diag_text = reply_text or ""
                             _xlsx_diag_lines = [line for line in _xlsx_diag_text.splitlines() if line.strip()]
-                            _xlsx_diag_tab_rows = sum(1 for line in _xlsx_diag_lines if "\\t" in line)
+                            _xlsx_diag_tab_rows = sum(1 for line in _xlsx_diag_lines if "\t" in line)
                             _xlsx_diag_md_rows = sum(
                                 1 for line in _xlsx_diag_lines
                                 if line.strip().startswith("|") and line.strip().endswith("|")
