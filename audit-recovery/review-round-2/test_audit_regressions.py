@@ -70,6 +70,9 @@ read_discord_attachment_limited = extract_top_level_function(
     "read_discord_attachment_limited"
 )
 read_discord_attachment_limited.__globals__["urllib"] = __import__("urllib")
+read_discord_attachment_limited.__globals__["aiohttp"] = types.SimpleNamespace(
+    ClientTimeout=lambda **kwargs: types.SimpleNamespace(**kwargs)
+)
 read_limited_stream = extract_top_level_function("read_limited_stream")
 append_bounded_response_text = extract_top_level_function("append_bounded_response_text")
 append_bounded_response_text.__globals__["MAX_RESPONSES_OUTPUT_CHARS"] = 5
@@ -906,6 +909,7 @@ extract_generic_zip_content_method.__globals__.update({
     "os": os,
     "zipfile": zipfile,
     "MAX_VISION_IMAGES_PER_TURN": 10,
+    "MAX_NESTED_ZIP_DEPTH": 3,
     "IMAGE_EXTS": set(),
     "CODE_EXTS": {".py", ".js", ".ts"},
     "check_file_signature": lambda ext, data: None,
