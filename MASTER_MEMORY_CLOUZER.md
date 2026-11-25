@@ -683,3 +683,80 @@ Interpretasi:
   5. isi/struktur file divalidasi independen.
 - Langkah langsung berikutnya: pengguna akan mengirim file asli PPTX dan ZIP untuk inspeksi. Jangan menyuruh pengguna mengulang tes PDF/CSV/JSON sebelum inspeksi dan audit lanjutan; pengguna sudah menyatakan PDF telah diperiksa dan gagal, CSV gagal, JSON gagal.
 - Tetap patuhi batasan proyek: jangan mengubah production `main.py`, jangan mengubah kode atau melakukan deployment/restart tanpa izin eksplisit. Pembaruan Master Memory ini hanya dokumentasi hasil tes; tidak mengubah kode bot.
+
+---
+
+## 16. ADDENDUM — inspeksi artefak hasil tes di Box (25 November 2026)
+
+Bagian ini merupakan tambahan append-only. Jangan menghapus, menimpa, atau merangkum ulang §1–§15. Informasi di bawah berasal dari inspeksi artefak yang ditemukan pada folder Box bernama “Test file”. Tautan folder: https://account.box.com/folder/441035368657.
+
+### 16.1 Hasil inspeksi langsung terhadap lima artefak
+
+Asisten melaporkan menemukan lima file di folder “Test file” dan memeriksa file asli melalui pembacaan struktur paket serta ekstraksi konten. Hasil yang dilaporkan:
+
+| Format | Status inspeksi | Temuan |
+|---|---|---|
+| TXT | PARTIAL | File valid dan terbaca, tetapi hanya berisi 6 baris informasi pengujian; konten sangat minim. |
+| DOCX | PARTIAL | Paket DOCX valid, tetapi hanya 4 paragraf; judul terduplikasi dan konten sangat minim. |
+| XLSX | FAIL | Paket XLSX valid secara teknis, tetapi hanya 1 worksheet dengan 6 baris total (termasuk header) dan 4 kolom. Tidak memenuhi dataset yang diminta sebanyak 30 produk dan 6 kolom. |
+| PPTX | FAIL | Paket PPTX valid secara teknis dan memiliki tepat 5 slide, tetapi setiap slide berisi pesan kegagalan pembuatan file, bukan materi presentasi yang diminta. |
+| ZIP | FAIL | Arsip dapat dibuka/diekstrak, tetapi isi tidak sesuai spesifikasi. Ditemukan 3 anggota arsip; README.txt dan konten lain berisi pesan kegagalan, dan anggota wajib data.json serta data.csv tidak tersedia sesuai permintaan. |
+
+**Ringkasan validasi:** 0 PASS penuh dari 5 artefak yang diperiksa; 2 PARTIAL (TXT, DOCX); 3 FAIL (XLSX, PPTX, ZIP). Ini adalah hasil inspeksi yang dilaporkan asisten pada sesi tersebut. Simpan bukti artefak/hasil ekstraksi bila tersedia agar sesi berikutnya dapat mengulang pemeriksaan secara independen.
+
+### 16.2 Spesifikasi permintaan yang tidak terpenuhi
+
+- XLSX: pengguna sebelumnya melaporkan file berhasil dibuat. Inspeksi menunjukkan workbook terlalu minim: 4 kolom dan 5 baris data (6 baris termasuk header), bukan dataset 30 produk dan 6 kolom.
+- PPTX: permintaan adalah presentasi “Pengenalan CLOUZER AI” sebanyak 5 slide: (1) judul/pengenalan, (2) tujuan/fungsi utama, (3) cara kerja, (4) manfaat/kemampuan, (5) kesimpulan. Jumlah slide terpenuhi, tetapi kontennya berupa pesan kegagalan sehingga hasil FAIL.
+- ZIP: permintaan adalah arsip berisi README.txt (penjelasan CLOUZER AI), data.json (nama proyek, deskripsi, minimal 3 fitur), dan data.csv (header id,nama,status dan minimal 3 baris). Inspeksi menemukan konten tidak memenuhi spesifikasi; data.json dan data.csv yang diminta tidak tersedia sebagai anggota yang benar.
+- TXT: file dapat dibaca, tetapi hanya 6 baris sehingga PARTIAL; bandingkan dengan prompt asli sebelum menentukan seluruh kriteria yang terlewat.
+- DOCX: struktur paket valid, tetapi hanya 4 paragraf dan judul ganda; bandingkan dengan prompt asli dan inspeksi tabel/format bila relevan.
+
+### 16.3 Rekap status keseluruhan terbaru
+
+| Format | Status saat ini | Dasar |
+|---|---|---|
+| TXT | PARTIAL | Artefak Box diperiksa; 6 baris, konten minim. |
+| DOCX | PARTIAL | Artefak Box diperiksa; 4 paragraf, judul duplikat, konten minim. |
+| XLSX | FAIL | Artefak Box diperiksa; 1 sheet, 6 baris termasuk header, 4 kolom. |
+| PPTX | FAIL | Artefak Box diperiksa; 5 slide tetapi seluruhnya berisi pesan kegagalan. |
+| ZIP | FAIL | Artefak Box diperiksa; arsip terbuka tetapi anggota/konten tidak sesuai spesifikasi. |
+| PDF | FAIL menurut klarifikasi pengguna | Pengguna menyatakan PDF sudah diuji dan gagal; artefak PDF belum ditemukan dalam folder “Test file” pada pemeriksaan yang dilaporkan. |
+| CSV | FAIL | Pengguna melaporkan CLOUZER menghasilkan gambar via Lucid Origin, bukan CSV asli. Belum ada CSV asli untuk inspeksi. |
+| JSON | FAIL | CLOUZER menyatakan file belum dibuat/dikirim; log menunjukkan function_calls=0 dan attachments=0.000s. Belum ada JSON asli untuk inspeksi. |
+
+Dari 8 format: 0 PASS penuh, 2 PARTIAL, 6 FAIL berdasarkan status terbaru. Jangan lagi memakai rekap awal “5 berhasil dilaporkan, 3 gagal” sebagai status final setelah inspeksi Box; rekap itu tetap tercatat secara historis di §15.5, tetapi telah diperbarui oleh hasil inspeksi §16.
+
+### 16.4 Bukti Box dan batas verifikasi
+
+- Folder yang diperiksa: https://account.box.com/folder/441035368657.
+- Lima artefak ditemukan dan diperiksa: TXT, DOCX, XLSX, PPTX, ZIP.
+- Detail teknis yang dilaporkan:
+  - XLSX: container ZIP internal valid; satu worksheet; 6 baris total; 4 kolom.
+  - PPTX: container internal valid; 5 slide; teks slide berisi pesan kegagalan.
+  - DOCX: container internal valid; word/document.xml tersedia; 4 paragraf.
+  - ZIP: arsip dapat dibuka; 3 anggota; konten tidak memenuhi spesifikasi yang diminta.
+  - TXT: terbaca; 6 baris.
+- PDF, CSV, JSON tidak termasuk dalam lima artefak yang ditemukan pada folder tersebut.
+- Jangan mengklaim PDF/CSV/JSON sudah diperiksa langsung dari artefak Box.
+
+### 16.5 Tujuan dan instruksi untuk sesi GPT berikutnya
+
+**Tujuan utama:** lanjutkan audit hasil file CLOUZER berdasarkan artefak asli di Box, lalu gunakan temuan konkret untuk mengidentifikasi akar masalah pada jalur pembuatan dan pengiriman file. Jangan langsung mengubah kode.
+
+Urutan kerja:
+
+1. Buka folder Box “Test file” yang sama dan pastikan artefak yang ada masih sama. Jika pengguna mengunggah versi baru, gunakan versi terbaru dan catat nama, ukuran, waktu modifikasi, serta ID file.
+2. Minta/temukan PDF, CSV, dan JSON jika pengguna sudah mengunggahnya. Periksa file asli bila tersedia; jangan meminta pengguna mengulang tes sebelum memeriksa unggahan yang ada.
+3. Untuk TXT dan DOCX, bandingkan konten artefak dengan prompt tes asli dan tetapkan kriteria PARTIAL secara rinci.
+4. Untuk XLSX, verifikasi seluruh sheet, dimensi, header, isi sel, serta kesesuaian data yang diminta. Jelaskan mengapa hasil 4 kolom/6 baris tidak memenuhi spesifikasi.
+5. Untuk PPTX, ekstrak teks setiap slide dan cek apakah ada materi valid atau hanya pesan kegagalan; pertahankan status FAIL jika konten tidak sesuai.
+6. Untuk ZIP, tampilkan daftar anggota dan validasi setiap isi: README.txt, parse data.json, serta parse data.csv dan jumlah baris.
+7. Buat matriks akhir per format dengan status PASS/PARTIAL/FAIL, kriteria yang diuji, bukti konkret, dan alasan. Jangan menyebut PASS hanya karena container/arsip bisa dibuka.
+8. Setelah inspeksi artefak selesai, audit kode kandidat di branch audit-recovery-gpt-2026-11-23, khususnya deteksi format, pemilihan tool, pemanggilan helper pembuat file, validasi hasil, dan pengiriman Discord attachment. Hubungkan setiap kegagalan dengan jalur kode yang benar-benar ditemukan, bukan dugaan.
+9. Gunakan log per tahap untuk membedakan: model response selesai, file lokal dibuat, validasi file lulus, attachment Discord dikirim, dan file diterima pengguna. function_calls=0, attachments=0.000s, atau TURN-PIPELINE result=success bukan bukti file berhasil.
+10. Jangan mengubah kode, membuat commit kode, deploy, atau restart Wispbyte tanpa izin eksplisit. Production main.py harus tetap tidak disentuh. Pembaruan Master Memory dokumentasi boleh dilakukan append-only bila diminta.
+
+**Instruksi tegas:** jangan mengulang tes PDF yang sudah dinyatakan gagal, jangan mengarahkan ke tes baru yang tidak diminta, dan jangan melebar ke audit lain. Fokus pada file yang belum selesai diperiksa dan diagnosis pembuatan/pengiriman file berdasarkan bukti.
+
+---
