@@ -1886,3 +1886,38 @@ class ArchiveReaderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NestedVectorSignatureCoverageTests(unittest.TestCase):
+    @staticmethod
+    def make_zip(entries):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for name, payload in entries:
+                archive.writestr(name, payload)
+        return buffer.getvalue()
+
+    def setUp(self):
+        self.bot = module.ClouzerBot.__new__(module.ClouzerBot)
+
+    def test_invalid_svg_eps_and_ai_members_are_rejected_by_signature(self):
+        raw = self.make_zip([
+            ("bad.svg", b"<html><body>not svg</body></html>"),
+            ("bad.eps", b"plain text, not postscript"),
+            ("bad.ai", b"not an illustrator or PDF document"),
+        ])
+        text, _ = self.bot.extract_generic_zip_content(raw, "vectors.zip")
+        self.assertIn("bad.svg", text)
+        self.assertIn("bad.eps", text)
+        self.assertIn("bad.ai", text)
+        self.assertEqual(text.count("ditolak karena signature tidak cocok"), 3)
+
+    def test_valid_vector_members_pass_signature_gate_but_are_not_claimed_parsed(self):
+        raw = self.make_zip([
+            ("valid.svg", b'<svg xmlns="http://www.w3.org/2000/svg"><rect width="2" height="2"/></svg>'),
+            ("valid.eps", b"%!PS-Adobe-3.0 EPSF-3.0\\n%%BoundingBox: 0 0 2 2\\n"),
+            ("valid.ai", b"%PDF-1.4\\n% Illustrator-compatible PDF\\n"),
+        ])
+        text, _ = self.bot.extract_generic_zip_content(raw, "vectors.zip")
+        self.assertEqual(text.count("Format anggota belum didukung"), 3)
+        self.assertNotIn("ditolak karena signature tidak cocok", text)
