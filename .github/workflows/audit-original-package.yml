@@ -1,0 +1,216 @@
+name: Audit original CLOUZER test ZIP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/audit-original-package.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install read-only audit libraries
+        run: |
+          python -m pip install --quiet pypdf python-docx openpyxl python-pptx Pillow py7zr
+
+      - name: Inspect original ZIP without executing its contents
+        run: |
+          cat > /tmp/audit_package.py <<'PY'
+          from __future__ import annotations
+          import csv, hashlib, io, os, zipfile
+          from pathlib import Path
+
+          package = Path("CLOUZER_paket_tes_manual.zip")
+          out = Path("audit-reports/original-package-audit.txt")
+          lines = []
+          counts = {"PASS": 0, "PARTIAL": 0, "FAIL": 0}
+          root_files = 0
+          nested_files = 0
+          seen = set()
+
+          def add(s=""):
+              lines.append(str(s))
+
+          def inspect_payload(path, data, depth=0, parent="ROOT"):
+              global nested_files
+              indent = "  " * depth
+              name = Path(path).name
+              ext = Path(name).suffix.lower()
+              status = "PASS"
+              details = []
+              if depth:
+                  nested_files += 1
+              if ext in (".txt", ".md", ".py", ".json", ".yaml", ".yml", ".csv"):
+                  try:
+                      text = data.decode("utf-8-sig")
+                      if ext == ".csv":
+                          rows = list(csv.reader(io.StringIO(text)))
+                          details.append(f"CSV rows={len(rows)}")
+                      elif ext == ".py":
+                          details.append(f"static source read={len(text)} chars; NOT EXECUTED")
+                      else:
+                          details.append(f"UTF-8 read={len(text)} chars")
+                          if text.strip():
+                              details.append("preview=" + " | ".join(text.splitlines()[:3])[:260])
+                  except UnicodeDecodeError as e:
+                      status = "PARTIAL"
+                      details.append(f"text decode failed: {e}")
+              elif ext in (".png", ".jpg", ".jpeg"):
+                  try:
+                      from PIL import Image
+                      im = Image.open(io.BytesIO(data))
+                      im.verify()
+                      im = Image.open(io.BytesIO(data))
+                      details.append(f"image valid; format={im.format}; size={im.size}; mode={im.mode}")
+                  except Exception as e:
+                      status = "FAIL"
+                      details.append(f"image decode failed: {type(e).__name__}: {e}")
+              elif ext == ".pdf":
+                  try:
+                      from pypdf import PdfReader
+                      reader = PdfReader(io.BytesIO(data), strict=False)
+                      pages = [p.extract_text() or "" for p in reader.pages]
+                      details.append(f"PDF pages={len(pages)}; extracted_chars={sum(map(len,pages))}")
+                      details.append(" | ".join(" ".join(p.split())[:180] for p in pages[:2]))
+                  except Exception as e:
+                      status = "PARTIAL"
+                      details.append(f"PDF parser issue: {type(e).__name__}: {e}")
+              elif ext == ".docx":
+                  try:
+                      from docx import Document
+                      doc = Document(io.BytesIO(data))
+                      paras = [p.text for p in doc.paragraphs if p.text.strip()]
+                      tables = len(doc.tables)
+                      details.append(f"DOCX paragraphs={len(paras)}; tables={tables}")
+                      details.append(" | ".join(paras[:4])[:260])
+                  except Exception as e:
+                      status = "FAIL"
+                      details.append(f"DOCX parse failed: {type(e).__name__}: {e}")
+              elif ext == ".xlsx":
+                  try:
+                      from openpyxl import load_workbook
+                      wb = load_workbook(io.BytesIO(data), read_only=True, data_only=False)
+                      details.append("XLSX sheets=" + ", ".join(wb.sheetnames))
+                      for ws in wb.worksheets:
+                          vals = []
+                          for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row or 1, 6), values_only=True):
+                              vals.append(" / ".join("" if v is None else str(v) for v in row[:8]))
+                          details.append(f"{ws.title}: " + " ; ".join(vals)[:260])
+                      wb.close()
+                  except Exception as e:
+                      status = "FAIL"
+                      details.append(f"XLSX parse failed: {type(e).__name__}: {e}")
+              elif ext == ".pptx":
+                  try:
+                      from pptx import Presentation
+                      prs = Presentation(io.BytesIO(data))
+                      texts = []
+                      for slide in prs.slides:
+                          texts.append(" ".join(sh.text for sh in slide.shapes if getattr(sh, "has_text_frame", False)))
+                      details.append(f"PPTX slides={len(prs.slides)}")
+                      details.append(" | ".join(texts[:3])[:320])
+                  except Exception as e:
+                      status = "FAIL"
+                      details.append(f"PPTX parse failed: {type(e).__name__}: {e}")
+              elif ext == ".7z":
+                  try:
+                      import py7zr, tempfile
+                      with tempfile.TemporaryDirectory() as td:
+                          zpath = Path(td) / "input.7z"
+                          zpath.write_bytes(data)
+                          with py7zr.SevenZipFile(zpath, mode="r") as z:
+                              names = z.getnames()
+                              z.test()
+                              details.append(f"7Z valid; members={len(names)}; " + ", ".join(names[:12]))
+                  except Exception as e:
+                      status = "PARTIAL"
+                      details.append(f"7Z inspection unavailable/failed: {type(e).__name__}: {e}")
+              elif ext == ".zip":
+                  try:
+                      with zipfile.ZipFile(io.BytesIO(data)) as z:
+                          bad = z.testzip()
+                          infos = z.infolist()
+                          files = [i for i in infos if not i.is_dir()]
+                          details.append(f"ZIP valid; entries={len(infos)}; files={len(files)}; CRC={'PASS' if bad is None else 'FAIL:'+bad}")
+                          for info in infos:
+                              if info.is_dir():
+                                  continue
+                              child_path = path + "!/" + info.filename
+                              child = z.read(info)
+                              inspect_payload(child_path, child, depth + 1, path)
+                  except Exception as e:
+                      status = "FAIL"
+                      details.append(f"ZIP open/CRC failed: {type(e).__name__}: {e}")
+              else:
+                  status = "PARTIAL"
+                  details.append(f"unrecognized format; bytes={len(data)}")
+              counts[status] += 1
+              add(f"{indent}[{status}] {path} ({len(data)} bytes)")
+              for d in details:
+                  add(f"{indent}  - {d}")
+
+          if not package.is_file():
+              raise SystemExit("Package not found at repository root: " + str(package))
+
+          raw = package.read_bytes()
+          add("CLOUZER ORIGINAL TEST PACKAGE — DIRECT GITHUB RUNNER AUDIT")
+          add(f"File: {package.name}")
+          add(f"Size: {len(raw)} bytes")
+          add(f"SHA-256: {hashlib.sha256(raw).hexdigest()}")
+          add("Method: ZIP entries read from repository checkout; supported formats parsed read-only; Python source NOT executed.")
+          add("")
+
+          try:
+              with zipfile.ZipFile(io.BytesIO(raw)) as outer:
+                  bad = outer.testzip()
+                  infos = outer.infolist()
+                  files = [i for i in infos if not i.is_dir()]
+                  root_files = len(files)
+                  add(f"OUTER ZIP: entries={len(infos)}; files={len(files)}; CRC={'PASS' if bad is None else 'FAIL:'+bad}")
+                  add("ROOT INVENTORY:")
+                  for info in infos:
+                      if info.is_dir():
+                          add(f"[DIR] {info.filename}")
+                      else:
+                          inspect_payload(info.filename, outer.read(info), 0, "ROOT")
+          except Exception as e:
+              add(f"OUTER ZIP FAILED: {type(e).__name__}: {e}")
+              counts["FAIL"] += 1
+
+          add("")
+          add("TOTALS (counts are per file occurrence, including nested archive members):")
+          add(f"Root files: {root_files}")
+          add(f"Nested file occurrences: {nested_files}")
+          add(f"PASS: {counts['PASS']}")
+          add(f"PARTIAL: {counts['PARTIAL']}")
+          add(f"FAIL: {counts['FAIL']}")
+          add("Note: duplicate content at different archive paths is counted separately. Folder entries are not files.")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          print("\n".join(lines))
+          PY
+          python /tmp/audit_package.py
+
+      - name: Publish audit report to repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add audit-reports/original-package-audit.txt
+          git commit -m "audit: publish direct inspection of original test ZIP" || exit 0
+          git push
