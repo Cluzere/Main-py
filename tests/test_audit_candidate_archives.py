@@ -1437,5 +1437,21 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("KONTEN ANGGOTA 7Z DIPOTONG", text)
         self.assertIn("karakter tidak dimasukkan", text)
 
+    def test_nested_zips_share_one_aggregate_decompression_budget(self):
+        inner_one = self.make_zip([("first.txt", "A" * 2000)])
+        inner_two = self.make_zip([("second.txt", "SECOND_NESTED_PAYLOAD" + "B" * 1980)])
+        outer = self.make_zip([
+            ("nested/one.zip", inner_one),
+            ("nested/two.zip", inner_two),
+        ])
+        budget = {"bytes_read": 0, "max_bytes": 2500}
+        text, _ = self.bot.extract_generic_zip_content(
+            outer, "outer.zip", _budget_state=budget
+        )
+        self.assertIn("batas total byte gabungan ZIP bersarang", text)
+        self.assertIn("first.txt", text)
+        self.assertNotIn("SECOND_NESTED_PAYLOAD", text)
+        self.assertLessEqual(budget["bytes_read"], budget["max_bytes"])
+
 if __name__ == "__main__":
     unittest.main()
