@@ -1253,3 +1253,82 @@ Jangan menaikkan status fitur-fitur tersebut menjadi PASS sebelum ada hasil tes 
 - Tidak ada bukti bahwa production `main.py`, branch `main`, atau deployment produksi diubah.
 - Jangan menyimpan access token, refresh token, client secret, authorization code, atau isi dokumen pengguna ke Master Memory.
 - Simpan nama file di atas hanya sebagai bukti inventaris tes yang diberikan pengguna; jangan menganggap konten file sudah diperiksa.
+
+
+---
+
+## 28. ADDENDUM — Pemeriksaan langsung artefak Box melalui konektor Box ChatGPT (26 November 2026)
+
+### 28.1 Ruang lingkup dan batas pembuktian
+
+Pada sesi ChatGPT, konektor Box berhasil dipakai untuk:
+1. Memverifikasi identitas akun Box aktif melalui `who_am_i`.
+2. Membaca isi folder `441035368657` melalui `list_folder_content_by_folder_id`.
+3. Mengambil teks DOCX, PPTX, dan TXT melalui `get_file_content`.
+4. Mengunduh kelima file mentah melalui `download_file_for_chatgpt`, lalu memeriksa struktur file secara lokal.
+
+**Pembedaan penting:** pengujian ini memakai konektor Box MCP yang tersedia di sesi ChatGPT, bukan pemanggilan command atau endpoint Box dari proses CLOUZER di Wispbyte. Karena itu hasil ini membuktikan bahwa alat bantu Box di sesi ChatGPT dapat mengakses dan memeriksa artefak, tetapi tidak boleh dipakai sebagai bukti bahwa implementasi OAuth/command Box CLOUZER sendiri sudah melakukan operasi download/read. Integrasi runtime CLOUZER masih perlu diuji terpisah.
+
+Akun Box terautentikasi: ID `53566667525`, status active. Folder `441035368657` bernama `Test file`; listing mengembalikan totalCount 5.
+
+### 28.2 Inventaris file dan metadata aktual
+
+| Format | File ID | Ukuran | Modified (UTC) | SHA-1 |
+|---|---:|---:|---|---|
+| XLSX | 2614753885598 | 5,116 bytes | 2026-11-25 16:29:27 | f9bb87a974590ce3184e7f4c2fd220b7b77c255d |
+| DOCX | 2614757792848 | 36,799 bytes | 2026-11-25 16:15:21 | fab4a957f2868deabcdc12b0b1d34b91dbe7c661 |
+| ZIP | 2614773361769 | 762 bytes | 2026-11-25 16:30:24 | b4d6a0a2fffcc4e44842f5d9bfa8d57c23a0a131 |
+| PPTX | 2614748133170 | 32,697 bytes | 2026-11-25 16:15:21 | ce9a4dd05463fd1d281de56d1f6afa7fd83ba9c0 |
+| TXT | 2614748738089 | 200 bytes | 2026-11-25 16:15:22 | e15cb2bd65e3594c5a291211c72193d5f6d724a1 |
+
+### 28.3 Hasil inspeksi isi/struktur
+
+**XLSX — FAIL terhadap acceptance 30 produk × 6 kolom (§20).**
+- Workbook berhasil dibuka.
+- Satu worksheet; nama sheet terbaca sebagai `No\tNama\tUsia\tKota`.
+- Dimensi aktual 6 baris × 4 kolom, berisi header No/Nama/Usia/Kota dan lima data orang (Andi, Budi, Citra, Deni, Eka).
+- Tidak memenuhi kebutuhan 30 produk × 6 kolom. Ini bukan sekadar kegagalan preview teks; file XLSX berhasil diunduh dan dibaca secara struktural.
+
+**DOCX — PARTIAL.**
+- File valid dibuka dengan python-docx; 4 paragraf, tanpa tabel.
+- Judul `LAPORAN PENGUJIAN CLOUZER AI` muncul dua kali berturut-turut.
+- Isi hanya identitas proyek, platform Discord, bahasa Python, tujuan tes DOCX, dan status “Pengujian berlangsung”.
+- Dokumen berhasil dibuat dan dapat dibaca, tetapi duplikasi judul merupakan defect nyata yang juga relevan dengan perbaikan duplicate DOCX title pada §19/§21. Kelengkapan terhadap prompt asli belum dapat dipastikan hanya dari isi ini.
+
+**ZIP — FAIL terhadap kriteria ZIP §20/§16.5.**
+- Arsip dapat dibuka dan `testzip()` tidak menemukan kerusakan CRC.
+- Tiga anggota: `README.txt`, `konten.txt`, `manifest.json`.
+- Tidak ada `data.json` dan `data.csv` seperti kriteria arsip pada §16.5; tidak ada bukti data CSV/JSON atau jumlah baris yang diminta.
+- Isi README dan konten menyatakan CLOUZER gagal membuat/mengirim arsip ZIP asli karena sesi tidak menyediakan tool pembuatan ZIP/attachment. Manifest juga hanya mendeskripsikan kegagalan tersebut.
+- Jadi ZIP valid secara kontainer, tetapi konten bisnis/acceptance gagal. Status keseluruhan FAIL.
+
+**PPTX — FAIL.**
+- File valid dibuka; terdapat tepat 5 slide dan masing-masing slide memiliki konten.
+- Namun setiap slide juga memuat teks eksplisit: `Gagal: file PPTX asli tidak dapat dibuat atau dikirim sebagai attachment dari sesi ini. Berikut isi` (dengan penanda nomor slide).
+- Walaupun struktur 5 slide terpenuhi, artefak mengandung pesan kegagalan yang seharusnya bukan bagian dari presentasi final. Status keseluruhan FAIL karena isi tidak bersih/layak sebagai deliverable.
+
+**TXT — PARTIAL.**
+- File dapat dibaca sebagai teks UTF-8 dan berisi tepat 6 baris.
+- Isinya: judul FILE GENERATION TEST, project CLOUZER AI Discord Bot, Test ID TEST-001, Format TXT, Status SUCCESS CRITERIA PENDING, dan tujuan menguji pembuatan TXT serta pengiriman attachment Discord.
+- Ini membuktikan file TXT ada dan terbaca, tetapi kontennya hanya metadata pengujian; status kriterianya sendiri masih PENDING. Keberhasilan pengiriman attachment Discord belum terbukti dari artefak Box.
+
+### 28.4 Matriks hasil sementara artefak
+
+| Format | Status | Bukti utama |
+|---|---|---|
+| XLSX | FAIL | 6×4, bukan 30×6 produk |
+| DOCX | PARTIAL | Bisa dibuka, tetapi judul duplikat; kelengkapan prompt belum terbukti |
+| ZIP | FAIL | Arsip terbuka, tetapi tidak ada data.json/data.csv; konten menyatakan gagal membuat/mengirim |
+| PPTX | FAIL | 5 slide ada, tetapi semua slide menyertakan pesan kegagalan |
+| TXT | PARTIAL | 6 baris terbaca, tetapi status SUCCESS CRITERIA PENDING |
+
+Matriks ini adalah penilaian artefak yang benar-benar diperiksa, bukan bukti live delivery Discord. Belum ada bukti dari sesi ini bahwa file-file tersebut diterima dan diunduh pengguna melalui Discord.
+
+### 28.5 Kesimpulan alat bantu dan langkah berikut
+
+- Konektor Box ChatGPT: autentikasi, listing folder, ekstraksi teks untuk file yang didukung, dan download kelima file berhasil pada sesi ini.
+- `get_file_content` tidak menyediakan representasi teks untuk XLSX dan ZIP; ini bukan kegagalan file. Kedua file berhasil diperiksa setelah diunduh sebagai binary.
+- Temuan artefak memperkuat prioritas §16–§23: kualitas hasil file masih bermasalah meskipun file bisa tersimpan di Box.
+- Langkah berikutnya adalah menghubungkan temuan ini ke kode kandidat pada branch audit, bukan mengulang pembuatan semua file. Periksa khusus jalur XLSX (dimensi/data), DOCX (judul ganda), PPTX (fallback teks kegagalan masuk ke slide), ZIP (fallback teks kegagalan dikemas sebagai arsip), dan pemisahan status TXT dari bukti attachment.
+- Uji operasi read/download melalui runtime CLOUZER/Wispbyte secara terpisah jika tujuan pengujian adalah membuktikan integrasi OAuth §24–§27. Jangan menyamakan hasil konektor ChatGPT dengan hasil runtime CLOUZER.
+- Tidak ada perubahan kode, deployment, restart Wispbyte, atau perubahan production `main.py` dalam pemeriksaan ini.
