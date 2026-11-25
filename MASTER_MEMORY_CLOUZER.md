@@ -1332,3 +1332,104 @@ Matriks ini adalah penilaian artefak yang benar-benar diperiksa, bukan bukti liv
 - Langkah berikutnya adalah menghubungkan temuan ini ke kode kandidat pada branch audit, bukan mengulang pembuatan semua file. Periksa khusus jalur XLSX (dimensi/data), DOCX (judul ganda), PPTX (fallback teks kegagalan masuk ke slide), ZIP (fallback teks kegagalan dikemas sebagai arsip), dan pemisahan status TXT dari bukti attachment.
 - Uji operasi read/download melalui runtime CLOUZER/Wispbyte secara terpisah jika tujuan pengujian adalah membuktikan integrasi OAuth §24–§27. Jangan menyamakan hasil konektor ChatGPT dengan hasil runtime CLOUZER.
 - Tidak ada perubahan kode, deployment, restart Wispbyte, atau perubahan production `main.py` dalam pemeriksaan ini.
+
+
+---
+
+## 29. ADDENDUM — Prioritas audit dan status alat bantu untuk sesi GPT berikutnya (26 November 2026)
+
+Bagian ini adalah arahan handoff operasional. GPT pada sesi baru harus membaca Master Memory terbaru dari branch `audit-recovery-gpt-2026-11-23` sebelum meminta pengguna mengulang konteks atau menjalankan tes yang sudah selesai. Perlakukan catatan ini sebagai sumber konteks proyek, tetapi tetap bedakan bukti langsung, laporan pengguna, dan hal yang belum diverifikasi. Jangan mengubah status PARTIAL/FAIL menjadi PASS hanya karena alat bantu berhasil digunakan.
+
+### 29.1 Prioritas utama proyek — jangan salah sasaran
+
+**Prioritas tertinggi tetap §16–§23: kualitas pembuatan, validasi, dan pengiriman artefak file CLOUZER.** Tujuan menambahkan §24–§27 adalah menyediakan infrastruktur pendukung agar progres §16–§23 bisa diperiksa langsung, bukan mengalihkan proyek menjadi pengembangan Box tanpa batas.
+
+Urutan kerja:
+1. Audit dan perbaiki akar masalah kualitas artefak yang sudah terbukti pada §28 dan tes XLSX terbaru di §29.3.
+2. Buktikan setiap tahap pipeline secara terpisah: konten valid → file lokal terbentuk → validasi format/lolos acceptance → attachment Discord benar-benar terkirim.
+3. Gunakan Box sebagai jalur penyimpanan/inspeksi artefak dan sebagai alat bantu pembuktian; lanjutkan uji runtime Box hanya pada operasi yang memang belum terbukti.
+4. Jangan mengulang tes atau membangun ulang alat bantu yang sudah berfungsi tanpa alasan teknis atau bukti kegagalan.
+5. Jangan memperluas lingkup ke stress test besar, fitur Box tambahan, atau checklist yang tidak langsung membantu §16–§23.
+
+### 29.2 Status alat bantu — bukti yang sudah ada
+
+**GitHub Master Memory**
+- Konektor GitHub berhasil mengambil `MASTER_MEMORY_CLOUZER.md` dari branch audit.
+- Blob SHA sebelum addendum ini: `e833069151ce0a8b3aab061c8a38b69108ba172c`.
+- Ini membuktikan jalur baca Master Memory tersedia. Setiap perubahan tetap harus memakai fetch terbaru, blob SHA terkini, commit append-only, lalu fetch ulang untuk verifikasi.
+
+**Konektor Box ChatGPT**
+- Autentikasi akun, listing folder, ekstraksi teks file yang didukung, dan download binary untuk inspeksi lokal berhasil pada §28.
+- Folder uji upload baru: `CLOUZER_BUANGAN_AUDIT`, Folder ID `441172297609`.
+- Pengguna mengunggah artefak XLSX dari akun Box lain yang diberi akses ke folder tersebut. File terdaftar:
+  - File ID: `2615274299277`
+  - Nama: `clouzer_buatkan_sebuah_file_excel_xlsx_berna_20261125_212451 (1).xlsx`
+  - Ukuran: `6,342 bytes`
+  - SHA-1: `df71c095a49001ae9886d98a85ca64aa455e6ff9`
+- Konektor ChatGPT berhasil mengunduh file tersebut dan file diperiksa secara lokal. Ini membuktikan jalur upload oleh pengguna ke Box dan jalur download/inspeksi melalui konektor ChatGPT. **Ini bukan bukti CLOUZER runtime yang melakukan upload atau download.**
+
+**Box runtime CLOUZER/Wispbyte**
+- Berdasarkan §26–§27, OAuth callback, service health, startup listener, dan operasi Box API list folder target `441035368657` memiliki bukti keberhasilan.
+- Belum terbukti: download/read file oleh proses CLOUZER, upload oleh CLOUZER, refresh/token rotation, serta ketahanan token setelah restart.
+- Jangan mengklaim seluruh integrasi Box runtime sudah selesai.
+
+**Kesimpulan alat bantu:** alat bantu yang telah diuji berfungsi untuk tugas yang benar-benar dibuktikan di atas. Jangan membuat klaim umum bahwa semua alat bantu atau semua operasi sudah berfungsi. GPT sesi baru harus memakai alat bantu yang sudah tersedia dan hanya menguji celah yang belum terbukti.
+
+### 29.3 Tes XLSX terbaru — artefak aktual sudah diperiksa
+
+Pengguna menjalankan tes live CLOUZER untuk membuat XLSX dengan acceptance:
+- satu worksheet bernama `Data Produk`;
+- 30 baris produk;
+- enam kolom: `No`, `Nama Produk`, `Kategori`, `Harga`, `Stok`, `Status`;
+- seluruh 30 baris terisi;
+- header bold;
+- kolom Harga berupa angka numerik;
+- file XLSX valid dan dikirim sebagai attachment Discord.
+
+Bot melaporkan file berhasil dibuat dengan ukuran 6,342 byte. Pengguna kemudian mengunggah artefak ke folder Box `441172297609`; konektor ChatGPT mengunduh dan memeriksa workbook aktual.
+
+Hasil inspeksi:
+- Workbook valid dan dapat dibuka.
+- Tepat satu worksheet.
+- Dimensi aktual 31 baris × 6 kolom: satu header + 30 baris data.
+- Enam header sesuai: No, Nama Produk, Kategori, Harga, Stok, Status.
+- Semua sel header bold.
+- Semua 30 baris produk terisi; baris terakhir berisi produk `Baterai AA Isi 2`.
+- **Nama worksheet salah:** nama aktual berupa fragmen header yang dipisahkan tab, bukan `Data Produk`. Excel membatasi nama worksheet sampai 31 karakter; jangan memasukkan seluruh header tab-separated sebagai nama sheet.
+- **Harga gagal tipe data:** nilai Harga disimpan sebagai string, bukan numeric cell. Ini melanggar acceptance eksplisit.
+- Stok juga tersimpan sebagai string. Ini defect kualitas tambahan, tetapi prompt acceptance di atas secara eksplisit mewajibkan Harga numeric; catat Stok sebagai temuan tambahan, bukan sebagai pelanggaran acceptance yang dinyatakan.
+- Struktur, jumlah baris/kolom, header, dan bold header memenuhi kriteria terkait.
+
+**Status tes XLSX keseluruhan: PARTIAL / acceptance belum lulus.** Jangan menyebut PASS hanya karena file terbentuk dan dapat dibuka. Jangan menyebut FAIL total karena struktur 30×6 dan header benar.
+
+### 29.4 Prioritas tindakan berikutnya — lakukan berurutan
+
+1. **Inspeksi kode kandidat tanpa mengubahnya terlebih dahulu.** Telusuri jalur XLSX di:
+   - `audit-recovery/review-round-2/revisi_audit_final_main.py`
+   - `audit-recovery/review-round-2/clouzer_file_creation.py`
+   - `audit-recovery/review-round-2/test_file_creation.py`
+   Cari bagaimana nama worksheet ditentukan, bagaimana nilai Harga dikonversi/ditulis ke cell, dan apakah validasi pasca-pembuatan memeriksa tipe data cell atau hanya dimensi/header.
+2. Cocokkan penyebab dengan implementasi helper dan acceptance yang ada. Jangan menebak akar masalah sebelum membaca source aktual pada branch terkini.
+3. Periksa apakah tes unit yang ada sudah menguji nama worksheet, numeric cell type untuk Harga, serta jumlah baris/kolom. Jika belum, catat gap tes secara spesifik.
+4. Laporkan temuan dan usulkan patch minimal pada branch kandidat. **Jangan mengubah kode sebelum pengguna memberi izin eksplisit.** Perubahan pada branch audit dapat terambil Wispbyte pada restart berikutnya.
+5. Setelah ada izin perubahan, buat patch sekecil mungkin dan tes terarah. Jangan mengulang compile, pip-audit, Bandit, atau seluruh unit suite yang sudah punya bukti lulus kecuali perubahan atau error baru memberi alasan.
+6. Setelah tes kandidat lulus, minta pengguna menjalankan satu tes live XLSX terarah. Unduh artefak hasilnya dari folder Box dan periksa ulang struktur serta tipe cell.
+7. Baru setelah XLSX lulus, lanjutkan ke temuan §28 lain yang paling langsung terkait pipeline: DOCX judul duplikat, PPTX fallback pesan gagal masuk ke slide, ZIP fallback kegagalan dikemas sebagai arsip, dan validasi TXT yang tidak boleh menyamakan file ada dengan attachment sukses.
+8. Untuk setiap format, nyatakan status secara terpisah: file terbentuk, validasi format, acceptance konten, dan Discord attachment delivery. Satu tahap sukses tidak membuktikan tahap lain.
+
+### 29.5 Batas operasional yang wajib dipatuhi GPT berikutnya
+
+- Jangan mengedit, deploy, atau restart production `main.py` tanpa izin eksplisit.
+- Jangan mengubah isi file yang dikirim pengguna untuk dipasang sebagai `main.py` kecuali diminta eksplisit.
+- Jangan melakukan perubahan kode pada kandidat hanya karena menemukan defect; laporkan akar masalah dan minta izin.
+- Jangan mengulang pekerjaan yang sudah selesai hanya untuk mengisi aktivitas.
+- Jangan menyamakan konektor Box ChatGPT dengan Box runtime CLOUZER.
+- Jangan menyamakan keberhasilan upload manual pengguna ke Box dengan upload oleh CLOUZER.
+- Jangan menyamakan respons bot “file berhasil dibuat” dengan pemeriksaan independen artefak atau bukti attachment Discord terkirim.
+- Jangan menyimpan credential, client secret, access/refresh token, authorization code, atau isi token file.
+- Sebelum setiap update Master Memory: fetch file terbaru dari branch, gunakan SHA terkini, append addendum baru tanpa menghapus riwayat, update, lalu fetch ulang untuk memastikan isi dan commit tersimpan.
+- Jika sesi baru tidak memiliki akses GitHub/Box, jangan berpura-pura telah membaca atau memverifikasi; jelaskan keterbatasan dan gunakan bukti yang tersedia.
+
+### 29.6 Ringkasan handoff singkat
+
+Alat bantu GitHub dan Box ChatGPT sudah terbukti bekerja untuk baca Master Memory, listing folder, download, dan inspeksi artefak sesuai batas masing-masing. Box runtime CLOUZER terbukti sampai OAuth + list folder, belum sampai read/download/upload/refresh end-to-end. Fokus utama berikutnya bukan menambah alat bantu, melainkan menelusuri dan memperbaiki kualitas XLSX: worksheet name salah dan Harga tersimpan sebagai string meskipun file berisi 30×6 data. Inspeksi source dulu; tidak ada perubahan kode tanpa izin. Production `main.py` tetap dilindungi.
