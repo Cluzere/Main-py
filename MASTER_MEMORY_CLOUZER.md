@@ -1798,3 +1798,53 @@ Perubahan dilakukan setelah user memberi izin eksplisit: perbaikan generator XLS
 - Setelah live retest, ambil attachment Discord asli dan periksa nama file, workbook, worksheet, 11×6, nilai sumber, tipe `No/Umur/Harga`, serta log konfirmasi attachment. Simpan hasil ke Box `CLOUZER_BUANGAN_AUDIT`.
 - Belum boleh menyatakan acceptance test live PASS sampai artefak yang dikirim Discord benar-benar diperiksa.
 - Tidak ada perubahan pada candidate main dalam patch ini, tidak ada deployment/restart, dan production `/home/container/main.py` tidak disentuh.
+
+
+---
+
+## 38. ADDENDUM — XLSX live pass/failure dan fallback data prompt (26 November 2026)
+
+### 38.1 Riwayat live test yang harus tetap dibedakan
+
+**Percobaan PASS sebelumnya — `TES_AUDIT_CLOUZER.xlsx`:**
+- Workbook asli yang diambil dari Box dan diperiksa: Box File ID `2615401984752`.
+- Ukuran: 5.420 byte; SHA-1: `a77061a5fd80184d7e4606753cb4a2abc2b13914`.
+- Worksheet: `Data Pegawai`.
+- Dimensi: 11 baris total (1 header + 10 data) × 6 kolom.
+- Isi cocok dengan dataset Andi sampai Joko yang diminta.
+- Kolom `No`, `Umur`, dan `Harga` terbaca sebagai nilai numerik.
+- Ini adalah PASS untuk artefak workbook yang diperiksa. Jangan memperluas klaimnya menjadi bukti bahwa setiap percobaan berikutnya selalu berhasil atau bahwa semua jalur Discord/Box otomatis selalu berhasil.
+
+**Percobaan ulang GAGAL — `TES_AUDIT_CLOUZER_ULANG.xlsx`:**
+- CLOUZER menampilkan: `ValueError: Model mengembalikan pesan kegagalan, bukan isi dokumen; tidak dikemas sebagai file.`
+- Pesan juga menyatakan konteks permintaan masih disimpan dan pengguna dapat mengetik `Ulangi`.
+- Bukti percakapan menunjukkan jalur generator menolak respons model yang merupakan pesan kegagalan, bukan tabel dokumen. Tidak ada bukti bahwa workbook untuk percobaan ini berhasil dibuat, divalidasi, dikirim sebagai attachment Discord, atau diunggah ke Box.
+- Ini bukan bukti bahwa openpyxl gagal. Penolakan terjadi pada validasi isi sebelum pembuatan workbook.
+- Penyebab kegagalan model/provider mengembalikan teks penolakan belum dapat dipastikan dari bukti yang tersedia; jangan mengarang penyebab seperti rate limit tanpa log provider untuk request ini.
+
+### 38.2 Perubahan kode kandidat
+
+Branch: `audit-recovery-gpt-2026-11-23`.
+
+1. Helper `audit-recovery/review-round-2/clouzer_file_creation.py`
+   - Commit: `ff64f43e220276cdf05f7e851c9f0666ea9f7dc4`.
+   - Jika format yang diminta XLSX dan `_validate_content()` secara spesifik menolak respons sebagai pesan kegagalan model, helper sekarang mencoba memakai tabel pipe-delimited yang sudah tertulis eksplisit di prompt pengguna.
+   - Fallback hanya berjalan jika prompt berisi tabel persegi panjang lengkap dengan header dan minimal satu baris data.
+   - Baris tidak dibuat-buat atau dilengkapi oleh model/kode. Tabel sumber prompt diubah ke bentuk tab-delimited lalu tetap melewati builder dan validasi XLSX yang sudah ada.
+   - Jika prompt tidak memuat tabel lengkap, kegagalan tetap dilempar; tidak membuat spreadsheet kosong atau mengarang data.
+   - Validasi existing tetap memeriksa jumlah baris/kolom, kesamaan data dengan tabel prompt, nama worksheet, dan kolom numerik.
+
+2. Regression test `audit-recovery/review-round-2/test_file_creation.py`
+   - Commit: `af27591b5e9adb6dc3ed3d1073c904518afb1b85`.
+   - Test baru mensimulasikan model menolak pembuatan XLSX, tetapi prompt pengguna memiliki tabel eksplisit 10 baris × 6 kolom.
+   - Acceptance criteria: nama `TES_AUDIT_CLOUZER_ULANG.xlsx`, worksheet `Data Pegawai`, 10 baris data, 6 kolom, dan kolom `No`, `Umur`, `Harga` bertipe numerik.
+   - Test negatif memastikan fallback tidak aktif jika prompt tidak memiliki tabel sumber.
+
+### 38.3 Status verifikasi dan batas operasional
+
+- Dua perubahan kode berhasil ditulis ke branch audit; commit helper dan test tercatat di atas.
+- **Status CI untuk commit baru: belum diverifikasi pada saat catatan ini dibuat.** Jangan menyebut test baru PASS sampai workflow selesai dan hasilnya diperiksa.
+- Live retest Discord untuk `TES_AUDIT_CLOUZER_ULANG.xlsx` juga belum dilakukan setelah patch.
+- Status Box upload untuk percobaan gagal tidak terbukti; jangan mencatat adanya file kedua di folder Box tanpa pemeriksaan aktual.
+- Production `main.py` tidak diubah. Tidak ada merge ke `main`, deployment, atau restart Wispbyte oleh assistant.
+- Langkah berikutnya: periksa CI yang dipicu oleh commit terbaru; bila hijau, user dapat melakukan restart instance kandidat sesuai kendali sendiri, lalu jalankan ulang prompt yang sama dan periksa attachment Discord serta artefak Box secara terpisah.
