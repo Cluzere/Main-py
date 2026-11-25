@@ -1756,14 +1756,14 @@ class ArchiveReaderTests(unittest.TestCase):
 
     def test_audio_signature_matrix_accepts_supported_container_headers(self):
         valid = {
-            ".mp3": b"ID3" + b"\\x00" * 8,
-            ".wav": b"RIFF" + b"\\x00" * 4 + b"WAVE" + b"\\x00" * 8,
-            ".ogg": b"OggS" + b"\\x00" * 8,
-            ".opus": b"OggS" + b"\\x00" * 8,
-            ".flac": b"fLaC" + b"\\x00" * 8,
-            ".webm": bytes((0x1A, 0x45, 0xDF, 0xA3)) + b"\\x00" * 8,
-            ".m4a": b"\\x00\\x00\\x00\\x18ftypisom" + b"\\x00" * 8,
-            ".aac": b"ADIF" + b"\\x00" * 8,
+            ".mp3": b"ID3" + b"\x00" * 8,
+            ".wav": b"RIFF" + b"\x00" * 4 + b"WAVE" + b"\x00" * 8,
+            ".ogg": b"OggS" + b"\x00" * 8,
+            ".opus": b"OggS" + b"\x00" * 8,
+            ".flac": b"fLaC" + b"\x00" * 8,
+            ".webm": bytes((0x1A, 0x45, 0xDF, 0xA3)) + b"\x00" * 8,
+            ".m4a": b"\x00\x00\x00\x18ftypisom" + b"\x00" * 8,
+            ".aac": b"ADIF" + b"\x00" * 8,
         }
         for ext, raw in valid.items():
             with self.subTest(ext=ext):
