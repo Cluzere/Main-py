@@ -15,6 +15,29 @@ _FORMAT_PATTERNS = {
 _CREATE_RE = re.compile(r"\b(?:buatkan|bikinkan|bikin|buat|jadikan|simpan|ekspor|export|generate|create|susun)\b", re.I)
 _EXPLICIT_ACTION_RE = re.compile(r"\b(?:buatkan|bikinkan|tolong buat|tolong bikin|buat file|bikin file|jadikan file|simpan sebagai|export ke)\b", re.I)
 
+_FILE_RETRY_COMMAND_RE = re.compile(
+    r"^(?:ulangi|ulang|coba lagi|buat lagi|lanjutkan|lanjut|teruskan|retry)(?:\s+(?:dong|ya|tolong|please))*[.!?]*$",
+    re.I,
+)
+MAX_PENDING_FILE_PROMPT_CHARS = 10_000
+
+
+def is_file_retry_command(prompt: str) -> bool:
+    return bool(_FILE_RETRY_COMMAND_RE.fullmatch(str(prompt or "").strip()))
+
+
+def normalize_pending_file_task(raw: object) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    fmt = str(raw.get("format") or "").lower().lstrip(".")
+    prompt = str(raw.get("prompt") or "").strip()
+    if fmt not in _FORMAT_PATTERNS or not prompt:
+        return None
+    if len(prompt) > MAX_PENDING_FILE_PROMPT_CHARS:
+        prompt = prompt[:MAX_PENDING_FILE_PROMPT_CHARS]
+    return {"format": fmt, "prompt": prompt}
+
+
 
 def detect_requested_file_format(prompt: str) -> str | None:
     value = str(prompt or "").strip()

@@ -29,7 +29,12 @@ import sys
 _SCRIPT_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_MODULE_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_MODULE_DIR)
-from clouzer_file_creation import detect_requested_file_format, create_document_file
+from clouzer_file_creation import (
+    detect_requested_file_format,
+    create_document_file,
+    is_file_retry_command,
+    normalize_pending_file_task,
+)
 
 try:
     import py7zr
@@ -2470,6 +2475,7 @@ class ClouzerBot(commands.Bot):
             "messages": [],
             "turn_count": 0,
             "users": {},
+            "pending_file_task": None,
         }
         if not isinstance(raw_state, dict):
             return base
@@ -2514,6 +2520,11 @@ class ClouzerBot(commands.Bot):
                 continue
             safe_messages.append({"role": role, "content": safe_content})
         merged["messages"] = safe_messages[-MAX_RECENT_MESSAGES:]
+
+        pending_file_task = normalize_pending_file_task(raw_state.get("pending_file_task"))
+        if pending_file_task:
+            pending_file_task["prompt"] = scrub_secrets(pending_file_task["prompt"])
+            merged["pending_file_task"] = pending_file_task
 
         summary_val = raw_state.get("summary")
         if isinstance(summary_val, str):
@@ -4971,6 +4982,28 @@ class ClouzerBot(commands.Bot):
                 return
             _turn_diag["queue_wait_seconds"] = _turn_loop.time() - _queue_wait_started
             guild_state = self.get_guild_state(guild, user.id, channel_id)
+            pending_file_task = normalize_pending_file_task(guild_state.get("pending_file_task"))
+            retrying_pending_file = bool(is_file_retry_command(clean_content) and pending_file_task)
+            if retrying_pending_file:
+                clean_content = pending_file_task["prompt"]
+                requested_file_format = pending_file_task["format"]
+                logging.warning(
+                    "[FILE-RETRY-CONTEXT] scope=%s format=%s action=reuse_previous_prompt",
+                    scope_key, requested_file_format,
+                )
+            elif requested_file_format:
+                guild_state["pending_file_task"] = {
+                    "format": requested_file_format,
+                    "prompt": clean_content[:10_000],
+                }
+            else:
+                # Permintaan baru yang bukan pengulangan menutup konteks retry lama.
+                guild_state.pop("pending_file_task", None)
+            allow_img_tool = should_allow_image_tool(
+                clean_content,
+                has_file_or_pdf=bool(additional_file_text),
+                has_image=bool(current_turn_images),
+            ) and not requested_file_format
             mode = guild_state["thread_modes"].get(str(target_channel.id), "fast")
             history_msgs = guild_state["messages"]
             turn_user_message: dict | None = None
@@ -5036,13 +5069,46 @@ class ClouzerBot(commands.Bot):
             _main_response_started = _turn_loop.time()
 
             try:
-                reply_text, function_calls = await self.run_responses_ai(
-                    payload_messages,
-                    status_msg,
-                    mode=mode,
-                    allow_tools=True,
-                    allow_image_tool=allow_img_tool,
-                )
+                try:
+                    reply_text, function_calls = await self.run_responses_ai(
+                        payload_messages,
+                        status_msg,
+                        mode=mode,
+                        allow_tools=not retrying_pending_file,
+                        allow_image_tool=allow_img_tool,
+                    )
+                except ResponsesStreamInterrupted as stream_exc:
+                    if not requested_file_format:
+                        raise
+                    logging.warning(
+                        "[FILE-RETRY] scope=%s format=%s reason=stream_interrupted partial_chars=%s",
+                        scope_key,
+                        requested_file_format,
+                        len(getattr(stream_exc, "partial_text", "") or ""),
+                    )
+                    await status_msg.edit(
+                        content=(
+                            "⚠️ Koneksi penyusunan file terputus. CLOUZER sedang mencoba ulang "
+                            "sekali tanpa web search..."
+                        )
+                    )
+                    retry_messages = copy.deepcopy(payload_messages)
+                    retry_messages.append({
+                        "role": "user",
+                        "content": (
+                            "[PENGULANGAN INTERNAL PEMBUATAN FILE]\n"
+                            "Respons sebelumnya terputus. Abaikan teks parsial sebelumnya dan susun ulang "
+                            "dokumen secara lengkap dari awal berdasarkan permintaan file pengguna di atas. "
+                            "Jangan melakukan web search atau memanggil tool apa pun. Keluarkan hanya isi dokumen lengkap."
+                        ),
+                    })
+                    reply_text, function_calls = await self.run_responses_ai(
+                        retry_messages,
+                        status_msg,
+                        mode=mode,
+                        allow_tools=False,
+                        allow_image_tool=False,
+                    )
 
                 img_calls = [fc for fc in function_calls if fc.get("name") == "generate_image"]
                 unsupported_calls = [fc for fc in function_calls if fc.get("name") != "generate_image"]
@@ -5081,6 +5147,7 @@ class ClouzerBot(commands.Bot):
                             + "Ukuran: " + format(len(generated_bytes), ",") + " byte"
                         )
                         await status_msg.edit(content=caption, attachments=[generated_file], view=None)
+                        guild_state.pop("pending_file_task", None)
                         history_msgs.append({
                             "role": "assistant",
                             "content": "[File dibuat: " + generated_name + " | " + generated_mime + " | "
@@ -5093,11 +5160,24 @@ class ClouzerBot(commands.Bot):
                             logging.exception("Gagal menyimpan memory setelah file berhasil dikirim (%s)", scope_key)
                         return
                     except Exception as file_exc:
-                        logging.exception("Pembuatan file %s gagal (%s)", requested_file_format, scope_key)
-                        reply_text = (
-                            "⚠️ File " + requested_file_format.upper() + " gagal dibuat: "
-                            + safe_exc_text(file_exc) + "\n\n" + (reply_text or "").strip()
-                        ).strip()
+                        logging.exception("Pembuatan/pengiriman file %s gagal (%s)", requested_file_format, scope_key)
+                        guild_state["pending_file_task"] = {
+                            "format": requested_file_format,
+                            "prompt": clean_content[:10_000],
+                        }
+                        try:
+                            await self.save_memory()
+                        except Exception:
+                            logging.exception("Konteks retry file gagal disimpan (%s)", scope_key)
+                        await status_msg.edit(
+                            content=(
+                                "⚠️ File " + requested_file_format.upper() + " belum berhasil dibuat atau dikirim. "
+                                + safe_exc_text(file_exc)[:500]
+                                + "\n\nKonteks permintaan masih disimpan. Ketik **Ulangi** untuk mencoba lagi."
+                            )[:1990],
+                            view=None,
+                        )
+                        return
 
                 image_block_reason = None
                 image_rate_wait = 0.0
@@ -5368,7 +5448,16 @@ class ClouzerBot(commands.Bot):
                     _turn_diag.get("request_id"),
                 )
                 partial_text = getattr(e, "partial_text", "")
-                if partial_text:
+                if requested_file_format:
+                    guild_state["pending_file_task"] = {
+                        "format": requested_file_format,
+                        "prompt": clean_content[:10_000],
+                    }
+                    err_msg = (
+                        "⚠️ Penyusunan file " + requested_file_format.upper() + " gagal sebelum lampiran selesai dibuat. "
+                        "Konteks permintaan disimpan. Ketik **Ulangi** untuk mencoba lagi."
+                    )
+                elif partial_text:
                     safe_partial = scrub_own_secrets(clean_response_text(partial_text))[:1400]
                     err_msg = (
                         safe_partial
