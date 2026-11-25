@@ -209,6 +209,44 @@ Wajib menghasilkan 1 header dan 10 baris data. Wajib menghasilkan tepat 6 kolom.
         finally:
             wb.close()
 
+    def test_xlsx_falls_back_to_explicit_prompt_table_when_model_refuses(self):
+        from openpyxl import load_workbook
+        prompt = """Buat file asli bernama `TES_AUDIT_CLOUZER_ULANG.xlsx`.
+Buat worksheet bernama `Data Pegawai`.
+Gunakan tabel lengkap berikut:
+No|Nama|Umur|Kota|Harga|Status
+1|Andi|25|Jakarta|150000|Aktif
+2|Budi|30|Bandung|200000|Aktif
+3|Citra|22|Surabaya|175000|Nonaktif
+4|Dedi|28|Medan|125000|Aktif
+5|Eka|26|Yogyakarta|300000|Aktif
+6|Fajar|32|Semarang|225000|Nonaktif
+7|Gina|24|Malang|180000|Aktif
+8|Hadi|29|Bekasi|250000|Aktif
+9|Intan|27|Depok|190000|Nonaktif
+10|Joko|31|Tangerang|275000|Aktif
+Wajib tepat 10 baris data dan 6 kolom."""
+        refusal = "Maaf, saya tidak dapat membuat file XLSX pada sesi ini."
+        data, filename, _ = create_document_file("xlsx", prompt, refusal)
+        self.assertEqual(filename, "TES_AUDIT_CLOUZER_ULANG.xlsx")
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"]), (10, 6))
+        self.assertEqual(summary["sheet_name"], "Data Pegawai")
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            ws = wb["Data Pegawai"]
+            self.assertEqual(ws.max_row, 11)
+            self.assertEqual(ws.max_column, 6)
+            for row in range(2, 12):
+                for col in (1, 3, 5):
+                    self.assertIsInstance(ws.cell(row, col).value, (int, float))
+                    self.assertNotIsInstance(ws.cell(row, col).value, bool)
+        finally:
+            wb.close()
+
+        with self.assertRaisesRegex(ValueError, "Model mengembalikan pesan kegagalan"):
+            create_document_file("xlsx", "Buat Excel tanpa tabel sumber", refusal)
+
     def test_xlsx_rejects_non_numeric_age_and_changed_source_data(self):
         prompt = """Buat Excel worksheet bernama Data Pegawai dengan tepat 2 baris data dan 2 kolom.
 
