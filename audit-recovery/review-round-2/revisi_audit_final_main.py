@@ -5644,7 +5644,7 @@ async def box_test_cmd(interaction: discord.Interaction, folder_id: str = "44103
                 lines.append(f"• **{item_type}:** {item_name}")
             result_text = (
                 f"✅ **Box API berhasil!** Folder: **{folder_name}** "
-                f"(menampilkan {len(entries[:15])} item pertama)\n" + "\\n".join(lines)
+                f"(menampilkan {len(entries[:15])} item pertama)\n" + "\n".join(lines)
             )
         await interaction.followup.send(result_text[:1900], ephemeral=True)
     except Exception as exc:
