@@ -1090,3 +1090,104 @@ Setelah restart dan listener aktif:
 - Jangan mengklaim integrasi Box sudah live sampai log Wispbyte membuktikan listener aktif, callback OAuth berhasil, refresh bekerja, dan API folder Box merespons.
 - Perubahan ini berada pada branch yang Wispbyte fetch saat startup; restart berikutnya dapat mengambil kode baru. Pengguna yang mengendalikan panel harus melakukan restart dan memberikan log.
 - Production `main.py`, branch `main`, konfigurasi port, Startup Command, dan proses Wispbyte belum diubah oleh tindakan GitHub ini.
+
+
+---
+
+## 26. ADDENDUM — OAuth Box berhasil diselesaikan dari Wispbyte dan kandidat bot online (26 November 2026)
+
+Bagian ini mencatat bukti runtime terbaru yang dikirim pengguna setelah §25. Catatan ini melengkapi §25; tidak menghapus batasan atau status yang lebih lama.
+
+### 26.1 Perubahan branch yang terambil Wispbyte
+
+Pengguna menjalankan Startup Command yang melakukan fetch/reset branch:
+`audit-recovery-gpt-2026-11-23`, memasang dependensi, lalu menjalankan:
+
+```sh
+/usr/local/bin/python /home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py
+```
+
+Bukti log pertama:
+- Git fetch/reset berpindah ke commit `b1b4524` — `Document Box OAuth callback integration on Wispbyte branch`.
+- Dependensi yang tercantum berhasil dipenuhi oleh pip.
+- Log runtime:
+  ```
+  2026-11-25 22:57:40,993 WARNING clouzer.box_oauth: Box OAuth callback listener started on 0.0.0.0:15497.
+  [ONLINE] Clouzer AI Bot aktif (...).
+  [CHECK] Pastikan Message Content Intent juga aktif di Discord Developer Portal.
+  ```
+- Ini membuktikan listener OAuth berhasil memulai bind pada `0.0.0.0:15497` dan proses kandidat mencapai pesan ONLINE pada run tersebut.
+
+### 26.2 Shutdown dan startup ulang
+
+Setelah itu pengguna mengirim log:
+- Wispbyte menandai server stopping/offline.
+- Traceback berakhir dengan `asyncio.exceptions.CancelledError` dan `KeyboardInterrupt` ketika Discord client sedang menunggu event gateway.
+- Log yang sama memperlihatkan urutan server ditandai stopping/offline lalu starting/running. Karena muncul dalam konteks penghentian/restart server, traceback tersebut tidak cukup untuk menyimpulkan bug aplikasi atau kegagalan OAuth.
+
+Pada startup berikutnya:
+- Git fetch/reset memperbarui branch ke commit `94edfcd` — `Fix newline formatting in Box folder test output`.
+- Dependensi kembali terdeteksi tersedia.
+- Log runtime terbaru:
+  ```
+  2026-11-25 23:10:31,361 WARNING clouzer.box_oauth: Box OAuth callback listener started on 0.0.0.0:15497.
+  [ONLINE] Clouzer AI Bot aktif (...).
+  [CHECK] Pastikan Message Content Intent juga aktif di Discord Developer Portal.
+  ```
+- Ini adalah bukti terbaru bahwa pada startup kedua, branch yang dipakai Wispbyte ter-fetch sampai commit `94edfcd`, listener berhasil start pada port 15497, dan kandidat Discord bot mencapai status ONLINE.
+- Jangan menyimpulkan proses tetap berjalan setelah log terakhir atau bahwa seluruh fitur bot sudah diuji; log hanya membuktikan startup pada saat tersebut.
+
+### 26.3 Hasil alur OAuth Box nyata
+
+Setelah pengguna memperbaiki Redirect URI yang sebelumnya menimbulkan `redirect_uri_mismatch`, halaman callback menampilkan teks:
+
+```
+Koneksi OAuth Box berhasil. Token tersimpan aman di server. Kamu boleh menutup halaman ini.
+```
+
+Pengguna juga sebelumnya melaporkan respons health/service:
+```
+"service": "clouzer-box-oauth", "status": "ok"
+```
+
+Kesimpulan berbasis bukti:
+- Error `redirect_uri_mismatch` sudah teratasi setelah Redirect URI diperbarui.
+- Browser mencapai jalur sukses callback OAuth dan aplikasi menyatakan token tersimpan di server.
+- Health endpoint melaporkan service `clouzer-box-oauth` berstatus `ok`.
+- Ini merupakan bukti keberhasilan autentikasi OAuth dan penyimpanan token menurut respons aplikasi; rahasia/token tidak boleh disalin ke chat atau Master Memory.
+- Jangan menyamakan keberhasilan OAuth dengan keberhasilan membaca folder/file Box dari proses bot. Akses API Box melalui token runtime Wispbyte masih harus diuji secara terpisah.
+
+### 26.4 Status integrasi setelah temuan terbaru
+
+**Terbukti dari log/respons yang diberikan pengguna:**
+1. Wispbyte fetch branch `audit-recovery-gpt-2026-11-23` hingga commit `94edfcd`.
+2. Kandidat `revisi_audit_final_main.py` berhasil dijalankan dan mencetak status bot ONLINE.
+3. Listener Box OAuth berhasil start dan bind pada `0.0.0.0:15497` pada dua startup yang ditunjukkan.
+4. Endpoint/service health merespons `status: ok`.
+5. OAuth callback menampilkan pesan sukses dan menyatakan token tersimpan aman di server.
+6. Redirect URI mismatch sudah diperbaiki.
+
+**Belum terbukti / masih harus diuji:**
+1. CLOUZER berhasil memanggil Box API menggunakan access token yang tersimpan pada runtime Wispbyte.
+2. Bot dapat me-list folder target `Test file` (Folder ID `441035368657`) dan menampilkan daftar isinya dari command Discord.
+3. Bot dapat membaca atau mengunduh file Box.
+4. Refresh token berjalan setelah access token kedaluwarsa/di-refresh, termasuk token rotation.
+5. Integrasi operasi Box sudah tersedia sebagai command Discord; keberhasilan OAuth saja tidak membuktikan command `/box-test` terdaftar atau berfungsi.
+6. Ketahanan token terhadap restart/container lifecycle dan lokasi penyimpanan persisten belum diverifikasi dari bukti yang tersedia.
+
+### 26.5 Langkah berikutnya yang tepat
+
+1. Jangan restart server lagi hanya untuk mengulang OAuth; startup terbaru sudah menunjukkan listener dan bot ONLINE.
+2. Jalankan pemeriksaan/command Box yang memang tersedia pada build saat ini. Jika command `/box-test` tidak muncul, jangan menganggapnya sudah terimplementasi hanya karena pernah disebut sebagai langkah uji; periksa command registration dan source branch terlebih dahulu.
+3. Uji list folder `441035368657` menggunakan token yang tersimpan di Wispbyte. Catat HTTP status, folder ID/name, dan jumlah/nama item; jangan pernah mencetak access token atau refresh token.
+4. Jika list berhasil, uji read/download satu file non-sensitif dan validasi hasilnya.
+5. Uji refresh secara aman dan pastikan token rotation tersimpan.
+6. Catat hasil setiap tahap secara terpisah: OAuth callback, token persistence, Box API list, file read/download, dan command Discord.
+
+### 26.6 Batas produksi dan keamanan
+
+- Perubahan yang ter-fetch berada pada branch `audit-recovery-gpt-2026-11-23` dan kandidat audit, bukan production `main.py`.
+- Tidak ada bukti bahwa production `main.py`, branch `main`, atau deployment produksi disentuh.
+- Log yang diberikan tidak menunjukkan perubahan port allocation atau Startup Command; command yang dipakai tetap menjalankan kandidat dari folder `clouzer-audit`.
+- Jangan menyimpan Client Secret, access token, refresh token, authorization code, atau isi file token dalam Master Memory.
+- Jangan mengklaim integrasi Box end-to-end selesai sebelum tes API folder dan operasi file dari runtime Wispbyte berhasil.
