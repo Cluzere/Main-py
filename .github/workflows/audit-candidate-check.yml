@@ -35,6 +35,8 @@ jobs:
         run: pip-audit --strict
       - name: Run medium/high severity security scan
         run: bandit -q -r audit-recovery/review-round-2/revisi_audit_final_main.py audit-recovery/review-round-2/clouzer_file_creation.py -ll
+      - name: Run document file creation tests
+        run: python -m unittest discover -s audit-recovery/review-round-2 -p "test_file_creation.py" -v
       - name: Fetch and verify original CLOUZER ZIP fixture
         run: |
           fixture="$RUNNER_TEMP/CLOUZER_paket_tes_manual.zip"
