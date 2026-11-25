@@ -2139,6 +2139,10 @@ class ClouzerBot(commands.Bot):
         self.http_session: aiohttp.ClientSession | None = None
         self.guild_locks: dict[str, asyncio.Lock] = {}
         self.guild_lock_refs: dict[str, int] = {}
+        # Ingress FIFO starts before attachment downloads/parsing, preserving
+        # Discord arrival order for messages sharing a user/channel scope.
+        self.ingress_locks: dict[str, asyncio.Lock] = {}
+        self.ingress_lock_refs: dict[str, int] = {}
         self.last_channel_images: OrderedDict[tuple[int, int, int], tuple[float, list[str]]] = OrderedDict()
         self.cf_rr_index: int = 0
         self.cf_cooldowns: dict[str, float] = {}
@@ -2253,6 +2257,43 @@ class ClouzerBot(commands.Bot):
                     self.guild_locks.pop(key, None)
             else:
                 self.guild_lock_refs[key] = remaining
+
+    @asynccontextmanager
+    async def ingress_lock(self, key: str):
+        """FIFO gate acquired at message ingress, before any attachment I/O."""
+        lock = self.ingress_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self.ingress_locks[key] = lock
+
+        current_refs = self.ingress_lock_refs.get(key, 0)
+        if current_refs >= MAX_QUEUE_PENDING_PER_SCOPE + 1:
+            yield False, "full"
+            return
+
+        self.ingress_lock_refs[key] = current_refs + 1
+        acquired = False
+        try:
+            try:
+                await asyncio.wait_for(
+                    lock.acquire(),
+                    timeout=QUEUE_WAIT_TIMEOUT_SECONDS,
+                )
+                acquired = True
+            except asyncio.TimeoutError:
+                yield False, "timeout"
+                return
+            yield True, None
+        finally:
+            if acquired:
+                lock.release()
+            remaining = self.ingress_lock_refs.get(key, 1) - 1
+            if remaining <= 0:
+                self.ingress_lock_refs.pop(key, None)
+                if self.ingress_locks.get(key) is lock and not lock.locked():
+                    self.ingress_locks.pop(key, None)
+            else:
+                self.ingress_lock_refs[key] = remaining
 
     def user_image_queue(self, user_id: int):
         class _QueueCtx:
@@ -5615,151 +5656,167 @@ async def on_message(message: discord.Message):
             await notify_rate_limited(message, wait)
             return
 
-    _attachment_started_at = asyncio.get_running_loop().time()
-    _pre_attachment_seconds = _attachment_started_at - _ingress_started_at
-    image_data_urls: list[str] = []
-    llm_image_urls: list[str] = []
-    additional_file_text = ""
-    blocked_files: list[str] = []
-    skipped_notes: list[str] = []
-    has_usable_attachment = False
-    attachment_context_truncated = False
-    attachment_context_truncated_at: int | None = None
+    _scope_key = bot.get_scope_key(message.guild, message.author.id, message.channel.id)
+    async with bot.ingress_lock(_scope_key) as (_ingress_acquired, _ingress_reason):
+        if not _ingress_acquired:
+            if _ingress_reason == "full":
+                _queue_notice = "⚠️ Antrean pesan masuk penuh. Pesan ini belum diproses; tunggu lalu kirim ulang."
+            else:
+                _queue_notice = "⚠️ Waktu tunggu antrean pesan masuk habis. Pesan ini belum diproses; kirim ulang."
+            try:
+                await message.reply(_queue_notice, mention_author=False)
+            except Exception:
+                try:
+                    await message.channel.send(_queue_notice)
+                except Exception:
+                    logging.warning("Gagal mengirim notifikasi antrean ingress", exc_info=True)
+            return
 
-    attachments = list(message.attachments)
-    if len(attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
-        skipped_notes.append(
-            f"{len(attachments) - MAX_ATTACHMENTS_PER_MESSAGE} lampiran dilewati (batas konfigurasi {MAX_ATTACHMENTS_PER_MESSAGE} per pesan)"
-        )
-        attachments = attachments[:MAX_ATTACHMENTS_PER_MESSAGE]
+        _attachment_started_at = asyncio.get_running_loop().time()
+        _pre_attachment_seconds = _attachment_started_at - _ingress_started_at
+        image_data_urls: list[str] = []
+        llm_image_urls: list[str] = []
+        additional_file_text = ""
+        blocked_files: list[str] = []
+        skipped_notes: list[str] = []
+        has_usable_attachment = False
+        attachment_context_truncated = False
+        attachment_context_truncated_at: int | None = None
 
-    total_bytes = 0
-    attachment_manifest: list[str] = []
-    for att in attachments:
-        att_size = max(int(getattr(att, "size", 0) or 0), 0)
-        safe_filename = scrub_secrets(att.filename or "file")[:100]
-        ext_label = os.path.splitext(safe_filename)[1].lower() or "tanpa ekstensi"
-        mime_label = getattr(att, "content_type", None) or "MIME tidak diketahui"
-        if total_bytes + att_size > MAX_ATTACHMENT_TOTAL_BYTES:
-            attachment_manifest.append(f"- {safe_filename} ({ext_label}, {mime_label}): SKIPPED - batas total batch")
-            skipped_notes.append(f"`{safe_filename[:60]}` dilewati karena batas total ukuran batch")
-            continue
-        total_bytes += att_size
-        try:
-            text_res, local_res, http_res, ftype = await bot.encode_attachment(att)
-        except Exception as exc:
-            logging.exception("Attachment processing failed: %s", safe_filename)
-            text_res, local_res, http_res, ftype = (
-                f"\\n\\n[File {safe_filename} gagal diproses: {type(exc).__name__}: {scrub_secrets(str(exc))[:200]}]\\n",
-                [], [], "error"
+        attachments = list(message.attachments)
+        if len(attachments) > MAX_ATTACHMENTS_PER_MESSAGE:
+            skipped_notes.append(
+                f"{len(attachments) - MAX_ATTACHMENTS_PER_MESSAGE} lampiran dilewati (batas konfigurasi {MAX_ATTACHMENTS_PER_MESSAGE} per pesan)"
             )
-        status_map = {
-            "blocked": "BLOCKED: kredensial/rahasia terdeteksi",
-            "busy": "QUEUED/WAITING: antrean lampiran masih diproses",
-            "unsupported": "UNSUPPORTED: format tidak didukung",
-            "archive_unsupported": "UNSUPPORTED: parser 7Z belum tersedia",
-            "archive_error": "FAILED: arsip rusak atau ditolak batas keamanan",
-            "metadata_only": "PARTIAL: metadata saja, isi belum diparse",
-            "none": "FAILED/EMPTY: konten tidak diekstrak",
-            "error": "FAILED: exception pemrosesan",
-        }
-        status = status_map.get(ftype, "READ: konten berhasil diproses" if (text_res or local_res or http_res) else "NO CONTENT")
-        if ftype in ("unsupported", "archive_unsupported", "archive_error", "none", "error") and text_res:
-            safe_reason = re.sub(r"\s+", " ", scrub_secrets(text_res)).strip()
-            if safe_reason:
-                status += " — " + safe_reason[:180]
-        attachment_manifest.append(f"- {safe_filename} ({ext_label}, {mime_label}, {att_size:,} byte): {status}")
-        if ftype == "blocked":
-            blocked_files.append(safe_filename[:60])
-        elif ftype not in ("none", "busy", "unsupported", "error", "archive_error", "archive_unsupported") and (text_res or local_res or http_res):
-            has_usable_attachment = True
-        if text_res:
-            remaining_context = MAX_ATTACHMENT_CONTEXT_CHARS - len(additional_file_text)
-            if remaining_context > 0:
-                additional_file_text += text_res[:remaining_context]
-                if len(text_res) > remaining_context:
-                    additional_file_text += "\n[Konten lampiran dipotong: batas gabungan seluruh file per pesan tercapai.]\n"
+            attachments = attachments[:MAX_ATTACHMENTS_PER_MESSAGE]
+
+        total_bytes = 0
+        attachment_manifest: list[str] = []
+        for att in attachments:
+            att_size = max(int(getattr(att, "size", 0) or 0), 0)
+            safe_filename = scrub_secrets(att.filename or "file")[:100]
+            ext_label = os.path.splitext(safe_filename)[1].lower() or "tanpa ekstensi"
+            mime_label = getattr(att, "content_type", None) or "MIME tidak diketahui"
+            if total_bytes + att_size > MAX_ATTACHMENT_TOTAL_BYTES:
+                attachment_manifest.append(f"- {safe_filename} ({ext_label}, {mime_label}): SKIPPED - batas total batch")
+                skipped_notes.append(f"`{safe_filename[:60]}` dilewati karena batas total ukuran batch")
+                continue
+            total_bytes += att_size
+            try:
+                text_res, local_res, http_res, ftype = await bot.encode_attachment(att)
+            except Exception as exc:
+                logging.exception("Attachment processing failed: %s", safe_filename)
+                text_res, local_res, http_res, ftype = (
+                    f"\\n\\n[File {safe_filename} gagal diproses: {type(exc).__name__}: {scrub_secrets(str(exc))[:200]}]\\n",
+                    [], [], "error"
+                )
+            status_map = {
+                "blocked": "BLOCKED: kredensial/rahasia terdeteksi",
+                "busy": "QUEUED/WAITING: antrean lampiran masih diproses",
+                "unsupported": "UNSUPPORTED: format tidak didukung",
+                "archive_unsupported": "UNSUPPORTED: parser 7Z belum tersedia",
+                "archive_error": "FAILED: arsip rusak atau ditolak batas keamanan",
+                "metadata_only": "PARTIAL: metadata saja, isi belum diparse",
+                "none": "FAILED/EMPTY: konten tidak diekstrak",
+                "error": "FAILED: exception pemrosesan",
+            }
+            status = status_map.get(ftype, "READ: konten berhasil diproses" if (text_res or local_res or http_res) else "NO CONTENT")
+            if ftype in ("unsupported", "archive_unsupported", "archive_error", "none", "error") and text_res:
+                safe_reason = re.sub(r"\s+", " ", scrub_secrets(text_res)).strip()
+                if safe_reason:
+                    status += " — " + safe_reason[:180]
+            attachment_manifest.append(f"- {safe_filename} ({ext_label}, {mime_label}, {att_size:,} byte): {status}")
+            if ftype == "blocked":
+                blocked_files.append(safe_filename[:60])
+            elif ftype not in ("none", "busy", "unsupported", "error", "archive_error", "archive_unsupported") and (text_res or local_res or http_res):
+                has_usable_attachment = True
+            if text_res:
+                remaining_context = MAX_ATTACHMENT_CONTEXT_CHARS - len(additional_file_text)
+                if remaining_context > 0:
+                    additional_file_text += text_res[:remaining_context]
+                    if len(text_res) > remaining_context:
+                        additional_file_text += "\n[Konten lampiran dipotong: batas gabungan seluruh file per pesan tercapai.]\n"
+                        attachment_context_truncated = True
+                        if attachment_context_truncated_at is None:
+                            attachment_context_truncated_at = max(0, len(attachment_manifest) - 1)
+                else:
                     attachment_context_truncated = True
                     if attachment_context_truncated_at is None:
                         attachment_context_truncated_at = max(0, len(attachment_manifest) - 1)
-            else:
-                attachment_context_truncated = True
-                if attachment_context_truncated_at is None:
-                    attachment_context_truncated_at = max(0, len(attachment_manifest) - 1)
-        if local_res:
-            image_data_urls.extend(local_res)
-        if http_res:
-            llm_image_urls.extend(http_res)
+            if local_res:
+                image_data_urls.extend(local_res)
+            if http_res:
+                llm_image_urls.extend(http_res)
 
-    if attachment_context_truncated:
-        skipped_notes.append(
-            "Konten gabungan lampiran dipotong pada batas %s karakter." % format(MAX_ATTACHMENT_CONTEXT_CHARS, ",")
-        )
-        if attachment_context_truncated_at is not None:
-            for manifest_idx in range(attachment_context_truncated_at, len(attachment_manifest)):
-                attachment_manifest[manifest_idx] += " [KONTEN TIDAK SEPENUHNYA MASUK KONTEKS AI]"
-
-    if attachment_manifest:
-        additional_file_text += "\n\n--- MANIFEST LAMPIRAN ---\n" + "\n".join(attachment_manifest) + "\n--- AKHIR MANIFEST ---\n"
-
-    if message.reference is not None:
-        try:
-            replied_file_text = await bot.resolve_replied_files(
-                message,
-                remaining_bytes=MAX_ATTACHMENT_TOTAL_BYTES - total_bytes,
-                remaining_chars=MAX_ATTACHMENT_CONTEXT_CHARS - len(additional_file_text),
+        if attachment_context_truncated:
+            skipped_notes.append(
+                "Konten gabungan lampiran dipotong pada batas %s karakter." % format(MAX_ATTACHMENT_CONTEXT_CHARS, ",")
             )
-            if replied_file_text:
-                additional_file_text += "\n\n--- DOKUMEN DARI PESAN YANG DI-REPLY ---\n" + replied_file_text
-                has_usable_attachment = True
-        except Exception:
-            logging.exception("Gagal memproses dokumen dari pesan reply")
+            if attachment_context_truncated_at is not None:
+                for manifest_idx in range(attachment_context_truncated_at, len(attachment_manifest)):
+                    attachment_manifest[manifest_idx] += " [KONTEN TIDAK SEPENUHNYA MASUK KONTEKS AI]"
 
-    notices: list[str] = []
-    if blocked_files:
-        names = ", ".join(f"`{n}`" for n in blocked_files)
-        notices.append(
-            f"🔒 Lampiran {names} tidak dibaca karena terdeteksi sebagai file kredensial/rahasia "
-            f"(token, password, private key, atau file .env). Isinya tidak dikirim ke AI dan tidak disimpan. "
-            f"Hapus bagian rahasianya lalu kirim ulang kalau mau dibantu."
+        if attachment_manifest:
+            additional_file_text += "\n\n--- MANIFEST LAMPIRAN ---\n" + "\n".join(attachment_manifest) + "\n--- AKHIR MANIFEST ---\n"
+
+        if message.reference is not None:
+            try:
+                replied_file_text = await bot.resolve_replied_files(
+                    message,
+                    remaining_bytes=MAX_ATTACHMENT_TOTAL_BYTES - total_bytes,
+                    remaining_chars=MAX_ATTACHMENT_CONTEXT_CHARS - len(additional_file_text),
+                )
+                if replied_file_text:
+                    additional_file_text += "\n\n--- DOKUMEN DARI PESAN YANG DI-REPLY ---\n" + replied_file_text
+                    has_usable_attachment = True
+            except Exception:
+                logging.exception("Gagal memproses dokumen dari pesan reply")
+
+        notices: list[str] = []
+        if blocked_files:
+            names = ", ".join(f"`{n}`" for n in blocked_files)
+            notices.append(
+                f"🔒 Lampiran {names} tidak dibaca karena terdeteksi sebagai file kredensial/rahasia "
+                f"(token, password, private key, atau file .env). Isinya tidak dikirim ke AI dan tidak disimpan. "
+                f"Hapus bagian rahasianya lalu kirim ulang kalau mau dibantu."
+            )
+        if skipped_notes:
+            notices.append("📎 " + "; ".join(skipped_notes) + ".")
+        if notices:
+            try:
+                await message.reply("\n".join(notices)[:1900], mention_author=False)
+            except Exception:
+                logging.debug("Gagal mengirim notifikasi lampiran", exc_info=True)
+
+        if message.reference is not None:
+            rep_local, rep_http = await bot.resolve_replied_images(message)
+            for image_url in rep_local:
+                if image_url not in image_data_urls:
+                    image_data_urls.append(image_url)
+            for image_url in rep_http:
+                if image_url not in llm_image_urls:
+                    llm_image_urls.append(image_url)
+
+        if not clean_content:
+            if has_usable_attachment and additional_file_text:
+                clean_content = "Tolong baca, analisis, dan ringkas isi file yang saya kirim ini ya."
+            elif image_data_urls or llm_image_urls:
+                clean_content = "Tolong jelaskan isi gambar ini."
+            else:
+                return
+
+        await bot.process_ai_turn(
+            target_channel=message.channel,
+            guild=message.guild,
+            user=message.author,
+            clean_content=clean_content,
+            image_data_urls=image_data_urls,
+            llm_image_urls=llm_image_urls,
+            additional_file_text=additional_file_text,
+            reply_to_message=message,
+            _ingress_seconds=_pre_attachment_seconds,
+            _attachment_seconds=asyncio.get_running_loop().time() - _attachment_started_at,
         )
-    if skipped_notes:
-        notices.append("📎 " + "; ".join(skipped_notes) + ".")
-    if notices:
-        try:
-            await message.reply("\n".join(notices)[:1900], mention_author=False)
-        except Exception:
-            logging.debug("Gagal mengirim notifikasi lampiran", exc_info=True)
-
-    if message.reference is not None:
-        rep_local, rep_http = await bot.resolve_replied_images(message)
-        for image_url in rep_local:
-            if image_url not in image_data_urls:
-                image_data_urls.append(image_url)
-        for image_url in rep_http:
-            if image_url not in llm_image_urls:
-                llm_image_urls.append(image_url)
-
-    if not clean_content:
-        if has_usable_attachment and additional_file_text:
-            clean_content = "Tolong baca, analisis, dan ringkas isi file yang saya kirim ini ya."
-        elif image_data_urls or llm_image_urls:
-            clean_content = "Tolong jelaskan isi gambar ini."
-        else:
-            return
-
-    await bot.process_ai_turn(
-        target_channel=message.channel,
-        guild=message.guild,
-        user=message.author,
-        clean_content=clean_content,
-        image_data_urls=image_data_urls,
-        llm_image_urls=llm_image_urls,
-        additional_file_text=additional_file_text,
-        reply_to_message=message,
-        _ingress_seconds=_pre_attachment_seconds,
-        _attachment_seconds=asyncio.get_running_loop().time() - _attachment_started_at,
-    )
 
 
 async def main():
