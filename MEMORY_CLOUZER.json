@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "document_type": "project_handoff_memory",
+  "project": {
+    "name": "CLOUZER AI",
+    "type": "Discord AI bot",
+    "repository": "Cluzere/Main-py",
+    "repository_url": "https://github.com/Cluzere/Main-py",
+    "primary_language": "Python",
+    "discord_library": "discord.py"
+  },
+  "purpose": "Persistent handoff context for future ChatGPT conversations so work can continue without repeating project discovery, decisions, or completed tests.",
+  "communication_preferences": {
+    "language": "Indonesian",
+    "tone": "direct, concise, technically precise",
+    "avoid": [
+      "repeating tests that have already passed without a concrete reason",
+      "reopening completed audit work without new evidence",
+      "long status narration",
+      "claiming deployment or runtime success based only on static tests"
+    ]
+  },
+  "critical_constraints": [
+    "Never modify production main.py or deploy to Wispbyte unless the user explicitly authorizes it.",
+    "Do not stop, restart, or interfere with the production bot unless explicitly authorized.",
+    "The user previously required source files not to be changed unless they explicitly request a change. The request to add file creation explicitly authorized that feature work only.",
+    "Keep candidate/staging work on separate branches from production.",
+    "Do not run the same bot instance simultaneously on Termux and Wispbyte.",
+    "Never put API keys, bot tokens, passwords, private credentials, or secret values in source files, memory files, chat, commits, or logs. Keep secrets in GitHub Secrets or the appropriate secret store.",
+    "Do not assume provider-side Function Calling is available; the user's provider/API setup has limitations around tool/function calling."
+  ],
+  "architecture": {
+    "known_message_flow": [
+      "Discord",
+      "Python Discord bot",
+      "OpenCode Server at 127.0.0.1:43127",
+      "Xingchi API",
+      "OpenCode SSE",
+      "EventHub",
+      "DiscordStream",
+      "Discord"
+    ],
+    "provider_model_seen_in_project": "xingchi/gpt-6.1-sol",
+    "agents_seen_in_project": [
+      "clouzer",
+      "clouzer-full"
+    ],
+    "notes": [
+      "Preserve the existing working text-chat path when adding features.",
+      "Image generation and delivery to Discord has been an important project goal; do not break existing chat behavior while working on it."
+    ]
+  },
+  "deployment": {
+    "production_host": "Wispbyte",
+    "production_startup_branch_last_reported": "audit-recovery-gpt-2026-11-23",
+    "production_entrypoint_last_reported": "audit-recovery/review-round-2/revisi_audit_final_main.py",
+    "production_file_policy": "Production main.py has not been modified by the file-creation feature work described in this memory.",
+    "last_reported_wispbyte_settings": {
+      "user_uploaded_files": "OFF",
+      "auto_update": "ON"
+    },
+    "important": "Verify current Wispbyte configuration before any deployment; the values above are the last reported state, not a live check."
+  },
+  "audit_status": {
+    "status": "The user considers the prior CLOUZER audit complete; do not restart it without a specific new issue.",
+    "candidate_file": "audit-recovery/review-round-2/revisi_audit_final_main.py",
+    "candidate_branch_context": "audit-gap-closure-2026-11-25",
+    "production_main_untouched": true,
+    "known_test_history": {
+      "earlier_candidate_audit": "163/163 tests passed at commit 05819815ea152b12560518b356a067a5ca5d9863",
+      "latest_file_creation_feature_ci": {
+        "run_id": "45608436905",
+        "url": "https://github.com/Cluzere/Main-py/actions/runs/45608436905",
+        "commit": "00762f2862a862ac27228a0decfa9620746b1d56",
+        "conclusion": "success",
+        "candidate_regression_tests": 97,
+        "previous_audit_regression_tests": 76,
+        "total_tests": 173,
+        "py_compile": "passed",
+        "pip_check": "passed",
+        "pip_audit_strict": "passed",
+        "bandit_medium_high": "passed"
+      },
+      "counting_note": "The latest run executed 97 + 76 = 173 tests. Do not repeat the earlier mistaken total of 179."
+    }
+  },
+  "file_creation_feature": {
+    "user_request": "Add a feature so CLOUZER can create files from Discord chat requests and send them as attachments.",
+    "implementation_branch": "feature/file-creation-discord-v2",
+    "pull_request": {
+      "number": 2,
+      "url": "https://github.com/Cluzere/Main-py/pull/2",
+      "title": "feat: CLOUZER can create and send files in Discord",
+      "state_at_last_check": "open",
+      "draft_at_last_check": true,
+      "base_branch": "audit-gap-closure-2026-11-25",
+      "head_branch": "feature/file-creation-discord-v2"
+    },
+    "head_commit": "00762f2862a862ac27228a0decfa9620746b1d56",
+    "implementation_summary": [
+      "Detect file-creation requests in Indonesian and English.",
+      "Ask the model for plain-text file contents in a second request; do not rely on provider Function Calling.",
+      "Build the file locally in Python using in-memory bytes.",
+      "Send the generated file to Discord as an attachment.",
+      "Sanitize inferred filenames and reject empty or oversized output.",
+      "Never execute generated Python files."
+    ],
+    "supported_formats": [
+      ".txt",
+      ".md",
+      ".py",
+      ".json",
+      ".csv",
+      ".docx",
+      ".pdf",
+      ".xlsx",
+      ".pptx"
+    ],
+    "implementation_helpers": [
+      "is_file_creation_request",
+      "infer_generated_filename",
+      "build_generated_file_bytes"
+    ],
+    "dependencies_used": [
+      "python-docx",
+      "PyMuPDF",
+      "openpyxl",
+      "python-pptx"
+    ],
+    "known_scope_limits": [
+      "XLSX generation is a basic row-oriented export, not a full spreadsheet authoring system with advanced formulas and styling.",
+      "PPTX generation is a basic title/body slide layout.",
+      "The latest CI verifies compilation, security/dependency checks, and unit/regression tests; it does not prove live Discord delivery or Wispbyte runtime behavior.",
+      "The feature has not been deployed to production as of 2026-11-25."
+    ],
+    "deployment_authorization": "Not granted. Do not merge or deploy without an explicit user instruction."
+  },
+  "current_github_state": {
+    "repository": "Cluzere/Main-py",
+    "feature_branch": "feature/file-creation-discord-v2",
+    "feature_pr": "https://github.com/Cluzere/Main-py/pull/2",
+    "memory_branch": "docs/clouzer-project-memory",
+    "memory_file": "MEMORY_CLOUZER.json"
+  },
+  "next_steps": [
+    "Keep the generated memory file updated when meaningful project decisions, branch states, test results, or deployment states change.",
+    "If the user asks to continue file-creation work, resume from PR #2 and commit 00762f2862a862ac27228a0decfa9620746b1d56.",
+    "Before any deployment, obtain explicit authorization and verify the exact target branch, entrypoint, dependencies, and staging/live safety."
+  ],
+  "security": {
+    "contains_credentials": false,
+    "contains_private_keys_or_tokens": false,
+    "rule": "Never add secrets to this file."
+  },
+  "last_updated": "2026-11-25"
+}
