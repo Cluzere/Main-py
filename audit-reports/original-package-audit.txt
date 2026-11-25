@@ -1,0 +1,105 @@
+CLOUZER ORIGINAL TEST PACKAGE — DIRECT GITHUB RUNNER AUDIT
+File: CLOUZER_paket_tes_manual.zip
+Size: 85971 bytes
+SHA-256: 9944f200e2c0a2b00286611900a5249a57e6626a86437840e3e10237820c52db
+Method: ZIP entries read from repository checkout; supported formats parsed read-only; Python source NOT executed.
+
+OUTER ZIP: entries=24; files=24; CRC=PASS
+ROOT INVENTORY:
+  [PASS] 11_arsip_campuran.zip!/01_catatan_a.txt (119 bytes)
+    - UTF-8 read=119 chars
+    - preview=DOKUMEN UJI A | Nama proyek: Kebun Kota | Lokasi: Blok Utara
+  [PASS] 11_arsip_campuran.zip!/03_hitung_total.py (175 bytes)
+    - static source read=175 chars; NOT EXECUTED
+  [PASS] 11_arsip_campuran.zip!/05_gambar_uji_a.png (7731 bytes)
+    - image valid; format=PNG; size=(1000, 700); mode=RGB
+  [PASS] 11_arsip_campuran.zip!/07_laporan_uji.pdf (1979 bytes)
+    - PDF pages=1; extracted_chars=233
+    - Laporan Uji CLOUZER Dokumen ini digunakan untuk menguji pembacaan PDF. Kode proyek: KOTA-042. Ringkasan: Lokasi Utara memiliki 24 tanaman dan Lokasi Selatan memiliki 18 tanaman. To
+[PASS] 11_arsip_campuran.zip (6808 bytes)
+  - ZIP valid; entries=4; files=4; CRC=PASS
+[PASS] 07_laporan_uji.pdf (1979 bytes)
+  - PDF pages=1; extracted_chars=233
+  - Laporan Uji CLOUZER Dokumen ini digunakan untuk menguji pembacaan PDF. Kode proyek: KOTA-042. Ringkasan: Lokasi Utara memiliki 24 tanaman dan Lokasi Selatan memiliki 18 tanaman. To
+[PASS] 02_catatan_b.txt (125 bytes)
+  - UTF-8 read=125 chars
+  - preview=DOKUMEN UJI B | Nama proyek: Kebun Kota | Lokasi: Blok Selatan
+[PASS] 05_gambar_uji_a.png (7731 bytes)
+  - image valid; format=PNG; size=(1000, 700); mode=RGB
+[PASS] 01_catatan_a.txt (119 bytes)
+  - UTF-8 read=119 chars
+  - preview=DOKUMEN UJI A | Nama proyek: Kebun Kota | Lokasi: Blok Utara
+[PASS] 06_gambar_uji_b.png (7226 bytes)
+  - image valid; format=PNG; size=(1000, 700); mode=RGB
+[PASS] BACA_DULU.txt (1589 bytes)
+  - UTF-8 read=1589 chars
+  - preview=PAKET TES MANUAL CLOUZER | ======================== | 
+[PASS] 03_hitung_total.py (175 bytes)
+  - static source read=175 chars; NOT EXECUTED
+[FAIL] 14_file_rusak.zip (40 bytes)
+  - ZIP open/CRC failed: BadZipFile: File is not a zip file
+[PASS] 04_readme_proyek.txt (115 bytes)
+  - UTF-8 read=115 chars
+  - preview=README UJI | File ini dipasangkan dengan 03_hitung_total.py. | Fungsi utama menghitung jumlah tanaman dari dua lokasi.
+[PASS] 09_data_uji.xlsx (5956 bytes)
+  - XLSX sheets=Utara, Selatan, Ringkasan
+  - Utara: Tanaman / Jumlah ; Tomat / 10 ; Cabai / 14
+  - Selatan: Tanaman / Jumlah ; Bayam / 8 ; Kangkung / 10
+  - Ringkasan: Lokasi / Total ; Utara / =SUM(Utara!B2:B3) ; Selatan / =SUM(Selatan!B2:B3)
+[PASS] 08_dokumen_uji.docx (36890 bytes)
+  - DOCX paragraphs=3; tables=1
+  - Dokumen Uji CLOUZER | Kode dokumen: DOCX-042. Tujuan: menguji pembacaan paragraf dan tabel. | Pertanyaan: berapa jumlah tanaman di kedua lokasi jika dijumlahkan?
+[PASS] 10_presentasi_uji.pptx (30068 bytes)
+  - PPTX slides=3
+  - Slide 1 - Tujuan Menguji kemampuan CLOUZER membaca presentasi.
+Kode presentasi: PPT-042. | Slide 2 - Data Utara: 24 tanaman.
+Selatan: 18 tanaman. | Slide 3 - Kesimpulan Total tanaman: 42.
+Pertanyaan: sebutkan total dan rincian per lokasi.
+    [PASS] 12_arsip_bersarang.zip!/folder/inner_test.zip!/02_catatan_b.txt (125 bytes)
+      - UTF-8 read=125 chars
+      - preview=DOKUMEN UJI B | Nama proyek: Kebun Kota | Lokasi: Blok Selatan
+  [PASS] 12_arsip_bersarang.zip!/folder/inner_test.zip (242 bytes)
+    - ZIP valid; entries=1; files=1; CRC=PASS
+  [PASS] 12_arsip_bersarang.zip!/04_readme_proyek.txt (115 bytes)
+    - UTF-8 read=115 chars
+    - preview=README UJI | File ini dipasangkan dengan 03_hitung_total.py. | Fungsi utama menghitung jumlah tanaman dari dua lokasi.
+[PASS] 12_arsip_bersarang.zip (550 bytes)
+  - ZIP valid; entries=2; files=2; CRC=PASS
+[PASS] 10_lampiran/lampiran_06.txt (45 bytes)
+  - UTF-8 read=45 chars
+  - preview=LAMPIRAN 06 | Kode unik: ITEM-06 | Nilai uji: 42
+[PASS] 10_lampiran/lampiran_03.txt (45 bytes)
+  - UTF-8 read=45 chars
+  - preview=LAMPIRAN 03 | Kode unik: ITEM-03 | Nilai uji: 21
+[PASS] 10_lampiran/lampiran_10.txt (45 bytes)
+  - UTF-8 read=45 chars
+  - preview=LAMPIRAN 10 | Kode unik: ITEM-10 | Nilai uji: 70
+[PASS] 10_lampiran/lampiran_07.txt (45 bytes)
+  - UTF-8 read=45 chars
+  - preview=LAMPIRAN 07 | Kode unik: ITEM-07 | Nilai uji: 49
+[PASS] 10_lampiran/lampiran_01.txt (44 bytes)
+  - UTF-8 read=44 chars
+  - preview=LAMPIRAN 01 | Kode unik: ITEM-01 | Nilai uji: 7
+[PASS] 10_lampiran/lampiran_09.txt (45 bytes)
+  - UTF-8 read=45 chars
+  - preview=LAMPIRAN 09 | Kode unik: ITEM-09 | Nilai uji: 63
+[PASS] 10_lampiran/lampiran_05.txt (45 bytes)
+  - UTF-8 read=45 chars
+  - preview=LAMPIRAN 05 | Kode unik: ITEM-05 | Nilai uji: 35
+[PASS] 10_lampiran/lampiran_08.txt (45 bytes)
+  - UTF-8 read=45 chars
+  - preview=LAMPIRAN 08 | Kode unik: ITEM-08 | Nilai uji: 56
+[PASS] 10_lampiran/lampiran_04.txt (45 bytes)
+  - UTF-8 read=45 chars
+  - preview=LAMPIRAN 04 | Kode unik: ITEM-04 | Nilai uji: 28
+[PASS] 10_lampiran/lampiran_02.txt (45 bytes)
+  - UTF-8 read=45 chars
+  - preview=LAMPIRAN 02 | Kode unik: ITEM-02 | Nilai uji: 14
+
+TOTALS (counts are per file occurrence, including nested archive members):
+Root files: 24
+Nested file occurrences: 7
+PASS: 30
+PARTIAL: 0
+FAIL: 1
+Note: duplicate content at different archive paths is counted separately. Folder entries are not files.
