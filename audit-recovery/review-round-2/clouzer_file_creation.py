@@ -22,8 +22,14 @@ _FILE_RETRY_COMMAND_RE = re.compile(
 MAX_PENDING_FILE_PROMPT_CHARS = 10_000
 
 
-def is_file_retry_command(prompt: str) -> bool:
+def is_retry_command(prompt: str) -> bool:
+    """Recognize a standalone retry command, independent of the failed feature."""
     return bool(_FILE_RETRY_COMMAND_RE.fullmatch(str(prompt or "").strip()))
+
+
+def is_file_retry_command(prompt: str) -> bool:
+    """Backward-compatible alias for older callers."""
+    return is_retry_command(prompt)
 
 
 def normalize_pending_retry_task(raw: object) -> dict | None:
