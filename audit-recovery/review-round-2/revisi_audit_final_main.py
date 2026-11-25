@@ -4983,7 +4983,8 @@ class ClouzerBot(commands.Bot):
             _turn_diag["queue_wait_seconds"] = _turn_loop.time() - _queue_wait_started
             guild_state = self.get_guild_state(guild, user.id, channel_id)
             pending_file_task = normalize_pending_file_task(guild_state.get("pending_file_task"))
-            if is_file_retry_command(clean_content) and pending_file_task:
+            retrying_pending_file = bool(is_file_retry_command(clean_content) and pending_file_task)
+            if retrying_pending_file:
                 clean_content = pending_file_task["prompt"]
                 requested_file_format = pending_file_task["format"]
                 logging.warning(
@@ -5073,7 +5074,7 @@ class ClouzerBot(commands.Bot):
                         payload_messages,
                         status_msg,
                         mode=mode,
-                        allow_tools=True,
+                        allow_tools=not retrying_pending_file,
                         allow_image_tool=allow_img_tool,
                     )
                 except ResponsesStreamInterrupted as stream_exc:
