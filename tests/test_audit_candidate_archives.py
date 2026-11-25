@@ -1,3 +1,4 @@
+import asyncio
 import importlib.util
 import io
 import os
@@ -1452,6 +1453,28 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("first.txt", text)
         self.assertNotIn("SECOND_NESTED_PAYLOAD", text)
         self.assertLessEqual(budget["bytes_read"], budget["max_bytes"])
+
+    def test_status_message_falls_back_when_reply_target_cannot_be_replied_to(self):
+        class ReplyTarget:
+            async def reply(self, *args, **kwargs):
+                raise RuntimeError("simulated deleted reply target")
+
+        class Channel:
+            def __init__(self):
+                self.sent = []
+
+            async def send(self, content):
+                self.sent.append(content)
+                return "channel-status"
+
+        async def run():
+            channel = Channel()
+            result = await module.send_turn_status_message(channel, ReplyTarget())
+            self.assertEqual(result, "channel-status")
+            self.assertEqual(len(channel.sent), 1)
+            self.assertIn("Menunggu giliran", channel.sent[0])
+
+        asyncio.run(run())
 
 if __name__ == "__main__":
     unittest.main()
