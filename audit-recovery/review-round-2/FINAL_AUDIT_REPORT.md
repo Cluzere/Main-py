@@ -8,12 +8,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit yang mengubah file kandidat: `406a9c360e2f2d94623b2a5e2a4a88457a6d3352`
-- Commit branch terbaru yang diuji pada CI: `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
+- Commit yang mengubah file kandidat: `5a4abd8986d4ea04f5dceb0b336f6e148ee2a543`
+- Commit branch terbaru yang diuji pada CI: `9c89296812748f2670cf4231562cdbdd7b2d8490`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat terbaru: `2f53ba0c4d534bfef2f7db30b5a16a6b87e8fecb`
-- Jumlah baris kandidat: 5.767
-- CI terbaru: [Run #45560134372 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45560134372)
+- Blob kandidat terbaru: `ec00289e86698ffaac5db39cd10433b371a662ea`
+- Jumlah baris kandidat: 5.783
+- CI terbaru: [Run #45560660471 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45560134372)
 
 ## Bukti CI terakhir
 
@@ -22,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat: **70/70 PASS**.
+- Tes kandidat: **72/72 PASS**.
 - Regresi audit yang sudah ada: **76/76 PASS**.
-- Total dua suite pada run terbaru: **146 tes PASS** (70 tes kandidat + 76 regresi lama).
+- Total dua suite pada run terbaru: **148 tes PASS** (72 tes kandidat + 76 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -194,27 +194,29 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 
 ## Temuan re-audit statis sebelumnya — 2026-11-25 (sudah diperbaiki)
 
-Audit sebelumnya terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fed` menemukan lima temuan. Patch kandidat sekarang ada pada commit `406a9c360e2f2d94623b2a5e2a4a88457a6d3352`; tes regresinya ditambahkan pada commit `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
+Audit sebelumnya terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fed` menemukan tujuh temuan. Patch kandidat sekarang ada pada commit `406a9c360e2f2d94623b2a5e2a4a88457a6d3352`; tes regresinya ditambahkan pada commit `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
 
 1. **Vision duplicate — FIXED.** `select_vision_images()` mengutamakan data URL lokal; URL remote hanya dipakai sebagai fallback. Tes membuktikan satu gambar lokal tidak ditambah lagi sebagai CDN URL.
 2. **Reply image reprocessing — FIXED.** `process_ai_turn()` tidak lagi memanggil `resolve_replied_images()` ulang di image tool handler; memakai `image_data_urls` yang sudah diproses ingress.
 3. **Nested archive truncation — FIXED.** Nested ZIP dan ZIP di dalam 7Z menambahkan marker truncation serta jumlah karakter yang tidak dimasukkan. Anggota teks/dokumen 7Z juga menandai truncation.
 4. **ZIP image skip warning — FIXED.** Kode menghitung gambar yang diterima dan benar-benar dilewati sebelum membuat peringatan.
 5. **Nested archive aggregate decompression budget — FIXED.** ZIP utama dan nested ZIP berbagi satu batas byte dekompresi; ZIP dalam 7Z menggunakan sisa budget hasil ekstraksi 7Z. Tes baru membuktikan ZIP bersarang kedua ditolak ketika budget gabungan habis.
+6. **Status message reply failure — FIXED.** Jika reply status ke pesan sumber gagal (misalnya pesan sumber hilang), bot mencoba mengirim status langsung ke channel agar giliran tidak langsung gugur.
+7. **Retained image context cap — FIXED.** Konteks gambar edit yang disimpan di RAM sekarang dideduplikasi dan dibatasi ke `MAX_VISION_IMAGES_PER_TURN`, sama dengan batas gambar vision.
 
-Kelima perbaikan diuji pada suite kandidat: tes sumber vision, ZIP image budget, nested ZIP truncation, nested ZIP-in-7Z truncation, dan 7Z text truncation. Tidak ada live Discord/provider test dalam run ini.
+Ketujuh perbaikan diuji pada suite kandidat: tes sumber vision, ZIP image budget, nested ZIP truncation, nested ZIP-in-7Z truncation, dan 7Z text truncation. Tidak ada live Discord/provider test dalam run ini.
 
 ## Verifikasi CI dan runtime terbaru
 
-- Run GitHub Actions `45560134372`: seluruh job selesai dengan `success` pada commit `4d4c40c58682a8a55fb0a095e5472e31b2c6b27e`.
-- Candidate suite: **70/70 PASS**; regresi lama: **76/76 PASS** (146 tes total). Log job menunjukkan kedua suite selesai `OK`.
+- Run GitHub Actions `45560660471`: seluruh job selesai dengan `success` pada commit `9c89296812748f2670cf4231562cdbdd7b2d8490`.
+- Candidate suite: **72/72 PASS**; regresi lama: **76/76 PASS** (148 tes total). Log job menunjukkan kedua suite selesai `OK`.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
-- Wispbyte runtime terakhir yang dikonfirmasi pengguna masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; patch terbaru (commit `406a9c360e2f2d94623b2a5e2a4a88457a6d3352`, blob `2f53ba0c4d534bfef2f7db30b5a16a6b87e8fecb`) belum di-deploy ke runtime. Blob kandidat sekarang `2f53ba0c4d534bfef2f7db30b5a16a6b87e8fecb`. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
+- Wispbyte runtime terakhir yang dikonfirmasi pengguna masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; patch terbaru (commit `5a4abd8986d4ea04f5dceb0b336f6e148ee2a543`, blob `ec00289e86698ffaac5db39cd10433b371a662ea`) belum di-deploy ke runtime. Blob kandidat sekarang `2f53ba0c4d534bfef2f7db30b5a16a6b87e8fecb`. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
 
 ## Keputusan
 
-Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 70 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
+Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 72 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
 
 Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
 
