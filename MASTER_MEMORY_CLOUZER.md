@@ -1884,3 +1884,45 @@ Bagian §38 mencatat fallback di helper. Inspeksi lanjutan menemukan satu pengha
 - Seluruh perubahan hanya pada branch `audit-recovery-gpt-2026-11-23`.
 - Production root `main.py` tidak diubah; tidak ada merge ke `main`, deployment, atau restart Wispbyte.
 - CI hijau kelak tetap bukan bukti live Discord attachment atau Box upload. Setelah CI hijau, live retest harus memeriksa empat tahap secara terpisah: workbook dibuat, workbook tervalidasi, attachment Discord dikonfirmasi, dan artefak Box benar-benar ada.
+
+
+---
+
+## 40. FINAL CI RESULT — XLSX prompt-table fallback fixed (26 November 2026)
+
+### 40.1 Final code commit and correction
+
+- Final tested candidate code commit: `f6bb359f3b291ee1c81dd36d7978e6c20b61bb83`.
+- File `audit-recovery/review-round-2/clouzer_file_creation.py` corrected the fallback serialization to use actual newline and TAB delimiters:
+  - Python source: `"\\n".join("\\t".join(row) for row in prompt_rows)`.
+  - This converts the explicit pipe-delimited prompt table into separate worksheet rows and columns.
+- The previous CI failure was a real regression-test catch: fallback data had been joined using literal backslash sequences, so XLSX parser saw one malformed row. The failure was not ignored; the source was corrected and CI rerun.
+- Candidate pipeline refusal guard remains as committed in `feda289d7bf7a6d6559a26fa2f0b6ffa7bab3fb4`: XLSX refusal responses reach the helper, while non-XLSX refusal responses remain rejected.
+
+### 40.2 Verified GitHub Actions results for final code commit
+
+**Audit recovery candidate**
+- Run [45719148082](https://github.com/Cluzere/Main-py/actions/runs/45719148082): **SUCCESS**.
+- Candidate compile: SUCCESS.
+- High-severity Bandit scan: SUCCESS.
+- Runtime dependency installation: SUCCESS.
+- Focused regression suite: **96 tests, all PASS**.
+
+**Audit candidate syntax check**
+- Run [45719148064](https://github.com/Cluzere/Main-py/actions/runs/45719148064): **SUCCESS**.
+- Dependency consistency: SUCCESS.
+- Candidate compile: SUCCESS.
+- `pip-audit --strict`: SUCCESS; log reports no known vulnerabilities.
+- Bandit medium/high scan: SUCCESS.
+- File creation tests: **20/20 PASS**.
+- Candidate archive regression tests: **93/93 PASS**.
+- Existing audit regression tests: **96/96 PASS**.
+
+The new XLSX fallback regression test is explicitly shown as PASS in run 45719148082. The test validates the exact prompt-table fallback for 10 data rows × 6 columns, worksheet `Data Pegawai`, requested filename, numeric `No`/`Umur`/`Harga`, and the negative case where no source table exists.
+
+### 40.3 Final state and remaining live verification
+
+- The prior failed CI runs on intermediate commits are historical and must remain recorded; final code commit `f6bb359...` has two successful workflows listed above.
+- The successful CI proves the candidate implementation and regression tests only. It does not prove the live CLOUZER process has fetched/restarted onto this commit or that Discord/Box delivery works.
+- Live retest for `TES_AUDIT_CLOUZER_ULANG.xlsx` is still pending. Acceptance requires inspection of the real Discord attachment and separate confirmation of Box upload.
+- Production `main.py` remains untouched. No merge to `main`, production deployment, or Wispbyte restart was performed by the assistant.
