@@ -26,16 +26,33 @@ def is_file_retry_command(prompt: str) -> bool:
     return bool(_FILE_RETRY_COMMAND_RE.fullmatch(str(prompt or "").strip()))
 
 
-def normalize_pending_file_task(raw: object) -> dict | None:
+def normalize_pending_retry_task(raw: object) -> dict | None:
+    """Validate a failed operation's replay context; format is present only for file tasks."""
     if not isinstance(raw, dict):
         return None
-    fmt = str(raw.get("format") or "").lower().lstrip(".")
     prompt = str(raw.get("prompt") or "").strip()
-    if fmt not in _FORMAT_PATTERNS or not prompt:
+    if not prompt:
         return None
     if len(prompt) > MAX_PENDING_FILE_PROMPT_CHARS:
         prompt = prompt[:MAX_PENDING_FILE_PROMPT_CHARS]
-    return {"format": fmt, "prompt": prompt}
+    task = {"prompt": prompt}
+    fmt = str(raw.get("format") or "").lower().lstrip(".")
+    if fmt:
+        if fmt not in _FORMAT_PATTERNS:
+            return None
+        task["format"] = fmt
+    kind = str(raw.get("kind") or "").strip().lower()
+    if kind in {"file", "image", "audio", "message", "other"}:
+        task["kind"] = kind
+    return task
+
+
+def normalize_pending_file_task(raw: object) -> dict | None:
+    """Backward-compatible validator for older file-only state."""
+    task = normalize_pending_retry_task(raw)
+    if not task or task.get("format") not in _FORMAT_PATTERNS:
+        return None
+    return {"format": task["format"], "prompt": task["prompt"]}
 
 
 
