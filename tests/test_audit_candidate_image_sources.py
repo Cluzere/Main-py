@@ -39,6 +39,12 @@ class ImageSourceMergeTests(unittest.TestCase):
             ["data:image/png;base64,A"],
         )
 
+    def test_zero_cap_returns_no_sources(self):
+        self.assertEqual(
+            module.merge_image_sources(["data:image/png;base64,A"], limit=0),
+            [],
+        )
+
     def test_ignores_invalid_image_source_values(self):
         self.assertEqual(
             module.merge_image_sources(
