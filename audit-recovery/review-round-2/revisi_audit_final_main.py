@@ -5283,6 +5283,12 @@ class ClouzerBot(commands.Bot):
                     _turn_diag["total_seconds"],
                 )
             except Exception as e:
+                logging.exception(
+                    "[TURN-EXCEPTION] message_id=%s mode=%s request_id=%s stage=message_pipeline",
+                    getattr(reply_to_message, "id", None),
+                    mode,
+                    _turn_diag.get("request_id"),
+                )
                 partial_text = getattr(e, "partial_text", "")
                 if partial_text:
                     safe_partial = scrub_own_secrets(clean_response_text(partial_text))[:1400]
