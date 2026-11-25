@@ -241,3 +241,28 @@ Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
 - Dependensi staging: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/requirements-audit.txt
 - Perintah staging: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/audit-recovery/review-round-2/STARTUP_COMMANDS.txt
 - Workflow CI: https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/.github/workflows/audit-candidate-check.yml
+
+
+## Addendum — root-cause audit PARTIAL (2026-11-25)
+
+A separate item-by-item root-cause review for all 32 PARTIAL rows is available here:
+`audit-recovery/review-round-2/PARTIAL_ROOT_CAUSE_AUDIT.md`.
+
+Key clarification: PARTIAL does not mean 32 confirmed code defects. The rows include explicit feature limits, test-coverage gaps, provider/hosting validation gates, and a few descriptions that were stale relative to the current code. No PARTIAL row is automatically promoted to DONE.
+
+### Additional archive-vector regression coverage
+
+The ZIP member loop calls `check_file_signature()` before dispatching every member. That includes SVG/EPS/AI signature checks. Added tests now verify:
+- malformed SVG/EPS/AI files inside ZIP are rejected by signature;
+- valid vector signatures pass the signature gate but are still correctly reported as unsupported for archive content extraction (not falsely claimed as parsed).
+
+### Latest verified CI
+
+- Commit: `05819815ea152b12560518b356a067a5ca5d9863`
+- Candidate suite: **87/87 PASS**
+- Existing regression suite: **76/76 PASS**
+- Total: **163/163 PASS**
+- `py_compile`, `pip check`, Bandit medium/high, `pip-audit --strict`: PASS
+- Run: https://github.com/Cluzere/Main-py/actions/runs/45567432060
+
+This updates the previous 85 + 76 count. Production remains blocked pending the live gates listed above.
