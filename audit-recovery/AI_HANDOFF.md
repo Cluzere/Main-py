@@ -32,7 +32,7 @@ Active audit branch: `audit-recovery-gpt-2026-11-23`
 - Candidate: `c528ea4bec13e3f37b5420cb04fa1a155ebe95f6` (282,602 bytes; 5,656 lines)
 - Candidate tests: `b1821cf238b8ea358ddf6201cdbf58a1ed0f01ec` (50,312 bytes; 1,374 lines)
 - Existing regression tests: `5a735dc40bdf4c8504f4d7bf180e819004f40592` (38,349 bytes; 901 lines)
-- Audit report: `3e3b4ac1f9ad0e47d04fbae9623a663ce49a95f5`
+- Audit report: `97a867fc4d8c5406f002f5f2ce2874035e082c0b`
 - Original source `main (4).py`: `ffffd0c17169b29504f4a8713dca396cf61ddeff` on both default `main` and audit branch; unchanged.
 
 ### Current branch and CI
@@ -103,7 +103,7 @@ The candidate received further bounds for provider output and function-call meta
 ## 6. Test and verification status — do not overstate
 
 Latest verified CI:
-- Run `45514556079`: SUCCESS on candidate branch commit `840a479e334f9ee9ea3e023c43221dd80ad8cc9f`.
+- Run `45514556079`: SUCCESS on candidate branch commit `2ec913a3b3a698daca317e0a71cd3d3705cdd02a`.
 - Candidate regression suite: **57/57 PASS**.
 - Existing audit regression suite: **74/74 PASS**.
 - Total: **131/131 tests PASS**.
