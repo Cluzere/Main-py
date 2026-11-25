@@ -83,6 +83,8 @@ ZIP_MAX_ENTRIES = 2000
 ZIP_MAX_TOTAL_UNCOMPRESSED = 100 * 1024 * 1024
 ZIP_MAX_ENTRY_UNCOMPRESSED = 25 * 1024 * 1024
 ZIP_MAX_COMPRESSION_RATIO = 200
+# Permit up to three nested ZIP layers while sharing the same byte/image/text budgets.
+MAX_NESTED_ZIP_DEPTH = 3
 
 # ---------------------------------------------------------------------------
 # Batas sumber daya & keamanan (patch security-hardening-2026-11).
@@ -3169,7 +3171,7 @@ class ClouzerBot(commands.Bot):
             )
             return warn, media_imgs
 
-        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=True)
+        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=False, read_only=True)
         try:
             parts: list[str] = []
             total_chars = 0
@@ -3183,6 +3185,11 @@ class ClouzerBot(commands.Bot):
                 parts.append(metadata_block)
                 total_chars += len(metadata_block) + 2
 
+            parts.append(
+                f"[Cakupan XLSX: {min(len(wb.sheetnames), 15)} dari {len(wb.sheetnames)} sheet; "
+                "maksimal 120 baris dan 25 kolom per sheet. Rumus ditampilkan sebagai ekspresi, bukan hasil hitung ulang.]"
+            )
+            total_chars += len(parts[-1]) + 2
             for sheet_name in wb.sheetnames[:15]:
                 ws = wb[sheet_name]
                 rows_out: list[str] = []
@@ -3475,8 +3482,8 @@ class ClouzerBot(commands.Bot):
                         continue
 
                     if ext == ".zip":
-                        if _depth >= 1:
-                            parts.append(f"[ZIP bersarang dilewati: kedalaman maksimum tercapai ({display_path[:120]}).]")
+                        if _depth >= MAX_NESTED_ZIP_DEPTH:
+                            parts.append(f"[ZIP bersarang dilewati: batas kedalaman {MAX_NESTED_ZIP_DEPTH} lapis tercapai ({display_path[:120]}).]")
                         else:
                             nested_text, nested_images = self.extract_generic_zip_content(
                                 member_bytes,
