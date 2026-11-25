@@ -131,7 +131,7 @@ class ArchiveReaderTests(unittest.TestCase):
         outer = self.make_zip([("12_arsip_bersarang.zip", middle)])
         text, images = self.bot.extract_generic_zip_content(outer, "package.zip")
         self.assertIn("KEBUN KOTA BLOK SELATAN - 18 TANAMAN", text)
-        self.assertIn("12_arsip_bersarang.zip!/folder/inner_test.zip!/02_catatan_b.txt", text)
+        self.assertIn("package.zip!/12_arsip_bersarang.zip!/folder/inner_test.zip!/02_catatan_b.txt", text)
         self.assertNotIn("kedalaman maksimum", text)
         self.assertEqual(images, [])
 
@@ -142,7 +142,7 @@ class ArchiveReaderTests(unittest.TestCase):
         middle = self.make_zip([("05_gambar_uji_a.png", image_buffer.getvalue())])
         outer = self.make_zip([("11_arsip_campuran.zip", middle)])
         text, images = self.bot.extract_generic_zip_content(outer, "package.zip")
-        self.assertIn("Gambar arsip disertakan sebagai visual", text)
+        self.assertIn("VISUAL IMAGE #1 SOURCE: package.zip!/11_arsip_campuran.zip!/05_gambar_uji_a.png", text)
         self.assertEqual(len(images), 1)
         self.assertTrue(images[0].startswith("data:image/"))
 
@@ -166,10 +166,16 @@ class ArchiveReaderTests(unittest.TestCase):
         wb.save(raw)
         wb.close()
         text, _ = self.bot.extract_xlsx_content(raw.getvalue(), "09_data_uji.xlsx")
-        self.assertIn("=SUM(Utara!B2:B3)", text)
-        self.assertIn("=SUM(Selatan!B2:B3)", text)
-        self.assertIn("Tomat", text)
-        self.assertIn("Kangkung", text)
+        self.assertIn("B2=10", text)
+        self.assertIn("B3=14", text)
+        self.assertIn("B2=8", text)
+        self.assertIn("B3=10", text)
+        self.assertIn("B2==SUM(Utara!B2:B3)", text)
+        self.assertIn("B3==SUM(Selatan!B2:B3)", text)
+        self.assertIn("A2=Tomat", text)
+        self.assertIn("A3=Cabai", text)
+        self.assertIn("A2=Bayam", text)
+        self.assertIn("A3=Kangkung", text)
 
     def test_corrupt_nested_zip_is_reported_and_other_members_continue(self):
         # Keep a ZIP local-file signature so this reaches the ZIP parser,
@@ -179,7 +185,7 @@ class ArchiveReaderTests(unittest.TestCase):
             ("valid.txt", "VALID MEMBER STILL READ"),
         ])
         text, _ = self.bot.extract_generic_zip_content(raw, "package.zip")
-        self.assertIn("BadZipFile", text)
+        self.assertIn("BadZipFile: File is not a zip file", text)
         self.assertIn("VALID MEMBER STILL READ", text)
 
     def test_original_clouzer_package_four_gap_regressions(self):
@@ -193,17 +199,20 @@ class ArchiveReaderTests(unittest.TestCase):
             corrupt = package.read("14_file_rusak.zip")
 
         xlsx_text, _ = self.bot.extract_xlsx_content(xlsx, "09_data_uji.xlsx")
-        self.assertIn("=SUM(Utara!B2:B3)", xlsx_text)
-        self.assertIn("=SUM(Selatan!B2:B3)", xlsx_text)
+        self.assertIn("B2==SUM(Utara!B2:B3)", xlsx_text)
+        self.assertIn("B3==SUM(Selatan!B2:B3)", xlsx_text)
+        self.assertIn("A2=Tomat", xlsx_text)
+        self.assertIn("B2=10", xlsx_text)
 
         nested_text, _ = self.bot.extract_generic_zip_content(nested, "12_arsip_bersarang.zip")
+        self.assertIn("12_arsip_bersarang.zip!/folder/inner_test.zip!/02_catatan_b.txt", nested_text)
         self.assertIn("Kebun Kota", nested_text)
         self.assertIn("Blok Selatan", nested_text)
         self.assertIn("18", nested_text)
         self.assertNotIn("kedalaman maksimum", nested_text)
 
         mixed_text, mixed_images = self.bot.extract_generic_zip_content(mixed, "11_arsip_campuran.zip")
-        self.assertIn("05_gambar_uji_a.png", mixed_text)
+        self.assertIn("VISUAL IMAGE #1 SOURCE: 11_arsip_campuran.zip!/05_gambar_uji_a.png", mixed_text)
         self.assertEqual(len(mixed_images), 1)
         self.assertTrue(mixed_images[0].startswith("data:image/"))
 
@@ -211,7 +220,7 @@ class ArchiveReaderTests(unittest.TestCase):
             self.make_zip([("14_file_rusak.zip", corrupt), ("keep.txt", "CONTINUE AFTER BAD ZIP")]),
             "corrupt-regression.zip",
         )
-        self.assertIn("BadZipFile", corrupt_text)
+        self.assertIn("BadZipFile: File is not a zip file", corrupt_text)
         self.assertIn("CONTINUE AFTER BAD ZIP", corrupt_text)
 
     def test_skips_symlink_entries(self):
@@ -1559,7 +1568,7 @@ class ArchiveReaderTests(unittest.TestCase):
                 raw, "images.zip", _image_budget=1
             )
         self.assertEqual(images, [two_images[0]])
-        self.assertIn("1 gambar dari images.pdf dilewati", text)
+        self.assertIn("1 gambar dari images.zip!/images.pdf dilewati", text)
 
     def test_zip_document_image_warning_is_absent_when_nothing_was_skipped(self):
         from unittest.mock import patch
