@@ -2087,7 +2087,6 @@ class AIResponseView(discord.ui.View):
                                 except Exception:
                                     logging.exception("Continuation sukses gambar gagal saat Regenerate (%s)", scope_key)
 
-                            guild_state.pop("pending_retry_task", None)
                             if channel_id:
                                 context_image = await asyncio.to_thread(
                                     self.bot_instance._compress_image_bytes_to_data_url, img_bytes
@@ -5359,6 +5358,7 @@ class ClouzerBot(commands.Bot):
                             mem_content = f"{reply_text}\n{mem_summary}".strip() if reply_text else mem_summary
                             history_msgs.append({"role": "assistant", "content": mem_content})
                             guild_state["turn_count"] = guild_state.get("turn_count", 0) + 1
+                            guild_state.pop("pending_retry_task", None)
                             await self.save_memory()
 
                             await status_msg.edit(content=first_caption, embed=embed, attachments=[file])
