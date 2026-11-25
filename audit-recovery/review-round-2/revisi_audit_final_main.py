@@ -36,7 +36,7 @@ from clouzer_file_creation import (
     normalize_pending_retry_task,
     validate_document_file,
 )
-from clouzer_box_oauth import start_box_oauth_server
+from clouzer_box_oauth import start_box_oauth_server, box_api_request
 
 try:
     import py7zr
@@ -5600,6 +5600,59 @@ def get_permission_warning(guild: discord.Guild | None) -> str:
     if not bot.has_any_allowed_channel(guild):
         return "⚠️ **Setup Awal:** Bot belum diizinkan. Admin ketik `/channel` → **Izinkan Channel Ini**!"
     return "❌ Channel ini belum diizinkan. Atur lewat `/channel`."
+
+
+@bot.tree.command(name="box-test", description="Tes akses baca folder Box (Khusus Admin)")
+@app_commands.describe(folder_id="ID folder Box yang akan diuji (default: Test file)")
+async def box_test_cmd(interaction: discord.Interaction, folder_id: str = "441035368657"):
+    member_perms = getattr(interaction.user, "guild_permissions", None)
+    if interaction.guild is None or not member_perms or not (
+        member_perms.manage_channels or member_perms.administrator
+    ):
+        await interaction.response.send_message(
+            "⛔ Perintah ini hanya untuk admin server dengan izin Manage Channels.",
+            ephemeral=True,
+        )
+        return
+    if not folder_id.isdigit():
+        await interaction.response.send_message("❌ ID folder harus berupa angka.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True, thinking=True)
+    endpoint = f"https://api.box.com/2.0/folders/{folder_id}/items"
+    try:
+        status, _, body = await box_api_request(
+            "GET", endpoint, params={"limit": 15, "fields": "id,type,name,size"}
+        )
+        payload = json.loads(body.decode("utf-8", errors="replace") or "{}")
+        if status != 200:
+            box_message = str(payload.get("message") or payload.get("error") or "Unknown Box API error")
+            await interaction.followup.send(
+                f"❌ Box API menolak permintaan (HTTP {status}): {box_message[:500]}",
+                ephemeral=True,
+            )
+            return
+        entries = payload.get("entries") or []
+        folder_name = str(payload.get("name") or f"Folder {folder_id}")
+        if not entries:
+            result_text = f"✅ Box API berhasil diakses. Folder **{folder_name}** terbaca, tetapi kosong."
+        else:
+            lines = []
+            for item in entries[:15]:
+                item_name = str(item.get("name") or "(tanpa nama)").replace("\\n", " ")[:120]
+                item_type = "Folder" if item.get("type") == "folder" else "File"
+                lines.append(f"• **{item_type}:** {item_name}")
+            result_text = (
+                f"✅ **Box API berhasil!** Folder: **{folder_name}** "
+                f"(menampilkan {len(entries[:15])} item pertama)\n" + "\\n".join(lines)
+            )
+        await interaction.followup.send(result_text[:1900], ephemeral=True)
+    except Exception as exc:
+        logging.exception("Box folder read test failed.")
+        await interaction.followup.send(
+            f"❌ Tes Box gagal: {safe_exc_text(exc)[:500]}",
+            ephemeral=True,
+        )
 
 
 @bot.tree.command(name="channel", description="Atur izin channel bot (Khusus Admin)")
