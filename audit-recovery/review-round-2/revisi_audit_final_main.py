@@ -5192,7 +5192,8 @@ class ClouzerBot(commands.Bot):
                             + "Ukuran: " + format(len(generated_bytes), ",") + " byte"
                         )
                         await status_msg.edit(content=caption, attachments=[generated_file], view=None)
-                        guild_state.pop("pending_retry_task", None)
+                        if not attachment_processing_failed:
+                            guild_state.pop("pending_retry_task", None)
                         history_msgs.append({
                             "role": "assistant",
                             "content": "[File dibuat: " + generated_name + " | " + generated_mime + " | "
@@ -5405,7 +5406,8 @@ class ClouzerBot(commands.Bot):
                             mem_content = f"{reply_text}\n{mem_summary}".strip() if reply_text else mem_summary
                             history_msgs.append({"role": "assistant", "content": mem_content})
                             guild_state["turn_count"] = guild_state.get("turn_count", 0) + 1
-                            guild_state.pop("pending_retry_task", None)
+                            if not attachment_processing_failed:
+                                guild_state.pop("pending_retry_task", None)
                             await self.save_memory()
 
                             await status_msg.edit(content=first_caption, embed=embed, attachments=[file])
