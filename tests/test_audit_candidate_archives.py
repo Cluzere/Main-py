@@ -196,7 +196,8 @@ class ArchiveReaderTests(unittest.TestCase):
         if not package_path or not os.path.isfile(package_path):
             self.skipTest("Original ZIP fixture is supplied by the GitHub Actions workflow")
 
-        package_bytes = open(package_path, "rb").read()
+        with open(package_path, "rb") as package_file:
+            package_bytes = package_file.read()
         with zipfile.ZipFile(io.BytesIO(package_bytes)) as package:
             # Verify CRCs of the original package itself, including the stored
             # bytes of the intentionally corrupt nested-ZIP test member.
@@ -213,8 +214,8 @@ class ArchiveReaderTests(unittest.TestCase):
                 self.assertIsNone(inner_zip.testzip())
                 self.assertEqual(
                     inner_zip.read("02_catatan_b.txt").decode("utf-8").strip(),
-                    "DOKUMEN UJI B\nNama proyek: Kebun Kota\nLokasi: Blok Selatan\n"
-                    "Jumlah tanaman: 18\nCatatan: Kompos ditambahkan setiap hari Jumat.",
+                    "DOKUMEN UJI B\\nNama proyek: Kebun Kota\\nLokasi: Blok Selatan\\n"
+                    "Jumlah tanaman: 18\\nCatatan: Kompos ditambahkan setiap hari Jumat.",
                 )
 
             # The nested image bytes used by the vision payload must be byte-for-byte
