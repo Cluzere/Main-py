@@ -13,7 +13,6 @@ Never log or return OAuth tokens to the browser.
 from __future__ import annotations
 
 import asyncio
-import hmac
 import json
 import logging
 import os
@@ -144,6 +143,10 @@ async def _callback(request: web.Request) -> web.Response:
     )
 
 
+async def _close_http_session(app: web.Application) -> None:
+    await app["http"].close()
+
+
 async def start_box_oauth_server() -> web.AppRunner | None:
     client_id = _required_env("BOX_CLIENT_ID")
     client_secret = _required_env("BOX_CLIENT_SECRET")
@@ -169,6 +172,7 @@ async def start_box_oauth_server() -> web.AppRunner | None:
     app["token_path"] = _token_path()
     app["states"] = {}
     app["http"] = aiohttp.ClientSession()
+    app.on_cleanup.append(_close_http_session)
     app.router.add_get("/health", _health)
     app.router.add_get("/login", _login)
     app.router.add_get("/callback", _callback)
