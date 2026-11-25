@@ -91,15 +91,16 @@ def _safe_title(content: str, prompt: str) -> str:
 
 def _safe_sheet_title(prompt: str) -> str:
     value = str(prompt or "")
-    match = re.search(
-        r"(?:nama\s+)?(?:worksheet|work\s*sheet|sheet|lembar\s+kerja)"
-        r"\s*(?:bernama|dengan\s+nama|name|:)?\s*[\"']?([A-Za-z0-9 _-]{1,31})",
+    pattern = r"\b(?:worksheet|work\s*sheet|sheet|lembar\s+kerja)\b"
+    quoted = re.search(pattern + r"\s*(?:bernama|dengan\s+nama|name|:)?\s*[\"']([^\"']{1,80})[\"']", value, re.I)
+    match = quoted or re.search(
+        pattern + r"\s*(?:bernama|dengan\s+nama|name|:)?\s*([A-Za-z0-9 _-]{1,80})",
         value, re.I,
     )
     title = match.group(1).strip(" _-") if match else "Data"
+    title = re.split(r"\s+(?:dengan|berisi|untuk|yang|sebanyak)\b", title, maxsplit=1, flags=re.I)[0]
     title = re.sub(r"[\[\]:*?/\\]", " ", title).strip()[:31]
     return title or "Data"
-
 def _safe_filename(prompt: str, extension: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "_", str(prompt or "").lower()).strip("_")[:36] or "dokumen"
     stamp = time.strftime("%Y%m%d_%H%M%S", time.gmtime())
