@@ -83,6 +83,8 @@ ZIP_MAX_ENTRIES = 2000
 ZIP_MAX_TOTAL_UNCOMPRESSED = 100 * 1024 * 1024
 ZIP_MAX_ENTRY_UNCOMPRESSED = 25 * 1024 * 1024
 ZIP_MAX_COMPRESSION_RATIO = 200
+# Allow the uploaded ZIP plus at most two nested ZIP layers, under shared byte/member budgets.
+ZIP_MAX_NESTED_DEPTH = 2
 
 # ---------------------------------------------------------------------------
 # Batas sumber daya & keamanan (patch security-hardening-2026-11).
@@ -3169,7 +3171,7 @@ class ClouzerBot(commands.Bot):
             )
             return warn, media_imgs
 
-        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=True)
+        wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=False, read_only=True)
         try:
             parts: list[str] = []
             total_chars = 0
@@ -3475,8 +3477,8 @@ class ClouzerBot(commands.Bot):
                         continue
 
                     if ext == ".zip":
-                        if _depth >= 1:
-                            parts.append(f"[ZIP bersarang dilewati: kedalaman maksimum tercapai ({display_path[:120]}).]")
+                        if _depth >= ZIP_MAX_NESTED_DEPTH:
+                            parts.append(f"[ZIP bersarang dilewati: kedalaman maksimum {ZIP_MAX_NESTED_DEPTH} tercapai ({display_path[:120]}).]")
                         else:
                             nested_text, nested_images = self.extract_generic_zip_content(
                                 member_bytes,
