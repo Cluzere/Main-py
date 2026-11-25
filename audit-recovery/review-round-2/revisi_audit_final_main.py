@@ -3564,11 +3564,16 @@ class ClouzerBot(commands.Bot):
                 infos = archive.list()
                 if len(infos) > ZIP_MAX_ENTRIES:
                     raise ValueError("arsip 7Z memiliki terlalu banyak anggota")
+                # Folder adalah entri struktur, bukan file yang harus diekstrak.
+                # Hitung dan laporkan hanya file yang benar-benar tidak dipilih.
+                file_infos = [
+                    info for info in infos
+                    if not getattr(info, "is_directory", False)
+                ]
                 selected = []
+                skipped_members: list[tuple[str, str]] = []
                 total_size = 0
-                for info in infos:
-                    if getattr(info, "is_directory", False):
-                        continue
+                for info in file_infos:
                     member_name = str(getattr(info, "filename", "") or "").replace(chr(92), "/")
                     parts = member_name.split("/")
                     if (
@@ -3577,10 +3582,17 @@ class ClouzerBot(commands.Bot):
                         or any(part == ".." for part in parts)
                         or chr(0) in member_name
                     ):
-                        parts_out.append("[Anggota 7Z ditolak karena path tidak aman: %s]" % member_name[:120])
+                        reason = "path tidak aman"
+                        parts_out.append("[Anggota 7Z dilewati: %s (%s)]" % (member_name[:120], reason))
+                        skipped_members.append((member_name or "<nama kosong>", reason))
                         continue
                     if getattr(info, "is_symlink", False) or not getattr(info, "is_file", False):
-                        parts_out.append("[Anggota khusus/symlink 7Z dilewati: %s]" % member_name[:120])
+                        reason = "tipe khusus/symlink"
+                        parts_out.append("[Anggota 7Z dilewati: %s (%s)]" % (member_name[:120], reason))
+                        skipped_members.append((member_name, reason))
+                        continue
+                    if len(selected) >= 100:
+                        skipped_members.append((member_name, "batas maksimum 100 file"))
                         continue
                     size = getattr(info, "uncompressed", None)
                     compressed = getattr(info, "compressed", None)
@@ -3593,8 +3605,6 @@ class ClouzerBot(commands.Bot):
                         if size / max(compressed, 1) > ZIP_MAX_COMPRESSION_RATIO:
                             raise ValueError("rasio kompresi 7Z mencurigakan")
                     selected.append(member_name)
-                    if len(selected) >= 100:
-                        break
                 if selected:
                     archive.extract(targets=selected, recursive=False, factory=factory)
 
@@ -3698,8 +3708,22 @@ class ClouzerBot(commands.Bot):
                 else:
                     parts_out.append("[Format anggota 7Z belum didukung: %s]" % member_name[:140])
 
-            if len(infos) > len(selected):
-                parts_out.append("[Sebagian anggota dilewati karena batas pemrosesan atau tipe file khusus.]")
+            if skipped_members:
+                skipped_summary = "; ".join(
+                    "%s (%s)" % (name[:100], reason)
+                    for name, reason in skipped_members[:20]
+                )
+                if len(skipped_members) > 20:
+                    skipped_summary += "; dan %s anggota lainnya" % (len(skipped_members) - 20)
+                parts_out.append(
+                    "[Inventaris 7Z: %s file; %s dipilih untuk ekstraksi; %s dilewati. Rincian: %s]"
+                    % (len(file_infos), len(selected), len(skipped_members), skipped_summary)
+                )
+            else:
+                parts_out.append(
+                    "[Inventaris 7Z: %s file; seluruh file dipilih untuk ekstraksi; folder tidak dihitung sebagai file.]"
+                    % len(file_infos)
+                )
             if not parts_out:
                 parts_out.append("[Arsip 7Z valid tetapi tidak memiliki file yang dapat dibaca.]")
             return self._wrap_doc_content("7Z", filename, "\n\n".join(parts_out)), images
