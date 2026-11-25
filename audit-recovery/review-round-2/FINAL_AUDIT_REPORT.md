@@ -8,12 +8,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit terakhir yang mengubah file kandidat: `f18b89164f02f9fa4892fa0922bdf5340e116d62`
-- Commit kandidat yang diuji pada CI terakhir: `f18b89164f02f9fa4892fa0922bdf5340e116d62`.
+- Commit yang mengubah file kandidat: `16a94040f9587f8dbc20d1c84c3a7bf5f57fc79c`
+- Commit branch terbaru yang diuji pada CI: `05842e8f846bc755f81d889f5ac219aa6024d06f`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat: `f66ce2290471fd1fc4294088b2d12f352b638fed`
-- Jumlah baris: 5.670
-- CI terakhir: [Run #45530257201 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45530257201)
+- Blob kandidat terbaru: `e07cb20b407a1f17270ec8254b01ace4a0810f47`
+- Jumlah baris kandidat: 5.738
+- CI terbaru: [Run #45558598976 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45558598976)
 
 ## Bukti CI terakhir
 
@@ -22,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat tambahan: **62/62 PASS**.
+- Tes kandidat: **69/69 PASS**.
 - Regresi audit yang sudah ada: **76/76 PASS**.
-- Total dua suite yang dijalankan pada run terakhir: **138 tes PASS** (62 tes kandidat + 76 regresi lama).
+- Total dua suite pada run terbaru: **145 tes PASS** (69 tes kandidat + 76 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -56,8 +56,12 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 18. Anggota PDF/Office/audio dalam ZIP dan 7Z diperiksa signature-nya sebelum diparse; file dengan ekstensi yang tidak cocok ditolak dan dilaporkan.
 
-19. Sumber gambar untuk edit sekarang menggabungkan lampiran baru dan gambar dari pesan reply (deduplikasi, urutan prioritas, dan batas visual); 5 tes regresi helper baru lulus.
-20. Provenance ZIP diperjelas: setiap anggota diberi path lengkap, tipe, dan asal `ROOT`/`NESTED`; path nested memakai pemisah `!/`. Dua tes regresi memastikan `04_readme_proyek.txt` di root tidak salah diatribusikan ke `folder/inner_test.zip`.
+19. Sumber gambar edit menggabungkan lampiran baru dan gambar reply dengan deduplikasi, urutan prioritas, dan batas visual.
+20. Provenance ZIP memberi path penuh, tipe, dan asal `ROOT`/`NESTED`; dua tes memastikan file root tidak salah diatribusikan ke arsip nested.
+21. Vision memilih data URL lokal lebih dulu; URL CDN hanya fallback bila tidak ada gambar lokal.
+22. Gambar reply yang sudah diproses saat ingress digunakan ulang saat image-edit, tanpa unduh/kompres ulang.
+23. Nested ZIP dan ZIP di dalam 7Z memberi penanda truncation dan jumlah karakter yang tidak dimasukkan; anggota teks/dokumen 7Z juga menandai truncation.
+24. Peringatan gambar dilewati menghitung jumlah yang benar-benar tidak tertampung.
 
 ## Audit 64 butir — status jujur
 
@@ -95,7 +99,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | No. | Status | Catatan |
 |---:|---|---|
 | 18 | DONE | Dokumen dari pesan reply ikut diproses; ada tes resolver dan batas anggaran. |
-| 19 | DONE | Reply-image diambil, kegagalan per gambar diisolasi, dan gambar baru + gambar reply digabung; dites dengan mocked Discord. |
+| 19 | DONE | Reply-image diproses sekali di ingress, kegagalan per gambar diisolasi, dan sumber baru + reply digabung; helper diuji, alur image-edit Discord tetap perlu live test. |
 | 20 | PARTIAL | Konteks gambar/edit sebelumnya dipertahankan oleh alur yang ada; belum ada regresi penuh untuk semua urutan edit. |
 | 21 | PARTIAL | User/channel scope dan dokumen reply dijaga; kombinasi semua metadata dan media belum live diuji. |
 | 22 | DONE | Reply dokumen tidak lagi dianggap kosong hanya karena pesan baru tidak punya attachment. |
@@ -137,7 +141,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 43 | DONE | Halaman yang dilewati akibat batas dilaporkan oleh parser PDF. |
 | 44 | PARTIAL | XLSX sheet/chart metadata dan PPTX chart/slide data dibaca; tidak semua jenis chart/cache/format kompleks tercakup. |
 | 45 | PARTIAL | DOCX header/footer, PPTX speaker notes, dan media tertanam tertentu; bukan seluruh metadata/header/footer/embedded object. |
-| 46 | DONE | Pemotongan teks diberi keterangan. |
+| 46 | DONE | Pemotongan teks diberi keterangan, termasuk nested ZIP dan ZIP dalam 7Z. |
 | 47 | DONE | Ada batas gabungan dan manifest file yang terdampak truncation. |
 | 48 | DONE | Legacy DOC/XLS/PPT tidak dijanjikan sebagai format yang terbaca; format yang tak didukung harus ditandai. |
 
@@ -187,23 +191,23 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 9. **Single process:** global budget menggunakan lock proses lokal. Jangan jalankan beberapa replica dengan file budget yang sama tanpa koordinasi lintas proses.
 10. **Credential/API smoke test:** workflow manual `.github/workflows/staging-smoke-test.yml` tersedia untuk memvalidasi `STAGING_DISCORD_BOT_TOKEN` dan `STAGING_XINGCHI_API_KEY`. Pengguna sebelumnya mengonfirmasi workflow ini berhasil (hijau). Tes ini hanya memvalidasi autentikasi Discord dan satu chat Xingchi, bukan startup kandidat atau Wispbyte end-to-end.
 
-## Re-audit statis tambahan — 2026-11-25
+## Temuan re-audit statis sebelumnya — 2026-11-25 (sudah diperbaiki)
 
-Audit ulang terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fed`, test suite, dan log CI menemukan beberapa hal yang perlu ditindaklanjuti. Tidak ada kode kandidat atau production yang diubah pada putaran ini.
+Audit sebelumnya terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fed` menemukan empat temuan. Patch kandidat sekarang ada pada commit `16a94040f9587f8dbc20d1c84c3a7bf5f57fc79c`; tes regresinya ditambahkan pada commit `05842e8f846bc755f81d889f5ac219aa6024d06f`.
 
-1. **[BUG / prioritas tinggi] Gambar vision berpotensi dikirim dua kali.** `encode_attachment()` menghasilkan gambar lokal `data:image` sekaligus URL CDN. `process_ai_turn()` memasukkan URL CDN ke riwayat user, lalu `build_messages_payload()` menambahkan daftar `current_turn_images` yang berisi data URL dan URL CDN. Dedup hanya membandingkan string URL identik, sehingga satu gambar yang sama dapat masuk dua kali dalam payload Responses (baris sekitar 4661–4665, 4701–4705, 4166–4188). Dampak: konsumsi vision/token membengkak dan batas 10 gambar dapat habis dengan sekitar 5 gambar fisik. Perlu normalisasi sumber agar satu representasi per gambar.
-2. **[INEFISIENSI] Reply image diproses ulang saat image-edit.** `on_message()` sudah memanggil `resolve_replied_images()` sebelum `process_ai_turn()`; jika model memilih tool edit, `process_ai_turn()` memanggilnya lagi. Ini mengunduh/mengompres gambar reply dua kali dalam satu giliran (baris sekitar 5648–5655 dan 4826–4829). Hasil akhirnya dideduplikasi berdasarkan URL/data URL, tetapi pekerjaan I/O dan CPU tetap berulang.
-3. **[BUG / transparansi truncation] Isi nested ZIP dapat terpotong tanpa penanda eksplisit.** Cabang nested ZIP memotong `nested_text[:remaining]` dan menambahkannya tanpa catatan ketika konten melebihi sisa batas karakter (baris sekitar 3288–3299). Cabang ZIP di dalam 7Z melakukan hal serupa (sekitar 3458–3464). Ini dapat membuat AI menerima isi arsip tidak lengkap tanpa tahu bahwa nested content terpotong.
-4. **[BUG / notifikasi] Penghitungan peringatan gambar terlewati di ZIP dapat salah.** Setelah gambar hasil dokumen ditambahkan ke `images`, kondisi berikutnya membandingkan `len(parsed_images)` dengan sisa budget yang sudah berkurang oleh gambar yang baru ditambahkan (sekitar 3276–3281). Dalam kondisi budget pas, bot bisa menyatakan sebagian gambar dilewati walaupun semuanya sudah ditambahkan.
+1. **Vision duplicate — FIXED.** `select_vision_images()` mengutamakan data URL lokal; URL remote hanya dipakai sebagai fallback. Tes membuktikan satu gambar lokal tidak ditambah lagi sebagai CDN URL.
+2. **Reply image reprocessing — FIXED.** `process_ai_turn()` tidak lagi memanggil `resolve_replied_images()` ulang di image tool handler; memakai `image_data_urls` yang sudah diproses ingress.
+3. **Nested archive truncation — FIXED.** Nested ZIP dan ZIP di dalam 7Z menambahkan marker truncation serta jumlah karakter yang tidak dimasukkan. Anggota teks/dokumen 7Z juga menandai truncation.
+4. **ZIP image skip warning — FIXED.** Kode menghitung gambar yang diterima dan benar-benar dilewati sebelum membuat peringatan.
 
-Temuan 1 dan 3 berpengaruh langsung pada ketepatan input AI; temuan 2 berdampak pada latensi/resource; temuan 4 hanya pada akurasi notifikasi. Keempatnya belum diberi status DONE dan perlu patch kandidat + tes regresi terarah sebelum menutup item terkait.
+Keempat perbaikan diuji pada suite kandidat: tes sumber vision, ZIP image budget, nested ZIP truncation, nested ZIP-in-7Z truncation, dan 7Z text truncation. Tidak ada live Discord/provider test dalam run ini.
 
 ## Verifikasi CI dan runtime terbaru
 
-- Run GitHub Actions `45530257201`: seluruh job selesai dengan `success`.
-- Candidate suite: **62/62 PASS**; regresi lama: **76/76 PASS**. Log job menunjukkan kedua ringkasan tes tersebut.
+- Run GitHub Actions `45558598976`: seluruh job selesai dengan `success` pada commit `05842e8f846bc755f81d889f5ac219aa6024d06f`.
+- Candidate suite: **69/69 PASS**; regresi lama: **76/76 PASS** (145 tes total). Log job menunjukkan kedua suite selesai `OK`.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
-- Wispbyte mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; file kandidat pada branch memiliki blob SHA `f66ce2290471fd1fc4294088b2d12f352b638fed`. File `main (4).py` di branch `main` masih SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
+- Wispbyte runtime terakhir yang dikonfirmasi pengguna masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; patch terbaru belum di-deploy ke runtime. Blob kandidat sekarang `e07cb20b407a1f17270ec8254b01ace4a0810f47`. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
 
 ## Keputusan
