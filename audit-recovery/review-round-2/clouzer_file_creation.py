@@ -130,7 +130,12 @@ def _make_pdf(content: str, title: str) -> bytes:
     except ImportError as exc:
         raise RuntimeError("PyMuPDF belum terpasang; PDF tidak bisa dibuat.") from exc
     wrapped = []
-    for line in content.splitlines() or [content]:
+    source_lines = content.splitlines() or [content]
+    if source_lines:
+        first = re.sub(r"^\s{0,3}#{1,6}\s*", "", source_lines[0]).strip()
+        if first.casefold() == title.casefold():
+            source_lines = source_lines[1:]
+    for line in source_lines:
         wrapped.extend(textwrap.wrap(line, width=96, break_long_words=True, break_on_hyphens=False) if line.strip() else [""])
     doc = fitz.open()
     try:
@@ -157,7 +162,8 @@ def _make_docx(content: str, title: str) -> bytes:
     document = Document()
     blocks = [block.strip() for block in re.split(r"\n\s*\n", content) if block.strip()]
     first_heading = re.sub(r"^#\s+", "", blocks[0]).strip() if blocks and re.match(r"^#\s+", blocks[0]) else ""
-    if first_heading.casefold() != title.casefold():
+    first_line = blocks[0].splitlines()[0].strip() if blocks else ""
+    if title.casefold() not in {first_heading.casefold(), first_line.casefold()}:
         document.add_heading(title, level=0)
     for block in blocks:
         lines = block.splitlines()
@@ -264,16 +270,6 @@ def _make_pptx(content: str, title: str) -> bytes:
     output = io.BytesIO()
     presentation.save(output)
     return output.getvalue()
-
-def _make_zip(content: str, title: str) -> bytes:
-    output = io.BytesIO()
-    manifest = {"created_by": "CLOUZER", "description": title, "files": ["konten.txt", "README.txt"]}
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
-        archive.writestr("README.txt", f"Arsip dibuat oleh CLOUZER.\n\n{title}\n")
-        archive.writestr("konten.txt", content)
-        archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
-    return output.getvalue()
-
 
 
 def _unfence(value: str) -> str:
