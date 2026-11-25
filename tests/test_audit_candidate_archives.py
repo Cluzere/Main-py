@@ -1568,7 +1568,7 @@ class ArchiveReaderTests(unittest.TestCase):
                 raw, "images.zip", _image_budget=1
             )
         self.assertEqual(images, [two_images[0]])
-        self.assertIn("1 gambar dari images.pdf dilewati", text)
+        self.assertIn("1 gambar dari images.zip!/images.pdf dilewati", text)
 
     def test_zip_document_image_warning_is_absent_when_nothing_was_skipped(self):
         from unittest.mock import patch
