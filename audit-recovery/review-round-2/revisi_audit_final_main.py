@@ -3202,7 +3202,7 @@ class ClouzerBot(commands.Bot):
                     or any(part in {"..", ""} for part in normalized_parts if part != "")
                     or "\x00" in name
                 ):
-                    parts.append(f"[Anggota ditolak karena path traversal / path tidak aman: {display_path[:120]}]")
+                    parts.append(f"[Anggota ditolak karena path traversal / path tidak aman: {name[:120]}]")
                     continue
                 display_path = f"{_path_prefix}{name}"
                 origin = "ROOT" if _depth == 0 else "NESTED"
