@@ -9,11 +9,11 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
 - Commit terakhir yang mengubah file kandidat: `09e0dd9ee5c1c0aee355136cfe73faa4873750c8`
-- Commit branch terbaru yang diuji pada CI: `75c3f294001e5949220c8832d1f7e4ada7b2b237`.
+- Commit branch terbaru yang diuji pada CI: `88a7cd9a304d29bdcdf92147ecee2854cf12a7ce`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Blob kandidat terbaru: `468fa94d09cf3f86fba2985879decf7e251efa7f`
 - Jumlah baris kandidat: 5.895
-- CI terbaru: [Run #45565328153 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45565328153)
+- CI terbaru: [Run #45565514586 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45565328153)
 
 ## Bukti CI terakhir
 
@@ -22,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat: **82/82 PASS**.
+- Tes kandidat: **83/83 PASS**.
 - Regresi audit yang sudah ada: **76/76 PASS**.
-- Total dua suite pada run terbaru: **158 tes PASS** (82 tes kandidat + 76 regresi lama).
+- Total dua suite pada run terbaru: **159 tes PASS** (83 tes kandidat + 76 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -104,7 +104,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 |---:|---|---|
 | 18 | DONE | Dokumen dari pesan reply ikut diproses; ada tes resolver dan batas anggaran. |
 | 19 | DONE | Reply-image diproses sekali di ingress, kegagalan per gambar diisolasi, dan sumber baru + reply digabung; helper diuji, alur image-edit Discord tetap perlu live test. |
-| 20 | PARTIAL | Konteks gambar/edit sebelumnya dipertahankan oleh alur yang ada; belum ada regresi penuh untuk semua urutan edit. |
+| 20 | PARTIAL | Konteks gambar diedit diuji untuk deduplikasi, batas vision, isolasi antar-user, dan expiry TTL; urutan edit/reply/regenerate end-to-end belum seluruhnya diuji. |
 | 21 | PARTIAL | User/channel scope dan dokumen reply dijaga; kombinasi semua metadata dan media belum live diuji. |
 | 22 | DONE | Reply dokumen tidak lagi dianggap kosong hanya karena pesan baru tidak punya attachment. |
 | 23 | DONE | Dokumen reply yang tak tersedia dijelaskan; alur edit gambar memberi error bila sumber gambar tidak ditemukan. |
@@ -156,7 +156,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 49 | PARTIAL | Signature PDF/7Z/RTF/audio/SVG/EPS/AI dan struktur container OOXML/ODF/EPUB diperiksa; matriks audio diuji dan image divalidasi parser. Format teks tetap tidak punya magic signature universal. |
 | 50 | PARTIAL | Ukuran, rasio, entry, gambar, teks, dan buffer dibatasi; bukan sandbox CPU/RAM tingkat OS. |
 | 51 | PARTIAL | Parser berat utama dijalankan via thread; belum profiling seluruh jalur parser di hosting. |
-| 52 | PARTIAL | Corpus deterministik mencakup Office/ODF/EPUB salah label, mimetype salah, file terpotong, ZIP truncated/local-header mutation, audio, dan vector format; belum fuzz corpus lintas semua format. |
+| 52 | PARTIAL | Corpus deterministik mencakup Office/ODF/EPUB salah label, mimetype salah, ZIP truncated/local-header mutation, audio/vector, dan expiry konteks gambar; belum fuzz corpus lintas semua format. |
 | 53 | PARTIAL | Arsip tidak diekstrak ke disk; pembersihan semua state/resource tetap perlu uji restart/shutdown. |
 | 54 | PARTIAL | XML tidak tepercaya diproses dengan defusedxml dan batas entity; instruksi dokumen tetap ditangani lewat prompt boundary, bukan sandbox penuh. |
 
@@ -222,7 +222,7 @@ Temuan bahwa parsing lampiran berlangsung sebelum lock percakapan telah diperbai
 ## Verifikasi CI dan runtime terbaru
 
 - Run GitHub Actions `45565328153`: seluruh job selesai dengan `success` pada commit `75c3f294001e5949220c8832d1f7e4ada7b2b237`.
-- Candidate suite: **82/82 PASS**; regresi lama: **76/76 PASS** (158 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB, corpus ZIP terpotong/header termutasi, matriks signature seluruh format audio, serta signature SVG/EPS/AI.
+- Candidate suite: **83/83 PASS**; regresi lama: **76/76 PASS** (159 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB, corpus ZIP mutation, matriks signature audio, SVG/EPS/AI, serta isolasi user dan expiry konteks gambar edit.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
 - Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (kode blob `468fa94d09cf3f86fba2985879decf7e251efa7f`, dites pada commit `75c3f294001e5949220c8832d1f7e4ada7b2b237`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
