@@ -8,12 +8,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit yang mengubah file kandidat: `5a4abd8986d4ea04f5dceb0b336f6e148ee2a543`
-- Commit branch terbaru yang diuji pada CI: `9c89296812748f2670cf4231562cdbdd7b2d8490`.
+- Commit terakhir yang mengubah file kandidat: `2fb18aafefa0e6074d0438cbc10c6859af315f67`
+- Commit branch terbaru yang diuji pada CI: `0f78c92d7e80aefb7f1de3985b41d82841534a4a`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat terbaru: `ec00289e86698ffaac5db39cd10433b371a662ea`
-- Jumlah baris kandidat: 5.783
-- CI terbaru: [Run #45560660471 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45560660471)
+- Blob kandidat terbaru: `4bf80cda886ae58c734cc34dcced0351697333d6`
+- Jumlah baris kandidat: 5.840
+- CI terbaru: [Run #45561655560 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45561655560)
 
 ## Bukti CI terakhir
 
@@ -22,17 +22,17 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat: **72/72 PASS**.
+- Tes kandidat: **76/76 PASS**.
 - Regresi audit yang sudah ada: **76/76 PASS**.
-- Total dua suite pada run terbaru: **148 tes PASS** (72 tes kandidat + 76 regresi lama).
+- Total dua suite pada run terbaru: **152 tes PASS** (76 tes kandidat + 76 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
 
 ## Ringkasan 64 butir
 
-- **31 DONE**: perubahan dan tes relevan tersedia.
-- **33 PARTIAL**: mitigasi ada, tetapi masih perlu live staging, fuzzing, atau cakupan tambahan.
+- **32 DONE**: perubahan dan tes relevan tersedia.
+- **32 PARTIAL**: mitigasi ada, tetapi masih perlu live staging, fuzzing, atau cakupan tambahan.
 - **0 NOT DONE**: tidak ada item yang sama sekali belum disentuh; item PARTIAL tetap belum boleh dianggap selesai.
 
 ## Perubahan nyata pada kandidat
@@ -51,7 +51,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 12. DOCX membaca header/footer; PPTX membaca speaker notes dan judul/data seri grafik; XLSX membaca sheet serta metadata judul/range seri grafik.
 13. Retry Responses maksimal satu kali untuk HTTP 502/503/504, serta HTTP 500 hanya jika error memuat frasa persis `Unable to forward upstream stream`, dan hanya sebelum event stream pertama. Tidak ada retry otomatis setelah stream mulai.
 14. Jika stream terputus setelah sebagian teks diterima, teks parsial dipertahankan dan user request tidak dibuang dari history.
-15. Antrean percakapan per scope user/channel dibatasi maksimal 10 waiter, timeout 300 detik, dan memberi status bila penuh/timeout/dibatalkan. Lock FIFO setelah task mencapai lock; preprocessing lampiran masih bisa membuat urutan ingress pesan terbalik. Cancellation membersihkan referensi lock; scope antar-user terpisah. Antrean tetap in-memory dan tidak dipulihkan setelah hard restart.
+15. Antrean pesan masuk per scope user/channel memperoleh FIFO gate sebelum parsing/unduh lampiran. Maksimal 10 waiter, timeout 300 detik, status saat penuh/timeout, dan pembersihan referensi saat cancellation. Setelah preprocessing, pemrosesan AI tetap memakai guild lock yang sudah ada. Antrean in-memory dan tidak dipulihkan setelah hard restart.
 16. Environment override resource diberi hard cap: 10 lampiran, 10 gambar vision, 100 MB total lampiran, batas teks dokumen/konteks, serta batas konkurensi AI/image/audio.
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 18. Anggota PDF/Office/audio dalam ZIP dan 7Z diperiksa signature-nya sebelum diparse; file dengan ekstensi yang tidak cocok ditolak dan dilaporkan.
@@ -114,7 +114,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 |---:|---|---|
 | 24 | DONE | Antrean attachment tidak meminta unggah ulang karena semaphore timeout; rate-limit tetap dapat menolak spam. |
 | 25 | DONE | Status menunggu dikirim sebelum lock. |
-| 26 | PARTIAL | Lock FIFO per user/channel diuji untuk waiter yang sudah mencapai lock; preprocessing lampiran terjadi sebelum lock, sehingga pesan teks yang datang belakangan berpotensi masuk antrean lebih dulu daripada pesan sebelumnya yang masih membaca lampiran. Urutan ingress end-to-end belum dijamin. |
+| 26 | DONE | Ingress FIFO gate diperoleh sebelum I/O lampiran; tes integrasi menahan parsing pesan pertama dan membuktikan pesan kedua tidak mulai lebih dulu. Tes FIFO, antrean penuh, dan cancellation/cleanup juga lulus. |
 | 27 | DONE | Pesan diproses otomatis saat lock tersedia. |
 | 28 | DONE | Status dan hasil diedit pada reply pesan asal; live delivery Discord tetap perlu staging. |
 | 29 | DONE | Scope percakapan dibedakan per user/channel. |
@@ -177,7 +177,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 ## Status antrean setelah hardening terbaru
 
 - Chat dan pesan berlampiran tidak lagi ditolak oleh cooldown minimum default; sliding-window tetap berlaku (chat 10/60 detik, file 6/300 detik), ditambah kuota harian dan global.
-- Antrean AI per user/channel menerima maksimal 10 waiter, menunggu FIFO setelah task mencapai lock, timeout default 300 detik (hard cap 600 detik), dan memberi status eksplisit jika penuh, timeout, atau task dibatalkan. Karena parsing lampiran berjalan sebelum lock, FIFO belum menjamin urutan kedatangan pesan Discord.
+- Antrean pesan masuk per user/channel sekarang memiliki FIFO gate sebelum parsing lampiran, maksimal 10 waiter, timeout 300 detik, penolakan saat penuh, dan cleanup saat cancellation. Tes integrasi membuktikan pesan kedua menunggu sampai parsing serta pemrosesan pesan pertama selesai. Antrean AI lanjutan tetap memiliki guild lock tersendiri.
 - Pembatalan task saat menunggu lock maupun saat sedang diproses mencoba memperbarui status Discord dan selalu membersihkan referensi lock.
 - Ini bukan antrean persisten. Jika proses hosting mati mendadak sebelum handler cancellation berjalan, antrean yang menunggu tidak dipulihkan otomatis. User perlu mengirim ulang pesan yang belum selesai.
 
@@ -208,17 +208,27 @@ Audit sebelumnya terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fe
 
 Ketujuh perbaikan diuji pada suite kandidat: tes sumber vision, ZIP image budget, nested ZIP truncation, nested ZIP-in-7Z truncation, dan 7Z text truncation. Tidak ada live Discord/provider test dalam run ini.
 
+## Perbaikan antrean ingress — 2026-11-25
+
+Temuan bahwa parsing lampiran berlangsung sebelum lock percakapan telah diperbaiki pada kandidat:
+
+- `on_message()` memperoleh `ingress_lock` per scope user/channel sebelum mulai mengunduh atau mem-parse lampiran.
+- Lock memakai fairness FIFO `asyncio.Lock`, membatasi 10 waiter, menerapkan timeout antrean, dan membersihkan reference/lock setelah selesai atau dibatalkan.
+- Setelah tahap ingress, `process_ai_turn()` tetap menggunakan `guild_lock` yang sudah ada; antrean AI dan jalur slash/regenerate tidak digabung atau diganti.
+- Tes integrasi menahan parsing lampiran pesan pertama dan memastikan pesan kedua tidak mulai mem-parse sebelum pesan pertama selesai; tes antrean penuh dan cancellation juga lulus.
+- Ini menjamin urutan antar-pesan `on_message` pada scope yang sama di satu proses bot. Ini bukan antrean persisten lintas restart atau koordinasi multi-replica; perilaku Discord Gateway live tetap perlu diuji.
+
 ## Verifikasi CI dan runtime terbaru
 
-- Run GitHub Actions `45560660471`: seluruh job selesai dengan `success` pada commit `9c89296812748f2670cf4231562cdbdd7b2d8490`.
-- Candidate suite: **72/72 PASS**; regresi lama: **76/76 PASS** (148 tes total). Log job menunjukkan kedua suite selesai `OK`.
+- Run GitHub Actions `45561655560`: seluruh job selesai dengan `success` pada commit `0f78c92d7e80aefb7f1de3985b41d82841534a4a`.
+- Candidate suite: **76/76 PASS**; regresi lama: **76/76 PASS** (152 tes total). Log job menunjukkan kedua suite selesai `OK`; termasuk tes integrasi urutan ingress, cancellation, dan batas waiter.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
-- Wispbyte runtime terakhir yang dikonfirmasi pengguna masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; patch terbaru (commit `5a4abd8986d4ea04f5dceb0b336f6e148ee2a543`, blob `ec00289e86698ffaac5db39cd10433b371a662ea`) belum di-deploy ke runtime. Blob kandidat sekarang `2f53ba0c4d534bfef2f7db30b5a16a6b87e8fecb`. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
+- Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (branch head `0f78c92d7e80aefb7f1de3985b41d82841534a4a`, blob kode `4bf80cda886ae58c734cc34dcced0351697333d6`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
 
 ## Keputusan
 
-Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 72 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
+Kandidat saat ini telah melewati compile, pip check, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 76 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
 
 Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
 
