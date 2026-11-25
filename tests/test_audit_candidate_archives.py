@@ -116,13 +116,54 @@ class ArchiveReaderTests(unittest.TestCase):
         text, _ = self.bot.extract_generic_zip_content(outer, "outer.zip")
         self.assertIn("NESTED ZIP CONTENT", text)
 
-    def test_rejects_deeper_nested_zip(self):
-        level3 = self.make_zip([("deep.txt", "TOO DEEP")])
+    def test_reads_two_nested_zip_layers(self):
+        inner = self.make_zip([("deep.txt", "TWO LEVEL NESTED CONTENT")])
+        middle = self.make_zip([("inner.zip", inner)])
+        outer = self.make_zip([("middle.zip", middle)])
+        text, _ = self.bot.extract_generic_zip_content(outer, "outer.zip")
+        self.assertIn("TWO LEVEL NESTED CONTENT", text)
+        self.assertNotIn("kedalaman maksimum", text)
+
+    def test_enforces_configured_nested_zip_depth_limit(self):
+        level5 = self.make_zip([("deep.txt", "TOO DEEP")])
+        level4 = self.make_zip([("level5.zip", level5)])
+        level3 = self.make_zip([("level4.zip", level4)])
         level2 = self.make_zip([("level3.zip", level3)])
         level1 = self.make_zip([("level2.zip", level2)])
         text, _ = self.bot.extract_generic_zip_content(level1, "outer.zip")
-        self.assertIn("kedalaman maksimum", text)
+        self.assertIn("batas kedalaman", text)
         self.assertNotIn("TOO DEEP", text)
+
+    def test_nested_zip_image_is_forwarded_for_visual_analysis(self):
+        from PIL import Image
+
+        image_buffer = io.BytesIO()
+        Image.new("RGB", (12, 8), (20, 180, 40)).save(image_buffer, format="PNG")
+        inner = self.make_zip([("05_gambar_uji_a.png", image_buffer.getvalue())])
+        outer = self.make_zip([("inner.zip", inner)])
+        text, images = self.bot.extract_generic_zip_content(outer, "outer.zip")
+        self.assertIn("Gambar arsip disertakan sebagai visual", text)
+        self.assertEqual(len(images), 1)
+        self.assertTrue(images[0].startswith("data:image/"))
+
+    def test_xlsx_extraction_preserves_formula_expressions(self):
+        import openpyxl
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Utara"
+        ws["B2"] = 10
+        ws["B3"] = 14
+        summary = wb.create_sheet("Ringkasan")
+        summary["B2"] = "=SUM(Utara!B2:B3)"
+        out = io.BytesIO()
+        wb.save(out)
+        wb.close()
+
+        text, _ = self.bot.extract_xlsx_content(out.getvalue(), "formula.xlsx")
+        self.assertIn("Ringkasan", text)
+        self.assertIn("=SUM(Utara!B2:B3)", text)
+        self.assertIn("Rumus ditampilkan sebagai ekspresi", text)
 
     def test_skips_symlink_entries(self):
         buffer = io.BytesIO()
