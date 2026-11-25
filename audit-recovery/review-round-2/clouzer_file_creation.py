@@ -358,15 +358,17 @@ def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
     files = {}
     if matches:
         for i, match in enumerate(matches):
-            name = match.group(1).strip().replace("\\", "/")
-            path = PurePosixPath(name)
-            if (not name or "\x00" in name or path.is_absolute() or ".." in path.parts
-                    or name in files or re.match(r"^[A-Za-z]:", name)):
-                raise ValueError("Nama anggota ZIP tidak aman atau duplikat: " + name)
+            raw_name = match.group(1).strip().replace("\\", "/")
+            path = PurePosixPath(raw_name)
+            name = path.as_posix()
+            if (not raw_name or "\x00" in raw_name or path.is_absolute() or ".." in path.parts
+                    or name in files or re.match(r"^[A-Za-z]:", raw_name) or name in {"", "."}):
+                raise ValueError("Nama anggota ZIP tidak aman atau duplikat: " + raw_name)
             if len(name) > 240:
                 raise ValueError("Nama anggota ZIP terlalu panjang.")
             end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
-            files[name] = content[match.end():end].strip() + "\n"
+            body = content[match.end():end].lstrip("\r\n")
+            files[name] = body.rstrip("\r\n") + "\n"
     else:
         files = {"README.txt": f"Arsip dibuat oleh CLOUZER.\n{title}\n", "konten.txt": content}
     required = set(re.findall(r"(?<![\w.-])(?:[\w.-]+/)*[\w.-]+\.(?:txt|json|csv)\b", prompt, re.I))
@@ -375,7 +377,6 @@ def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
         raise ValueError("ZIP tidak memiliki anggota yang diminta: " + ", ".join(missing))
     if len(files) > MAX_ZIP_ENTRIES:
         raise ValueError("ZIP melebihi batas 100 anggota.")
-    import csv
     for name, value in files.items():
         if name.lower().endswith(".json"):
             json.loads(_unfence(value))
@@ -392,7 +393,6 @@ def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
         if check.testzip() or set(check.namelist()) != set(files):
             raise RuntimeError("Validasi integritas ZIP gagal.")
     return data
-
 def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
