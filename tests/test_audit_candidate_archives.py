@@ -234,6 +234,28 @@ class ArchiveReaderTests(unittest.TestCase):
             self.assertEqual(formula_book["Selatan"].max_column, 2)
             self.assertEqual(formula_book["Ringkasan"].max_row, 3)
             self.assertEqual(formula_book["Ringkasan"].max_column, 2)
+            expected_cells = {
+                "Utara": {
+                    "A1": "Tanaman", "B1": "Jumlah",
+                    "A2": "Tomat", "B2": 10, "A3": "Cabai", "B3": 14,
+                },
+                "Selatan": {
+                    "A1": "Tanaman", "B1": "Jumlah",
+                    "A2": "Bayam", "B2": 8, "A3": "Kangkung", "B3": 10,
+                },
+                "Ringkasan": {
+                    "A1": "Lokasi", "B1": "Total",
+                    "A2": "Utara", "B2": "=SUM(Utara!B2:B3)",
+                    "A3": "Selatan", "B3": "=SUM(Selatan!B2:B3)",
+                },
+            }
+            for sheet_name, cells in expected_cells.items():
+                for coordinate, expected_value in cells.items():
+                    self.assertEqual(
+                        formula_book[sheet_name][coordinate].value,
+                        expected_value,
+                        f"{sheet_name}!{coordinate}",
+                    )
             self.assertEqual(formula_book["Utara"]["A2"].value, "Tomat")
             self.assertEqual(formula_book["Utara"]["B2"].value, 10)
             self.assertEqual(formula_book["Utara"]["A3"].value, "Cabai")
