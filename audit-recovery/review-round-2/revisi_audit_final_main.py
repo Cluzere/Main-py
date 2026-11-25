@@ -5058,6 +5058,13 @@ class ClouzerBot(commands.Bot):
 
             full_user_prompt = clean_content
             if requested_file_format:
+                # Persist the operation before calling the model. A normal-looking model
+                # response is not proof that a file was generated or delivered.
+                guild_state["pending_retry_task"] = {
+                    "kind": "file",
+                    "format": requested_file_format,
+                    "prompt": clean_content[:10_000],
+                }
                 format_labels = {"txt": "teks biasa", "pdf": "dokumen PDF", "docx": "dokumen Word", "xlsx": "spreadsheet Excel", "pptx": "presentasi PowerPoint", "zip": "arsip ZIP"}
                 full_user_prompt += (
                     "\n\n[INSTRUKSI PEMBUATAN FILE " + requested_file_format.upper() + "]\n"
