@@ -13,7 +13,7 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Blob kandidat terbaru: `468fa94d09cf3f86fba2985879decf7e251efa7f`
 - Jumlah baris kandidat: 5.895
-- CI terbaru: [Run #45565328153 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45564530192)
+- CI terbaru: [Run #45565328153 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45565328153)
 
 ## Bukti CI terakhir
 
@@ -221,10 +221,10 @@ Temuan bahwa parsing lampiran berlangsung sebelum lock percakapan telah diperbai
 
 ## Verifikasi CI dan runtime terbaru
 
-- Run GitHub Actions `45564530192`: seluruh job selesai dengan `success` pada commit `c735e75717c0bdb50cfcf0501befae728858ec14`.
+- Run GitHub Actions `45565328153`: seluruh job selesai dengan `success` pada commit `75c3f294001e5949220c8832d1f7e4ada7b2b237`.
 - Candidate suite: **82/82 PASS**; regresi lama: **76/76 PASS** (158 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB, corpus ZIP terpotong/header termutasi, matriks signature seluruh format audio, serta signature SVG/EPS/AI.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
-- Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (kode blob `fa79b307051fc7e49e5e9c547c80b47d0f7fcff0`, dites pada commit `c735e75717c0bdb50cfcf0501befae728858ec14`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
+- Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (kode blob `468fa94d09cf3f86fba2985879decf7e251efa7f`, dites pada commit `75c3f294001e5949220c8832d1f7e4ada7b2b237`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
 
 ## Keputusan
