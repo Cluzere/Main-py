@@ -41,7 +41,7 @@ class FileCreationTests(unittest.TestCase):
         data, _, _ = create_document_file("xlsx", prompt, "ID\tNama\tHarga\n1\tA\t10\n2\tB\t20\n3\tC\t30")
         summary = validate_document_file("xlsx", prompt, data)
         self.assertEqual((summary["rows"], summary["columns"]), (3, 3))
-        with self.assertRaisesRegex(ValueError, "hanya berisi 1 baris data"):
+        with self.assertRaisesRegex(ValueError, "berisi 1 baris data; permintaan tepat 3"):
             create_document_file("xlsx", prompt, "ID\tNama\tHarga\n1\tA\t10")
 
     def test_pptx_five_slide_requirement_and_refusal(self):
