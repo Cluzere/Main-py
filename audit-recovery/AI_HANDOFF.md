@@ -32,7 +32,7 @@ Active audit branch: `audit-recovery-gpt-2026-11-23`
 - Candidate: `c528ea4bec13e3f37b5420cb04fa1a155ebe95f6` (282,602 bytes; 5,656 lines)
 - Candidate tests: `b1821cf238b8ea358ddf6201cdbf58a1ed0f01ec` (50,312 bytes; 1,374 lines)
 - Existing regression tests: `5a735dc40bdf4c8504f4d7bf180e819004f40592` (38,349 bytes; 901 lines)
-- Audit report: `c5e0c37c4aa837f9f82d79a82ba7535ee796ffbb`
+- Audit report: `61a6b6b4a7b44b7a13d796e2a51572accc4dcf4a`
 - Original source `main (4).py`: `ffffd0c17169b29504f4a8713dca396cf61ddeff` on both default `main` and audit branch; unchanged.
 
 ### Current branch and CI
