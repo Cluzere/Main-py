@@ -431,3 +431,153 @@ Important:
 - For any future test, retain the exact filename, format, user request, Discord message/attachment evidence, relevant log lines, file size, and validation result.
 
 ---
+
+## 14. Supplemental live format-test record — 2026-11-25 (append-only update)
+
+This is an ADDENDUM to the existing Master Memory. All sections above are preserved. Do not replace or rewrite earlier history; this section records the more detailed follow-up tests and clarifies their evidence status.
+
+### 14.1 TXT — user-reported successful creation
+
+User explicitly reported: **“Txt berhasil dibuat.”**
+
+Associated telemetry:
+```
+[RESPONSES-DETAIL] request_id=1575164956356247584 mode=fast allow_tools=True allow_image_tool=False continuation_items=0 headers=3.704s first_event=3.705s first_text=3.899s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=5.129s
+2026-11-25 17:03:16,551 WARNING root: [TTFT-DIAG] request_id=1575164956356247584 mode=fast budget=0.021s semaphore=0.000s request_to_first_event=3.705s request_to_first_text=3.899s total=5.151s
+```
+Evidence interpretation:
+- TXT status: **USER-REPORTED SUCCESS / NOT INDEPENDENTLY VERIFIED**.
+- Model response completed in 5.129 s; first event 3.705 s; first text 3.899 s.
+- No function calls in this request.
+- These timing logs alone do not prove file bytes or attachment delivery. The positive result is based on the user's direct observation.
+- If artifact is later supplied, inspect actual content, encoding, filename, non-zero size, and Discord attachment delivery.
+
+### 14.2 DOCX — user-reported successful creation; artifact pending
+
+User reported DOCX was successfully created and said they would send the result later.
+
+Associated telemetry:
+```
+[RESPONSES-DETAIL] request_id=1575165365472727202 mode=fast allow_tools=True allow_image_tool=False continuation_items=0 headers=2.634s first_event=2.635s first_text=2.833s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=3.990s
+2026-11-25 17:04:53,658 WARNING root: [TTFT-DIAG] request_id=1575165365472727202 mode=fast budget=0.006s semaphore=0.000s request_to_first_event=2.635s request_to_first_text=2.833s total=3.998s
+```
+Status: **USER-REPORTED SUCCESS / NOT INDEPENDENTLY VERIFIED**. Model response completion in 3.990 s is not independent proof of DOCX generation. Await artifact for ZIP integrity, document XML, text, tables, and formatting checks.
+
+### 14.3 PDF — pipeline success was text-only, not file success
+
+Requested filename: `clouzer_test.pdf`.
+
+Requested report sections:
+1. Pendahuluan
+2. Tujuan Pengujian
+3. Metode Pengujian
+4. Hasil yang Diharapkan
+5. Kesimpulan
+
+Acceptance criteria from the user's test:
+- PDF opens in a PDF reader.
+- Text is selectable and searchable, not merely rasterized page images.
+- Search for “CLOUZER”; select/copy text.
+- Check all pages for clipped or truncated content.
+- Send as Discord attachment and download it again for inspection.
+- At least two paragraphs per section.
+
+Telemetry supplied:
+```
+[RESPONSES-DETAIL] request_id=1575166131235328154 mode=fast allow_tools=True allow_image_tool=True continuation_items=0 headers=2.846s first_event=2.846s first_text=2.846s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=15.769s
+2026-11-25 17:08:07,894 WARNING root: [TTFT-DIAG] request_id=1575166131235328154 mode=fast budget=0.861s semaphore=0.000s request_to_first_event=2.846s request_to_first_text=2.846s total=16.634s
+2026-11-25 17:08:08,889 WARNING root: [TURN-PIPELINE] message_id=1575166129821847715 status_message_id=1575166131235328154 pre_attachment=0.001s attachments=0.000s prompt_prep=0.350s status_send=0.267s first_responses_call=0.000s memory_save=0.023s discord_delivery=0.893s total=18.246s result=success
+```
+Status: **NOT CONFIRMED CREATED / NOT CONFIRMED ATTACHED**.
+- Model response completed in 15.769 s and Discord turn pipeline returned `result=success` in 18.246 s.
+- Crucially, `attachments=0.000s` and `function_calls=0`.
+- The visible response supplied text and said it could not attach a PDF directly. The shown draft was incomplete: it did not include all five sections.
+- Therefore pipeline success is only successful response delivery, not successful PDF generation or attachment.
+- Next: rerun with complete content, verify actual attachment, then validate selectable/searchable text and page layout.
+
+### 14.4 CSV — wrong output type (image instead of CSV)
+
+User's explicit report: CSV request produced an image using Lucid Origin, not an actual CSV file. Status: **FAILED AS REQUESTED / WRONG OUTPUT TYPE REPORTED**. Do not count the image as CSV success.
+
+Requested filename: `clouzer_test.csv`.
+Expected CSV schema: 6 columns, 30 data rows:
+```csv
+id,nama_produk,kategori,harga,stok,status
+1,Keyboard USB,Elektronik,150000,20,Aktif
+2,Mouse Wireless,Elektronik,95000,35,Aktif
+3,Monitor LED,Elektronik,1750000,10,Aktif
+4,Headset Gaming,Elektronik,225000,18,Aktif
+5,Webcam HD,Elektronik,320000,12,Aktif
+6,Flashdisk 64GB,Penyimpanan,85000,40,Aktif
+7,SSD 512GB,Penyimpanan,650000,15,Aktif
+8,Hard Disk 1TB,Penyimpanan,780000,8,Aktif
+9,Kartu Memori 128GB,Penyimpanan,145000,22,Aktif
+10,Speaker Bluetooth,Elektronik,275000,16,Aktif
+11,Buku Catatan,Alat Tulis,25000,60,Aktif
+12,Pulpen Hitam,Alat Tulis,8000,100,Aktif
+13,Pensil 2B,Alat Tulis,5000,120,Aktif
+14,Penghapus Putih,Alat Tulis,3500,80,Aktif
+15,Penggaris 30cm,Alat Tulis,7000,45,Aktif
+16,Spidol Papan Tulis,Alat Tulis,12000,50,Aktif
+17,Stapler Mini,Alat Tulis,28000,25,Aktif
+18,Map Dokumen,Alat Tulis,15000,70,Aktif
+19,Botol Minum,Peralatan Rumah,75000,24,Aktif
+20,Kotak Makan,Peralatan Rumah,55000,30,Aktif
+21,Gelas Keramik,Peralatan Rumah,35000,36,Aktif
+22,Piring Makan,Peralatan Rumah,30000,42,Aktif
+23,Sendok Stainless,Peralatan Rumah,10000,90,Aktif
+24,Lampu Meja,Peralatan Rumah,125000,14,Aktif
+25,Tas Ransel,Aksesori,245000,19,Aktif
+26,Dompet Kulit,Aksesori,135000,0,Tidak Aktif
+27,Payung Lipat,Aksesori,65000,27,Aktif
+28,Topi Baseball,Aksesori,45000,0,Tidak Aktif
+29,Kabel HDMI,Elektronik,55000,32,Aktif
+30,Adaptor USB,Elektronik,45000,0,Tidak Aktif
+```
+
+Associated telemetry:
+```
+[RESPONSES-DETAIL] request_id=1575167881690218536 mode=fast allow_tools=False allow_image_tool=False continuation_items=2 headers=25.811s first_event=25.811s first_text=26.008s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=37.628s
+2026-11-25 17:15:39,525 WARNING root: [TTFT-DIAG] request_id=1575167881690218536 mode=fast budget=0.005s semaphore=0.000s request_to_first_event=25.811s request_to_first_text=26.008s total=37.635s
+```
+Interpretation:
+- Model response completed in 37.628 s; first event 25.811 s; first text 26.008 s.
+- `allow_tools=False`, `allow_image_tool=False`, `continuation_items=2`, `function_calls=0`.
+- The user-observed output type was an image, not CSV. The log alone does not show attachment details but is consistent with a text/continuation path without function calls.
+- Investigate format-intent routing and tool/image selection. For a CSV request, the system must not route to Lucid Origin/image generation. It must create a real UTF-8 CSV attachment with the exact header and 30 records, then validate parse and row count.
+
+### 14.5 XLSX — user-reported successful creation; workbook not independently inspected
+
+User report: **“File xlsx berhasil dibuat.”**
+
+Associated telemetry:
+```
+[RESPONSES-DETAIL] request_id=1575170539914403973 mode=fast allow_tools=True allow_image_tool=False continuation_items=0 headers=4.271s first_event=4.271s first_text=4.465s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=5.115s
+2026-11-25 17:25:28,179 WARNING root: [TTFT-DIAG] request_id=1575170539914403973 mode=fast budget=0.009s semaphore=0.000s request_to_first_event=4.271s request_to_first_text=4.465s total=5.127s
+```
+Status: **USER-REPORTED SUCCESS / NOT INDEPENDENTLY VERIFIED**.
+- Model response completed in 5.115 s; first event 4.271 s; first text 4.465 s.
+- No function calls were reported.
+- The telemetry is not proof of workbook creation, attachment delivery, or workbook validity.
+- Next: obtain the actual .xlsx file; inspect ZIP container integrity, workbook XML, sheet names, dimensions, cell values, formulas, and whether it opens without repair warnings.
+
+### 14.6 Evidence summary and next actions
+
+| Format | Current status | Evidence level | Next verification |
+|---|---|---|---|
+| TXT | Successful | User-reported; actual file not inspected | Inspect attachment/content if provided |
+| DOCX | Successful | User-reported; actual file not inspected | Inspect document package/content |
+| PDF | Not confirmed; response was text-only | Logs show `attachments=0.000s`, no function calls, incomplete draft | Re-run; confirm actual PDF attachment and searchable text |
+| CSV | Wrong output type: image instead of CSV | User-observed mismatch; no CSV attachment established | Fix routing; generate and parse real CSV with 30 rows |
+| XLSX | Successful | User-reported; actual workbook not inspected | Inspect workbook package, sheets, cells, formulas |
+
+For all future tests, record separately:
+1. model response completed,
+2. local file generation succeeded,
+3. Discord attachment was sent,
+4. user downloaded/opened it,
+5. file contents and structure independently validated.
+
+Never infer stages 2–5 from stage 1 or from generic `TURN-PIPELINE result=success`.
+
+---
