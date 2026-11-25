@@ -44,6 +44,9 @@ def normalize_pending_retry_task(raw: object) -> dict | None:
     kind = str(raw.get("kind") or "").strip().lower()
     if kind in {"file", "image", "audio", "message", "other"}:
         task["kind"] = kind
+    source_message_id = raw.get("source_message_id")
+    if isinstance(source_message_id, int) and not isinstance(source_message_id, bool) and source_message_id > 0:
+        task["source_message_id"] = source_message_id
     return task
 
 
