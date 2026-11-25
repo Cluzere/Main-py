@@ -582,7 +582,7 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         prompt_rows = _prompt_pipe_table(prompt)
         if len(prompt_rows) < 2 or not prompt_rows[0]:
             raise
-        text = "\\n".join("\\t".join(row) for row in prompt_rows)
+        text = "\n".join("\t".join(row) for row in prompt_rows)
     title = _safe_title(text, prompt)
     builders = {
         "txt": lambda: text.encode("utf-8"),
