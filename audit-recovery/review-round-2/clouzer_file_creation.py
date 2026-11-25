@@ -172,7 +172,7 @@ def _make_docx(content: str, title: str) -> bytes:
     return output.getvalue()
 
 
-def _make_xlsx(content: str, title: str) -> bytes:
+def _make_xlsx(content: str, prompt: str) -> bytes:
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill
@@ -180,7 +180,7 @@ def _make_xlsx(content: str, title: str) -> bytes:
         raise RuntimeError("openpyxl belum terpasang; XLSX tidak bisa dibuat.") from exc
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = _safe_sheet_title(title)
+    sheet.title = _safe_sheet_title(prompt)
     rows = []
     for line in content.splitlines():
         stripped = line.strip()
@@ -491,7 +491,7 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         "txt": lambda: text.encode("utf-8"),
         "pdf": lambda: _make_pdf(text, title),
         "docx": lambda: _make_docx(text, title),
-        "xlsx": lambda: _make_xlsx(text, title),
+        "xlsx": lambda: _make_xlsx(text, prompt),
         "pptx": lambda: _make_pptx(text, title),
         "zip": lambda: _make_zip(text, title, prompt),
         "csv": lambda: _make_csv(text, prompt),
