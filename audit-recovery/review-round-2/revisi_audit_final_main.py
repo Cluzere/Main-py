@@ -3172,6 +3172,7 @@ class ClouzerBot(commands.Bot):
             return warn, media_imgs
 
         wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=False, read_only=True)
+        cached_wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=True)
         try:
             parts: list[str] = []
             total_chars = 0
@@ -3187,14 +3188,30 @@ class ClouzerBot(commands.Bot):
 
             for sheet_name in wb.sheetnames[:15]:
                 ws = wb[sheet_name]
+                cached_ws = cached_wb[sheet_name] if sheet_name in cached_wb.sheetnames else None
                 rows_out: list[str] = []
-                for r_idx, row in enumerate(ws.iter_rows(values_only=True), start=1):
+                cached_rows = cached_ws.iter_rows() if cached_ws is not None else None
+                for r_idx, row in enumerate(ws.iter_rows(), start=1):
                     if r_idx > 120:
                         rows_out.append("...(baris lanjutan dipotong)")
                         break
-                    cells = [re.sub(r"\s+", " ", str(v).strip()) for v in row[:25] if v is not None and str(v).strip() != ""]
-                    if cells:
-                        rows_out.append(f"B{r_idx}: " + " | ".join(cells))
+                    cached_row = next(cached_rows, ()) if cached_rows is not None else ()
+                    rendered_cells = []
+                    for col_idx, cell in enumerate(row[:25]):
+                        value = cell.value
+                        cached_value = cached_row[col_idx].value if col_idx < len(cached_row) else None
+                        if value is None and cached_value is None:
+                            continue
+                        if isinstance(value, str) and value.startswith("="):
+                            rendered = f"{cell.coordinate}={value}"
+                            if cached_value is not None:
+                                rendered += f" [cached={cached_value}]"
+                        else:
+                            shown = value if value is not None else cached_value
+                            rendered = f"{cell.coordinate}={shown}"
+                        rendered_cells.append(re.sub(r"\s+", " ", str(rendered).strip()))
+                    if rendered_cells:
+                        rows_out.append(" | ".join(rendered_cells))
                 if rows_out:
                     block = f"[Sheet: {sheet_name}]\n" + "\n".join(rows_out)
                     if total_chars + len(block) + 2 > max_chars:
@@ -3273,6 +3290,7 @@ class ClouzerBot(commands.Bot):
             return self._wrap_doc_content("XLSX", filename, "[File XLSX terbaca namun semua sheet kosong.]"), media_imgs
         finally:
             wb.close()
+            cached_wb.close()
 
     def extract_rtf_content(self, rtf_bytes: bytes, filename: str) -> str:
         raw = rtf_bytes.decode("utf-8", errors="ignore")
@@ -3338,10 +3356,10 @@ class ClouzerBot(commands.Bot):
         _path_prefix: str = "",
         _budget_state: dict | None = None,
     ) -> tuple[str, list[str]]:
-        """Read a bounded ZIP in memory; never writes archive paths to disk.
+        """Read a bounded ZIP in memory, retaining full source paths and image provenance.
 
-        Nested ZIPs are limited to one level. Every member is read through a
-        bounded stream and all document parsers receive bytes, not filesystem paths.
+        Nested ZIP depth, decompressed bytes, and member counts are bounded. Every
+        member is read through a bounded stream; archive paths are never written to disk.
         """
         parts: list[str] = []
         images: list[str] = []
@@ -3352,6 +3370,8 @@ class ClouzerBot(commands.Bot):
         max_members = 100
         if _image_budget is None:
             _image_budget = MAX_VISION_IMAGES_PER_TURN
+        if not _path_prefix:
+            _path_prefix = f"{filename}!/"
         # Share one decompressed-byte budget across the root archive and every
         # nested ZIP. Per-archive limits alone let many small nested ZIPs each
         # expand to the full limit in a single user upload.
@@ -3430,7 +3450,11 @@ class ClouzerBot(commands.Bot):
                             parts.append(f"[Gambar dilewati karena batas visual per giliran: {display_path[:120]}]")
                             continue
                         images.append(self._compress_image_bytes_to_data_url(member_bytes))
-                        parts.append(f"[Gambar arsip disertakan sebagai visual: {display_path[:140]}]")
+                        visual_index = MAX_VISION_IMAGES_PER_TURN - _image_budget + len(images)
+                        parts.append(
+                            f"[VISUAL IMAGE #{visual_index} SOURCE: {display_path[:180]} | "
+                            "gambar ini dikirim ke model pada urutan visual yang sama]"
+                        )
                         continue
 
                     if ext in text_exts:
@@ -3505,7 +3529,12 @@ class ClouzerBot(commands.Bot):
                     else:
                         parts.append(f"[Format anggota belum didukung: {display_path[:140]}]")
                 except Exception as exc:
-                    parts.append(f"[Anggota gagal dibaca: {display_path[:100]} ({type(exc).__name__})]")
+                    safe_detail = re.sub(r"\s+", " ", scrub_secrets(str(exc))).strip()[:180]
+                    detail_suffix = f": {safe_detail}" if safe_detail else ""
+                    parts.append(
+                        f"[Anggota gagal dibaca: {display_path[:140]} "
+                        f"({type(exc).__name__}{detail_suffix})]"
+                    )
 
         if not parts:
             parts.append("[Arsip ZIP valid tetapi kosong.]")
