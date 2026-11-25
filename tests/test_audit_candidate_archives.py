@@ -179,6 +179,38 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("BadZipFile", text)
         self.assertIn("VALID MEMBER STILL READ", text)
 
+    def test_original_clouzer_package_four_gap_regressions(self):
+        package_path = os.getenv("CLOUZER_AUDIT_PACKAGE")
+        if not package_path or not os.path.isfile(package_path):
+            self.skipTest("Original ZIP fixture is supplied by the GitHub Actions workflow")
+        with zipfile.ZipFile(package_path) as package:
+            xlsx = package.read("09_data_uji.xlsx")
+            nested = package.read("12_arsip_bersarang.zip")
+            mixed = package.read("11_arsip_campuran.zip")
+            corrupt = package.read("14_file_rusak.zip")
+
+        xlsx_text, _ = self.bot.extract_xlsx_content(xlsx, "09_data_uji.xlsx")
+        self.assertIn("=SUM(Utara!B2:B3)", xlsx_text)
+        self.assertIn("=SUM(Selatan!B2:B3)", xlsx_text)
+
+        nested_text, _ = self.bot.extract_generic_zip_content(nested, "12_arsip_bersarang.zip")
+        self.assertIn("Kebun Kota", nested_text)
+        self.assertIn("Blok Selatan", nested_text)
+        self.assertIn("18", nested_text)
+        self.assertNotIn("kedalaman maksimum", nested_text)
+
+        mixed_text, mixed_images = self.bot.extract_generic_zip_content(mixed, "11_arsip_campuran.zip")
+        self.assertIn("05_gambar_uji_a.png", mixed_text)
+        self.assertEqual(len(mixed_images), 1)
+        self.assertTrue(mixed_images[0].startswith("data:image/"))
+
+        corrupt_text, _ = self.bot.extract_generic_zip_content(
+            self.make_zip([("14_file_rusak.zip", corrupt), ("keep.txt", "CONTINUE AFTER BAD ZIP")]),
+            "corrupt-regression.zip",
+        )
+        self.assertIn("BadZipFile", corrupt_text)
+        self.assertIn("CONTINUE AFTER BAD ZIP", corrupt_text)
+
     def test_skips_symlink_entries(self):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as archive:
