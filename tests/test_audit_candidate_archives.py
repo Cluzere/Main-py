@@ -117,7 +117,8 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("NESTED ZIP CONTENT", text)
 
     def test_rejects_deeper_nested_zip(self):
-        level3 = self.make_zip([("deep.txt", "TOO DEEP")])
+        deepest = self.make_zip([("deep.txt", "TOO DEEP")])
+        level3 = self.make_zip([("deepest.zip", deepest)])
         level2 = self.make_zip([("level3.zip", level3)])
         level1 = self.make_zip([("level2.zip", level2)])
         text, _ = self.bot.extract_generic_zip_content(level1, "outer.zip")
@@ -171,8 +172,10 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("Kangkung", text)
 
     def test_corrupt_nested_zip_is_reported_and_other_members_continue(self):
+        # Keep a ZIP local-file signature so this reaches the ZIP parser,
+        # then fails as a malformed archive rather than at the signature gate.
         raw = self.make_zip([
-            ("14_file_rusak.zip", b"not a zip archive"),
+            ("14_file_rusak.zip", b"PK\x03\x04not a valid ZIP archive"),
             ("valid.txt", "VALID MEMBER STILL READ"),
         ])
         text, _ = self.bot.extract_generic_zip_content(raw, "package.zip")
