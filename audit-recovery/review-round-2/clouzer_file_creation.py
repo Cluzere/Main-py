@@ -1,5 +1,6 @@
 """Pembuatan lampiran dokumen CLOUZER yang dibatasi dan tanpa akses filesystem bebas."""
 from __future__ import annotations
+import datetime as _datetime
 import io, json, re, textwrap, time, zipfile
 
 MAX_GENERATED_FILE_BYTES = 8 * 1024 * 1024
@@ -111,6 +112,32 @@ def _requested_sheet_title(prompt: str) -> str | None:
 
 def _safe_sheet_title(prompt: str) -> str:
     return _requested_sheet_title(prompt) or "Data"
+
+
+def _xlsx_formula_specs(headers: list[str], prompt: str) -> dict[int, tuple[str, tuple[int, int, int]]]:
+    """Return formulas explicitly requested for supported derived XLSX columns."""
+    low = str(prompt or "").casefold()
+    normalized = [str(value).strip().casefold() for value in headers]
+    required = ("stok akhir", "stok awal", "barang masuk", "barang keluar")
+    if "rumus" not in low or not all(name in normalized for name in required):
+        return {}
+    return {
+        normalized.index("stok akhir"): (
+            "stock_balance",
+            (normalized.index("stok awal"), normalized.index("barang masuk"), normalized.index("barang keluar")),
+        )
+    }
+
+
+def _xlsx_date_value(value: str):
+    """Parse ISO-8601 calendar dates into native Excel date cells."""
+    candidate = str(value or "").strip()
+    if re.fullmatch(r"\\d{4}-\\d{2}-\\d{2}", candidate):
+        try:
+            return _datetime.date.fromisoformat(candidate)
+        except ValueError as exc:
+            raise ValueError("Tanggal XLSX tidak valid: " + candidate) from exc
+    return value
 
 
 _NUMERIC_XLSX_HEADER_RE = re.compile(
@@ -284,20 +311,34 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
             _check_table(rows, prompt, "XLSX")
     _check_table(rows, prompt, "XLSX")
     headers = [str(value).strip().casefold() for value in rows[0]]
+    formula_specs = _xlsx_formula_specs(rows[0], prompt)
     for row_index, row in enumerate(rows):
         values = []
         for column_index, cell in enumerate(row):
             value = str(cell)
             if len(value) > 32767:
                 raise ValueError("Satu cell XLSX melebihi batas 32.767 karakter.")
-            if row_index > 0 and column_index < len(headers) and _NUMERIC_XLSX_HEADER_RE.search(headers[column_index]):
+            if row_index > 0 and column_index in formula_specs:
+                formula_kind, source_indexes = formula_specs[column_index]
+                if formula_kind == "stock_balance":
+                    from openpyxl.utils import get_column_letter
+                    a, b, c = (get_column_letter(index + 1) for index in source_indexes)
+                    excel_row = row_index + 1
+                    value = f"={a}{excel_row}+{b}{excel_row}-{c}{excel_row}"
+            elif row_index > 0 and column_index < len(headers) and re.search(r"(?:tanggal|date)", headers[column_index]):
+                value = _xlsx_date_value(value)
+            elif row_index > 0 and column_index < len(headers) and _NUMERIC_XLSX_HEADER_RE.search(headers[column_index]):
                 candidate = value.strip()
-                if re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", candidate):
+                if re.fullmatch(r"[+-]?(?:0|[1-9]\\d*)(?:\\.\\d+)?", candidate):
                     value = float(candidate) if "." in candidate else int(candidate)
                 else:
                     raise ValueError(f"Kolom {rows[0][column_index]} harus berupa angka pada baris {row_index + 1}.")
             values.append(value)
         sheet.append(values)
+        if row_index > 0:
+            for column_index in range(len(headers)):
+                if re.search(r"(?:tanggal|date)", headers[column_index]):
+                    sheet.cell(row_index + 1, column_index + 1).number_format = "yyyy-mm-dd"
     if expected_rows and rows != expected_rows:
         raise ValueError("Data XLSX tidak sama persis dengan tabel sumber pada prompt; pembuatan dibatalkan.")
     for cell in sheet[1]:
@@ -309,6 +350,8 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
         sheet.column_dimensions[letter].width = min(max(max_width + 2, 12), 48)
     if sheet.max_row != len(rows) or sheet.max_column != len(rows[0]):
         raise ValueError("Validasi XLSX sebelum penyimpanan gagal: dimensi worksheet tidak sesuai.")
+    if sheet.max_row > 1 and sheet.max_column > 0:
+        sheet.auto_filter.ref = sheet.dimensions
     if not any(cell.value is not None for row in sheet.iter_rows() for cell in row):
         raise ValueError("Validasi XLSX sebelum penyimpanan gagal: worksheet kosong.")
     output = io.BytesIO()
@@ -495,29 +538,67 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
             raise ValueError("DOCX tidak memiliki teks.")
     elif fmt == "xlsx":
         from openpyxl import load_workbook
-        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=False)
         try:
             if not wb.sheetnames or wb.active.max_row > MAX_TABLE_ROWS + 1 or wb.active.max_column > MAX_TABLE_COLUMNS:
                 raise ValueError("XLSX melewati batas tabel atau tidak memiliki worksheet.")
             for name in wb.sheetnames:
                 if not any(cell.value is not None for row in wb[name].iter_rows() for cell in row):
                     raise ValueError(f"XLSX memiliki worksheet kosong: {name}.")
+            ws = wb.active
             requested_sheet = _requested_sheet_title(prompt)
-            if requested_sheet and wb.active.title != requested_sheet:
-                raise ValueError(f"Worksheet bernama {wb.active.title}; prompt meminta {requested_sheet}.")
-            rows = [[str(cell or "") for cell in row] for row in wb.active.iter_rows(values_only=True)]
-            _check_table(rows, prompt, "XLSX")
+            if requested_sheet and ws.title != requested_sheet:
+                raise ValueError(f"Worksheet bernama {ws.title}; prompt meminta {requested_sheet}.")
             expected_rows = _prompt_pipe_table(prompt)
-            if expected_rows and rows != expected_rows:
+            headers = [str(cell.value or "").strip().casefold() for cell in ws[1]]
+            formula_specs = _xlsx_formula_specs(expected_rows[0] if expected_rows else headers, prompt)
+            canonical_rows = []
+            for row_number, cells in enumerate(ws.iter_rows(values_only=False), 1):
+                canonical = []
+                for index, cell in enumerate(cells):
+                    value = cell.value
+                    if row_number > 1 and index in formula_specs:
+                        formula_kind, source_indexes = formula_specs[index]
+                        if formula_kind != "stock_balance" or not isinstance(value, str) or not value.startswith("="):
+                            raise ValueError(f"Kolom {ws.cell(1, index + 1).value} harus berisi rumus Excel pada baris {row_number}.")
+                        from openpyxl.utils import get_column_letter
+                        a, b, c = (get_column_letter(source_index + 1) for source_index in source_indexes)
+                        expected_formula = f"={a}{row_number}+{b}{row_number}-{c}{row_number}"
+                        if value.replace("$", "").replace(" ", "").casefold() != expected_formula.casefold():
+                            raise ValueError(f"Rumus pada {ws.cell(row_number, index + 1).coordinate} tidak sesuai.")
+                        source_values = [ws.cell(row_number, source_index + 1).value for source_index in source_indexes]
+                        if any(not isinstance(item, (int, float)) or isinstance(item, bool) for item in source_values):
+                            raise ValueError(f"Sumber rumus stok harus berupa angka pada baris {row_number}.")
+                        calculated = source_values[0] + source_values[1] - source_values[2]
+                        if expected_rows and row_number - 1 < len(expected_rows):
+                            expected_value = expected_rows[row_number - 1][index].strip()
+                            if not re.fullmatch(r"[+-]?(?:0|[1-9]\\d*)(?:\\.\\d+)?", expected_value) or calculated != float(expected_value):
+                                raise ValueError(f"Hasil rumus stok berbeda dari tabel sumber pada baris {row_number}.")
+                            canonical.append(expected_value)
+                        else:
+                            canonical.append(str(calculated))
+                    elif isinstance(value, (_datetime.datetime, _datetime.date)):
+                        canonical.append(value.date().isoformat() if isinstance(value, _datetime.datetime) else value.isoformat())
+                    else:
+                        canonical.append(str(value or ""))
+                canonical_rows.append(canonical)
+            _check_table(canonical_rows, prompt, "XLSX")
+            if expected_rows and canonical_rows != expected_rows:
                 raise ValueError("Data XLSX berbeda dari tabel sumber pada prompt.")
-            headers = [str(value).strip().casefold() for value in rows[0]]
             for index, header in enumerate(headers):
-                if _NUMERIC_XLSX_HEADER_RE.search(header):
-                    for row_number, row in enumerate(wb.active.iter_rows(min_row=2, values_only=False), 2):
+                if _NUMERIC_XLSX_HEADER_RE.search(header) and index not in formula_specs:
+                    for row_number, row in enumerate(ws.iter_rows(min_row=2, values_only=False), 2):
                         value = row[index].value if index < len(row) else None
                         if not isinstance(value, (int, float)) or isinstance(value, bool):
-                            raise ValueError(f"Kolom {rows[0][index]} harus berisi angka pada baris {row_number}.")
-            result.update({"rows": len(rows) - 1, "columns": len(rows[0]), "sheets": len(wb.sheetnames), "sheet_name": wb.active.title})
+                            raise ValueError(f"Kolom {ws.cell(1, index + 1).value} harus berisi angka pada baris {row_number}.")
+                if re.search(r"(?:tanggal|date)", header):
+                    for row_number, row in enumerate(ws.iter_rows(min_row=2, values_only=False), 2):
+                        value = row[index].value if index < len(row) else None
+                        if not isinstance(value, (_datetime.date, _datetime.datetime)):
+                            raise ValueError(f"Kolom {ws.cell(1, index + 1).value} harus berisi tanggal Excel pada baris {row_number}.")
+            if ws.max_row > 1 and ws.max_column > 0 and not ws.auto_filter.ref:
+                raise ValueError("XLSX tidak memiliki filter tabel yang diminta.")
+            result.update({"rows": len(canonical_rows) - 1, "columns": len(canonical_rows[0]), "sheets": len(wb.sheetnames), "sheet_name": ws.title})
         finally:
             wb.close()
     elif fmt == "pptx":
