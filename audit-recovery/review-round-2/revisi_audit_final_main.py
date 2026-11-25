@@ -2245,6 +2245,10 @@ def infer_generated_filename(request: str) -> str:
     match = FILE_EXT_RE.search(request or "")
     if match:
         candidate = os.path.basename(match.group(1).strip().strip(" ."))
+        parts = candidate.split()
+        while parts and parts[0].lower() in {"buat", "buatkan", "bikin", "create", "generate", "file", "dokumen", "nama", "bernama", "simpan", "sebagai"}:
+            parts.pop(0)
+        candidate = " ".join(parts) or "hasil_clouzer.txt"
     else:
         low = (request or "").lower()
         ext = ".txt"
