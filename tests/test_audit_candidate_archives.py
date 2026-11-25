@@ -1599,13 +1599,23 @@ class ArchiveReaderTests(unittest.TestCase):
             def acquire(self, *args, **kwargs):
                 return True, 0.0
 
+        class FakeBot:
+            user = SimpleNamespace(id=999)
+            rate_limiter = FakeRateLimiter()
+            ingress_lock = module.ClouzerBot.ingress_lock
+
+            def __init__(self):
+                self.ingress_locks = {}
+                self.ingress_lock_refs = {}
+
+            def get_scope_key(self, guild, user_id, channel_id):
+                return f"dm_{user_id}_ch_{channel_id}"
+
+            def is_channel_allowed(self, channel, guild):
+                return True
+
         async def run():
-            bot = module.ClouzerBot.__new__(module.ClouzerBot)
-            bot.user = SimpleNamespace(id=999)
-            bot.rate_limiter = FakeRateLimiter()
-            bot.ingress_locks = {}
-            bot.ingress_lock_refs = {}
-            bot.is_channel_allowed = lambda channel, guild: True
+            bot = FakeBot()
             parsed = []
             first_parse_started = asyncio.Event()
             release_first = asyncio.Event()
