@@ -279,7 +279,9 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
         if is_unstructured or is_truncated_prefix:
             rows = expected_rows
         else:
-            raise ValueError("Data XLSX tidak sama persis dengan tabel sumber pada prompt; pembuatan dibatalkan.")
+            # Preserve the normal table and cell validation errors before the
+            # final exact-source comparison below.
+            _check_table(rows, prompt, "XLSX")
     _check_table(rows, prompt, "XLSX")
     headers = [str(value).strip().casefold() for value in rows[0]]
     for row_index, row in enumerate(rows):
@@ -296,6 +298,8 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
                     raise ValueError(f"Kolom {rows[0][column_index]} harus berupa angka pada baris {row_index + 1}.")
             values.append(value)
         sheet.append(values)
+    if expected_rows and rows != expected_rows:
+        raise ValueError("Data XLSX tidak sama persis dengan tabel sumber pada prompt; pembuatan dibatalkan.")
     for cell in sheet[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="365F91")
