@@ -157,13 +157,13 @@ class FileCreationTests(unittest.TestCase):
 
     def test_xlsx_exact_clouzer_employee_acceptance_prompt(self):
         from openpyxl import load_workbook
-        prompt = """Ulangi pembuatan file Excel. Buat file asli bernama \`TES_AUDIT_CLOUZER.xlsx\`.
+        prompt = """Ulangi pembuatan file Excel. Buat file asli bernama `TES_AUDIT_CLOUZER.xlsx`.
 
-Buat worksheet bernama \`Data Pegawai\`.
+Buat worksheet bernama `Data Pegawai`.
 
-Gunakan data berikut. Baris pertama adalah header. Setiap baris setelahnya adalah satu baris data. Pisahkan setiap kolom dengan tanda \`|\`.
+Gunakan data berikut. Baris pertama adalah header. Setiap baris setelahnya adalah satu baris data. Pisahkan setiap kolom dengan tanda `|`.
 
-\`\`\`text
+```text
 No|Nama|Umur|Kota|Harga|Status
 1|Andi|25|Jakarta|150000|Aktif
 2|Budi|30|Bandung|200000|Aktif
@@ -175,7 +175,7 @@ No|Nama|Umur|Kota|Harga|Status
 8|Hadi|29|Bekasi|250000|Aktif
 9|Intan|27|Depok|190000|Nonaktif
 10|Joko|31|Tangerang|275000|Aktif
-\`\`\`
+```
 
 Wajib menghasilkan 1 header dan 10 baris data. Wajib menghasilkan tepat 6 kolom."""
         content = """No|Nama|Umur|Kota|Harga|Status
@@ -210,12 +210,19 @@ Wajib menghasilkan 1 header dan 10 baris data. Wajib menghasilkan tepat 6 kolom.
             wb.close()
 
     def test_xlsx_rejects_non_numeric_age_and_changed_source_data(self):
-        prompt = "Buat Excel worksheet bernama Data Pegawai dengan tepat 2 baris data dan 2 kolom.\\n\\nA|Umur\\n1|25\\n2|30"
-        with self.assertRaisesRegex(ValueError, "harus berupa angka"):
-            create_document_file("xlsx", prompt, "A|Umur\\n1|dua puluh lima\\n2|30")
-        with self.assertRaisesRegex(ValueError, "tidak sama persis"):
-            create_document_file("xlsx", prompt, "A|Umur\\n1|25\\n2|31")
+        prompt = """Buat Excel worksheet bernama Data Pegawai dengan tepat 2 baris data dan 2 kolom.
 
+A|Umur
+1|25
+2|30"""
+        with self.assertRaisesRegex(ValueError, "harus berupa angka"):
+            create_document_file("xlsx", prompt, """A|Umur
+1|dua puluh lima
+2|30""")
+        with self.assertRaisesRegex(ValueError, "tidak sama persis"):
+            create_document_file("xlsx", prompt, """A|Umur
+1|25
+2|31""")
 
 if __name__ == "__main__":
     unittest.main()
