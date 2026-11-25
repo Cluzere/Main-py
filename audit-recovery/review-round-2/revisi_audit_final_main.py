@@ -25,6 +25,10 @@ from discord.ext import commands
 import aiohttp
 from PIL import Image
 from dotenv import load_dotenv
+import sys
+_SCRIPT_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_MODULE_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_MODULE_DIR)
 from clouzer_file_creation import detect_requested_file_format, create_document_file
 
 try:
