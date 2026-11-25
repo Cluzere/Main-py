@@ -14,6 +14,7 @@
 - Batas pesan lampiran dinaikkan menjadi 10 dengan laporan per file.
 - Pembacaan ZIP dan 7Z dibatasi ukuran, jumlah anggota, rasio kompresi, kedalaman arsip, dan jumlah visual; ekstraksi dilakukan di memori tanpa menulis path arsip ke disk.
 - DOCX/PDF/PPTX/XLSX di dalam arsip diparse menggunakan parser dokumen yang sudah tersedia.
+- Signature anggota PDF/Office/audio yang dikenal diperiksa sebelum parser dokumen dijalankan; mismatch ditolak dan dilaporkan.
 - DOCX header/footer dan PPTX speaker notes/chart data ikut diekstrak.
 - Teks gabungan lampiran dibatasi agar tidak diam-diam membanjiri konteks model.
 - Dokumen dari pesan yang di-reply dibaca bersama lampiran baru dengan sisa anggaran ukuran/teks.
