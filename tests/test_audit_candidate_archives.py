@@ -1781,5 +1781,25 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIsNotNone(module.check_file_signature(".eps", b"plain text"))
         self.assertIsNotNone(module.check_file_signature(".ai", b"plain text"))
 
+    def test_last_user_image_context_isolated_by_user_and_expires(self):
+        import time
+
+        self.bot.last_channel_images = module.OrderedDict()
+        first = ["data:image/png;base64,USER_ONE"]
+        second = ["data:image/png;base64,USER_TWO"]
+        self.bot.set_last_user_image(1, 2, 10, first)
+        self.bot.set_last_user_image(1, 2, 20, second)
+
+        self.assertEqual(self.bot.get_last_user_image(1, 2, 10), first)
+        self.assertEqual(self.bot.get_last_user_image(1, 2, 20), second)
+        self.assertIsNone(self.bot.get_last_user_image(1, 2, 30))
+
+        self.bot.last_channel_images[(1, 2, 10)] = (
+            time.monotonic() - module.IMAGE_CONTEXT_TTL_SECONDS - 1,
+            first,
+        )
+        self.assertIsNone(self.bot.get_last_user_image(1, 2, 10))
+        self.assertNotIn((1, 2, 10), self.bot.last_channel_images)
+
 if __name__ == "__main__":
     unittest.main()
