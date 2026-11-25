@@ -205,6 +205,7 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("B2=10", xlsx_text)
 
         nested_text, _ = self.bot.extract_generic_zip_content(nested, "12_arsip_bersarang.zip")
+        self.assertIn("12_arsip_bersarang.zip!/folder/inner_test.zip!/02_catatan_b.txt", nested_text)
         self.assertIn("Kebun Kota", nested_text)
         self.assertIn("Blok Selatan", nested_text)
         self.assertIn("18", nested_text)
