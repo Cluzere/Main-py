@@ -1,4 +1,5 @@
 name: Audit candidate syntax check
+# Regression checks include exact workbook cell addresses, nested visual provenance, and corrupt ZIP continuation.
 
 on:
   pull_request:
