@@ -1848,3 +1848,39 @@ Branch: `audit-recovery-gpt-2026-11-23`.
 - Status Box upload untuk percobaan gagal tidak terbukti; jangan mencatat adanya file kedua di folder Box tanpa pemeriksaan aktual.
 - Production `main.py` tidak diubah. Tidak ada merge ke `main`, deployment, atau restart Wispbyte oleh assistant.
 - Langkah berikutnya: periksa CI yang dipicu oleh commit terbaru; bila hijau, user dapat melakukan restart instance kandidat sesuai kendali sendiri, lalu jalankan ulang prompt yang sama dan periksa attachment Discord serta artefak Box secara terpisah.
+
+
+---
+
+## 39. CORRECTION — XLSX fallback harus melewati refusal guard di pipeline (26 November 2026)
+
+Bagian §38 mencatat fallback di helper. Inspeksi lanjutan menemukan satu penghalang penting: candidate `process_ai_turn()` memiliki refusal guard lebih awal yang langsung melempar `RuntimeError` sebelum helper dipanggil. Tanpa koreksi ini, fallback helper tidak akan pernah berjalan untuk sebagian besar pesan penolakan yang dikenali pipeline.
+
+### 39.1 Koreksi kode final di branch audit
+
+- `audit-recovery/review-round-2/clouzer_file_creation.py`
+  - Commit terbaru: `e00f3baaaa616c9887f6089752bffaaf8cd0d435`.
+  - Daftar refusal marker helper disejajarkan dengan marker di pipeline, sehingga respons model yang ditolak akan dikenali konsisten sebagai kegagalan, bukan konten dokumen.
+  - Untuk XLSX, helper hanya boleh melanjutkan dari tabel eksplisit di prompt; validasi tabel/data tetap wajib.
+- `audit-recovery/review-round-2/revisi_audit_final_main.py`
+  - Commit: `feda289d7bf7a6d6559a26fa2f0b6ffa7bab3fb4`.
+  - Refusal guard sekarang tetap menolak pesan penolakan untuk format selain XLSX.
+  - Untuk XLSX, guard mencatat `[XLSX-FALLBACK]` dan meneruskan respons ke helper. Helper kemudian memutuskan apakah prompt memiliki tabel lengkap yang valid. Jika tidak, proses tetap gagal dengan aman.
+- `audit-recovery/review-round-2/test_file_creation.py`
+  - Commit penambahan tes: `af27591b5e9adb6dc3ed3d1073c904518afb1b85`.
+  - Jumlah test method pada file saat diperiksa: 20.
+  - Regression test mencakup fallback refusal ke tabel prompt dan penolakan fallback jika tidak ada tabel sumber.
+
+### 39.2 CI dan status saat dicatat
+
+- Commit candidate terbaru: `feda289d7bf7a6d6559a26fa2f0b6ffa7bab3fb4`.
+- GitHub Actions run Audit recovery candidate: [45718995413](https://github.com/Cluzere/Main-py/actions/runs/45718995413) — **IN_PROGRESS** saat diperiksa.
+- GitHub Actions run Audit candidate syntax check: [45718995334](https://github.com/Cluzere/Main-py/actions/runs/45718995334) — **IN_PROGRESS** saat diperiksa.
+- Karena kedua workflow masih berjalan, jangan mengklaim regression test, compile, atau security scan untuk commit terbaru sudah PASS. Periksa ulang hasil workflow sebelum menyatakan patch lolos CI.
+- Master Memory §38 sebelumnya telah mencatat helper/test awal; bagian ini adalah koreksi append-only untuk pipeline refusal guard dan commit final candidate.
+
+### 39.3 Batas tetap
+
+- Seluruh perubahan hanya pada branch `audit-recovery-gpt-2026-11-23`.
+- Production root `main.py` tidak diubah; tidak ada merge ke `main`, deployment, atau restart Wispbyte.
+- CI hijau kelak tetap bukan bukti live Discord attachment atau Box upload. Setelah CI hijau, live retest harus memeriksa empat tahap secara terpisah: workbook dibuat, workbook tervalidasi, attachment Discord dikonfirmasi, dan artefak Box benar-benar ada.
