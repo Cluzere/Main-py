@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - test-file-13-7z
-    paths:
-      - .github/workflows/build-test-13-7z.yml
 
 permissions:
   contents: read
