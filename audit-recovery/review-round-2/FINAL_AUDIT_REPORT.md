@@ -63,6 +63,8 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 23. Nested ZIP dan ZIP di dalam 7Z memberi penanda truncation dan jumlah karakter yang tidak dimasukkan; anggota teks/dokumen 7Z juga menandai truncation.
 24. Peringatan gambar dilewati menghitung jumlah yang benar-benar tidak tertampung.
 25. Anggaran byte dekompresi dibagi bersama antara ZIP utama dan semua ZIP bersarang; ZIP di dalam 7Z memakai sisa budget hasil ekstraksi 7Z agar banyak arsip kecil tidak menggandakan batas dekompresi.
+26. Status awal punya fallback ke channel jika reply ke pesan sumber gagal.
+27. Konteks gambar edit yang disimpan di RAM dideduplikasi dan dibatasi ke jumlah maksimum gambar vision.
 
 ## Audit 64 butir — status jujur
 
