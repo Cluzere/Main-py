@@ -904,3 +904,124 @@ Untuk setiap pekerjaan, tulis informasi konkret yang relevan, bukan sekadar kali
 
 **Kriteria selesai untuk setiap pekerjaan:** pekerjaan belum dianggap terdokumentasi/selesai sampai temuan atau perubahan spesifik, bukti tes, commit/status Git, serta pekerjaan tersisa sudah ditambahkan ke Master Memory ini dan pembaruannya berhasil diverifikasi di GitHub.
 
+
+
+---
+
+## 24. ADDENDUM — integrasi Box OAuth dan subdomain Wispbyte (26 November 2026)
+
+Bagian ini mencatat progres integrasi CLOUZER dengan Box berdasarkan konfigurasi panel, hasil uji API dari Termux, dan inspeksi read-only kandidat GitHub. Catatan ini tidak mengubah atau membatalkan batas produksi pada bagian sebelumnya.
+
+### 24.1 Tujuan integrasi
+
+Tujuan pekerjaan adalah menghubungkan CLOUZER Discord Bot yang berjalan di Wispbyte dengan penyimpanan Box agar bot dapat mengakses folder dan file melalui API Box. Subdomain Wispbyte dibuat sebagai alamat callback OAuth Box, bukan sebagai alamat folder atau URL API Box.
+
+Subdomain yang dibuat pengguna:
+- `clouzer-box.wispbyte.app`
+- Status pada panel: Active.
+- Server Wispbyte yang dipilih: `Gpt sol61`, dikonfirmasi pengguna sebagai server yang menjalankan CLOUZER.
+- Panel Wispbyte menampilkan alokasi port utama `15497` pada IP `78.154.103.34`, dengan indikator alokasi `1/2`.
+- Halaman Wispbyte menyatakan aplikasi web harus bind ke `0.0.0.0:15497`; bind ke `127.0.0.1` atau `localhost` tidak dapat dijangkau dari luar.
+- Saat domain dibuka, respons yang terlihat adalah “Web server isn't running”; artinya subdomain aktif tetapi belum ada web server/callback yang menerima koneksi pada port yang dirutekan.
+
+Kandidat Redirect URI yang dibahas:
+`https://clouzer-box.wispbyte.app/callback`
+
+**Status:** belum boleh dianggap berfungsi. Redirect URI hanya akan bekerja setelah endpoint `/callback` benar-benar dibuat dan listener aktif pada port yang sesuai. Jangan menyuruh pengguna memasukkan URI lalu menganggap OAuth siap sebelum endpoint tersedia.
+
+### 24.2 Box Developer App
+
+Pengguna membuat aplikasi Box Developer:
+- Nama aplikasi: `CLOUZER-Discord-Bridge`
+- Tipe aplikasi: User
+- Status: ENABLED
+- Enterprise ID: `1583918239`
+- Scope yang dipilih: Read all files and folders stored in Box; Write all files and folders stored in Box.
+- Redirect URI yang sebelumnya tercatat pada app: `http://localhost:8765/callback`.
+- Client ID dan Client Secret tersedia pada panel pengguna; jangan meminta atau menyalin rahasia tersebut ke chat atau Master Memory.
+- Developer Token bersifat sementara dan bukan kredensial produksi.
+
+Akun Box yang terlibat:
+1. Akun Box sumber yang memiliki folder `Test file`.
+2. Akun Box Developer yang dipakai membuat aplikasi `CLOUZER-Discord-Bridge`.
+
+Jangan menyamakan kedua akun. Folder sumber dibagikan ke akun Developer agar OAuth sebagai akun Developer dapat mengakses folder tersebut.
+
+### 24.3 Akses folder Box sudah berhasil diuji dari Termux
+
+Folder:
+- Nama: `Test file`
+- Folder ID: `441035368657`
+
+Folder dibagikan dari akun sumber kepada akun Developer sebagai Editor. Hasil pemeriksaan kolaborasi Box:
+- Role: `editor`
+- Status: `accepted`
+- Collaboration ID: `76895310160`
+- `hasCollaborations: true`
+
+Pengguna menjalankan skrip `box_test.py` di Termux menggunakan `requests` dan input token secara tersembunyi melalui `getpass`. Hasil API:
+- Root folder API: HTTP 200, koneksi Box berhasil.
+- Folder ID `441035368657`: HTTP 200, folder berhasil dibaca.
+- Lima file berhasil terdaftar:
+  - `clouzer_buatkan_file_excel_xlsx_dengan_nama__20261125_152528.xlsx` — ID `2614753885598`, 5,116 bytes.
+  - `clouzer_buat_dokumen_word_bernama_clouzer_te_20261125_150453.docx` — ID `2614757792848`, 36,799 bytes.
+  - `clouzer_buat_file_arsip_zip_bernama_clouzer__20261125_154453.zip` — ID `2614773361769`, 762 bytes.
+  - `clouzer_buat_file_powerpoint_bernama_clouzer_20261125_153834-2.pptx` — ID `2614748133170`, 32,697 bytes.
+  - `clouzer_buat_file_txt_bernama_clouzer_test_t_20261125_150316.txt` — ID `2614748738089`, 200 bytes.
+
+**Kesimpulan yang didukung bukti:** kredensial Developer Token yang digunakan pada pengujian Termux dapat membaca folder `Test file` dan daftar lima file tersebut. Ini belum membuktikan CLOUZER yang berjalan di Wispbyte telah terhubung ke Box. Developer Token juga bukan solusi autentikasi permanen.
+
+Catatan keamanan: pada pemeriksaan panel sebelumnya, shared link folder terlihat memiliki akses `open` / publik. Pertimbangkan membatasi shared link menjadi collaborators-only setelah pengguna menyetujui perubahan; jangan mengubah izin berbagi tanpa persetujuan.
+
+### 24.4 Inspeksi read-only kandidat kode GitHub
+
+Repository: `Cluzere/Main-py`  
+Branch yang diperiksa: `audit-recovery-gpt-2026-11-23`  
+File kandidat:
+`audit-recovery/review-round-2/revisi_audit_final_main.py`
+
+Pemeriksaan kode dilakukan read-only atas permintaan pengguna. Hasil yang terlihat:
+- File kandidat yang ditemukan pada tree branch memiliki blob SHA `89aec6aef1b6b806006026a968721aba16e8faf2`.
+- Kode mengimpor `aiohttp`, tetapi pencarian terhadap kandidat tidak menemukan penggunaan `aiohttp.web`, `web.Application`, `TCPSite`, `web.run_app`, `HTTPServer`, atau `asyncio.start_server`.
+- Tidak ditemukan implementasi Box OAuth maupun HTTP callback listener.
+- Entrypoint menjalankan `asyncio.run(main())`; fungsi utama menjalankan bot melalui `async with bot: await bot.start(DISCORD_TOKEN)`.
+
+**Implikasi:** pada kandidat yang diperiksa, belum ada endpoint `/callback` untuk menyelesaikan OAuth Box dan belum ada listener web yang bind ke `0.0.0.0:15497`. Import `aiohttp` saja tidak berarti web server sudah berjalan.
+
+Ada perbedaan antara SHA kandidat pada catatan Master Memory sebelumnya (§3/§21) dan blob SHA yang terlihat pada tree branch saat pemeriksaan ini. Jangan menganggap SHA lama masih mewakili file terkini. Sebelum mengedit, deploy, atau menyimpulkan status kandidat, verifikasi ulang branch head dan blob SHA yang tepat.
+
+### 24.5 Status pekerjaan dan langkah berikutnya
+
+Sudah selesai:
+1. Subdomain Wispbyte dibuat dan berstatus Active.
+2. Box Developer App dibuat dan ENABLED.
+3. Folder `Test file` dibagikan ke akun Developer sebagai Editor dan kolaborasi accepted.
+4. Akses API Box ke folder tersebut berhasil diuji dari Termux dengan HTTP 200.
+5. Kandidat GitHub diperiksa read-only dan dipastikan belum memiliki callback server Box OAuth pada file yang diperiksa.
+
+Belum selesai:
+1. Menentukan alokasi port yang tepat untuk callback. Jangan mengasumsikan port `15497` kosong atau aman dipakai bersama bot sebelum memeriksa pemakaian port dan konfigurasi Wispbyte. Panel menampilkan alokasi `1/2`; jangan membuat atau mengubah alokasi port tanpa persetujuan.
+2. Menambahkan endpoint OAuth callback `/callback` pada aplikasi yang berjalan di Wispbyte, dengan bind eksternal yang sesuai. Implementasi harus kompatibel dengan event loop bot dan tidak mematikan atau mengganggu Discord bot.
+3. Mengonfigurasi Redirect URI di Box Developer App agar sama persis dengan endpoint callback yang benar-benar aktif.
+4. Menjalankan alur OAuth Authorization Code dan menyimpan access token serta refresh token secara aman di environment/secret storage Wispbyte. Jangan memakai Developer Token sebagai kredensial produksi.
+5. Menguji refresh token dan akses folder Box dari proses CLOUZER di Wispbyte.
+6. Setelah koneksi stabil, baru integrasikan operasi Box yang dibutuhkan CLOUZER (list/read/upload/download) dan uji dari Discord.
+
+Urutan kerja yang disarankan:
+- Pertama, lakukan pemeriksaan read-only terhadap pemakaian port dan startup/runtime Wispbyte. Jangan restart.
+- Kedua, rancang callback server yang berjalan berdampingan dengan Discord bot dan gunakan port yang benar-benar dialokasikan untuk HTTP callback.
+- Ketiga, minta persetujuan eksplisit sebelum mengedit kandidat kode atau mengubah konfigurasi server.
+- Keempat, setelah callback aktif, masukkan Redirect URI yang persis sama ke Box Developer App dan selesaikan OAuth.
+- Kelima, validasi token refresh dan akses folder dari proses Wispbyte.
+
+### 24.6 Batas otorisasi yang tetap berlaku
+
+- Pemeriksaan GitHub yang disebut di atas bersifat read-only.
+- Belum ada perubahan kode untuk Box OAuth.
+- Belum ada perubahan konfigurasi Wispbyte, port allocation, startup command, atau proses yang berjalan.
+- Belum ada restart atau deployment.
+- Production `main.py` tetap tidak boleh disentuh tanpa izin eksplisit.
+- Jangan mengirim Client Secret, access token, refresh token, Developer Token, atau authorization code ke chat maupun menyimpannya dalam Master Memory.
+- Jangan mengklaim integrasi Box sudah selesai. Status saat ini adalah **akses Box terbukti dari Termux; integrasi OAuth dan runtime CLOUZER di Wispbyte belum dilakukan**.
+
+---
