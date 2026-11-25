@@ -1025,3 +1025,68 @@ Urutan kerja yang disarankan:
 - Jangan mengklaim integrasi Box sudah selesai. Status saat ini adalah **akses Box terbukti dari Termux; integrasi OAuth dan runtime CLOUZER di Wispbyte belum dilakukan**.
 
 ---
+
+
+---
+
+## 25. ADDENDUM — Box OAuth callback di branch yang dipakai Wispbyte (26 November 2026)
+
+Bagian ini memperbarui status §24 berdasarkan persetujuan pengguna untuk langsung menguji integrasi pada branch yang digunakan oleh Startup Command Wispbyte, tanpa membuat branch baru. Catatan §24 dipertahankan sebagai riwayat kondisi sebelum perubahan.
+
+### 25.1 Otorisasi dan target perubahan
+- Pengguna secara eksplisit meminta agar pekerjaan dilakukan pada branch yang dipakai Wispbyte: `audit-recovery-gpt-2026-11-23`.
+- Pengguna menyatakan ini hanya testing dan mengizinkan pendekatan langsung/agresif.
+- Repository: `Cluzere/Main-py`.
+- Production `main.py` tidak diubah.
+- Perubahan dibatasi pada kandidat audit dan modul OAuth baru di folder kandidat.
+
+### 25.2 Perubahan GitHub yang sudah tersimpan
+1. File baru: `audit-recovery/review-round-2/clouzer_box_oauth.py`
+   - Commit: `1b522cff93de061bd4ddbbb923dee19e542f4728`
+   - Blob SHA: `eefc7e3b26ef7247367d4b9a7210370bc843c11d`
+   - Memuat endpoint `/health`, `/login`, dan `/callback`.
+   - Menggunakan OAuth Authorization Code Box, validasi state satu kali pakai dengan masa berlaku terbatas, pertukaran authorization code, penyimpanan token atomik, dan permission file `0600` jika filesystem mendukung.
+   - Ditambahkan `get_valid_access_token()` untuk refresh otomatis sebelum access token kedaluwarsa, menyimpan refresh-token rotation, dan menghindari refresh bersamaan melalui asyncio lock.
+   - Ditambahkan `box_api_request()` sebagai helper API Box dengan HTTPS host/path tetap dan satu kali percobaan ulang setelah HTTP 401.
+   - Default token file `box_tokens.json`; dapat diarahkan dengan `BOX_TOKEN_FILE`.
+
+2. File kandidat: `audit-recovery/review-round-2/revisi_audit_final_main.py`
+   - Commit: `820bec9f793168cb915450e18e589680e7f5ba91`
+   - Blob SHA: `120587dbc51e2a4242208c7e562a8e0d9a791ea9`
+   - Menambahkan import `start_box_oauth_server`.
+   - Saat `main()` berjalan, mencoba menyalakan listener OAuth sebelum `bot.start()`; listener memakai event loop yang sama.
+   - Jika listener gagal bind atau konfigurasi belum lengkap, exception dicatat dan bot Discord tetap dicoba berjalan.
+   - Saat bot berhenti, runner OAuth dibersihkan.
+
+### 25.3 Deployment dan validasi — status jujur
+- Kedua perubahan tersimpan pada branch `audit-recovery-gpt-2026-11-23`, yaitu branch yang dikonfigurasi dalam Startup Command Wispbyte.
+- Commit terakhir dari perubahan kode: `820bec9f793168cb915450e18e589680e7f5ba91`.
+- Ini berarti fetch Wispbyte berikutnya pada branch tersebut akan mengambil perubahan ini.
+- Belum ada bukti bahwa Wispbyte sudah melakukan fetch/restart setelah commit tersebut.
+- Belum ada bukti runtime listener berhasil bind pada `0.0.0.0:15497`.
+- Belum ada tes syntax/compile, tes HTTP callback, tes OAuth nyata, tes refresh token, atau tes Box API dari proses Wispbyte pada perubahan ini.
+- Pemeriksaan combined commit status saat dicatat belum mengembalikan status CI apa pun; jangan menyebut CI lulus.
+- Belum ada integrasi perintah Discord untuk list/read/upload/download Box; helper autentikasi API baru disiapkan, belum dipanggil oleh fitur bot.
+
+### 25.4 Konfigurasi eksternal yang masih wajib
+Wispbyte environment/secrets perlu memuat:
+- `BOX_CLIENT_ID`
+- `BOX_CLIENT_SECRET`
+- `BOX_REDIRECT_URI=https://clouzer-box.wispbyte.app/callback`
+- Opsional: `BOX_OAUTH_PORT=15497` bila environment `PORT` tidak berisi port utama yang benar.
+- Opsional: `BOX_TOKEN_FILE=/home/container/box_tokens.json` agar file token berada di lokasi persisten di luar checkout Git.
+
+Box Developer App harus mengizinkan Redirect URI yang sama persis. URI localhost lama tidak cocok untuk callback Wispbyte. Jangan memasukkan Client Secret atau token ke chat/log/commit.
+
+Setelah restart dan listener aktif:
+- Uji `https://clouzer-box.wispbyte.app/health`.
+- Buka `https://clouzer-box.wispbyte.app/login` saat login ke akun Box Developer yang memiliki akses ke folder target.
+- Setelah callback berhasil, verifikasi token tidak pernah ditampilkan ke browser/log.
+- Uji refresh token dan akses API Box secara terpisah.
+
+### 25.5 Risiko dan batas
+- Port `15497` dipakai bersama pada proses bot karena Wispbyte hanya menunjukkan satu alokasi aktif; saat perubahan dibuat kandidat belum memiliki web listener lain. Jika ternyata ada proses lain yang sudah bind ke port itu, OAuth listener akan gagal, tetapi handler dibuat agar bot Discord tetap lanjut.
+- Default `BOX_TOKEN_FILE` relatif terhadap working directory. Set `BOX_TOKEN_FILE` ke lokasi persisten di luar direktori checkout agar token tidak tercampur dengan source code.
+- Jangan mengklaim integrasi Box sudah live sampai log Wispbyte membuktikan listener aktif, callback OAuth berhasil, refresh bekerja, dan API folder Box merespons.
+- Perubahan ini berada pada branch yang Wispbyte fetch saat startup; restart berikutnya dapat mengambil kode baru. Pengguna yang mengendalikan panel harus melakukan restart dan memberikan log.
+- Production `main.py`, branch `main`, konfigurasi port, Startup Command, dan proses Wispbyte belum diubah oleh tindakan GitHub ini.
