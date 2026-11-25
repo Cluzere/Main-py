@@ -2,7 +2,12 @@ import io
 import unittest
 import zipfile
 
-from clouzer_file_creation import create_document_file, detect_requested_file_format
+from clouzer_file_creation import (
+    create_document_file,
+    detect_requested_file_format,
+    is_file_retry_command,
+    normalize_pending_file_task,
+)
 
 
 class FileCreationTests(unittest.TestCase):
@@ -21,6 +26,20 @@ class FileCreationTests(unittest.TestCase):
 
     def test_capability_question_is_not_a_create_command(self):
         self.assertIsNone(detect_requested_file_format("CLOUZER sudah bisa membuat file PDF belum?"))
+
+    def test_file_retry_commands_are_recognized(self):
+        for prompt in ("Ulangi", "ulang", "Coba lagi", "Lanjutkan", "teruskan dong", "retry!"):
+            with self.subTest(prompt=prompt):
+                self.assertTrue(is_file_retry_command(prompt))
+        self.assertFalse(is_file_retry_command("Ulangi penjelasan tentang Discord"))
+
+    def test_pending_file_task_is_validated_and_bounded(self):
+        self.assertEqual(
+            normalize_pending_file_task({"format": "TXT", "prompt": "Buatkan file TXT"}),
+            {"format": "txt", "prompt": "Buatkan file TXT"},
+        )
+        self.assertIsNone(normalize_pending_file_task({"format": "exe", "prompt": "buat"}))
+        self.assertIsNone(normalize_pending_file_task({"format": "txt", "prompt": ""}))
 
     def test_all_formats_create_nonempty_files(self):
         content = "# Contoh Dokumen\n\nIsi pertama.\n\nNama\tNilai\nA\t10\nB\t20"
