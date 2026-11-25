@@ -1666,3 +1666,39 @@ CI pada commit `9fbbb15f9586cdf2ab4d399db5a7185b6e44840d`:
 2. Periksa file asli 5.412 byte: buka workbook, cek worksheet, dimensi, header, jumlah baris/kolom, nilai, dan konsistensi dengan permintaan.
 3. Jika artefak sudah berada di Box `All Files / Test file / CLOUZER_BUANGAN_AUDIT`, audit dari Box tanpa meminta upload ulang ke chat; jika belum, user perlu menyediakan file atau menaruhnya di folder itu.
 4. Setelah inspeksi biner dan isi selesai, ubah status menjadi PASS/PARTIAL/FAIL berdasarkan hasil aktual.
+
+---
+
+## 35. INSPEKSI ARTEFAK XLSX RETEST — 26 NOVEMBER 2026
+
+### 35.1 Artefak ditemukan di Box
+Listing terbaru folder `All Files / Test file / CLOUZER_BUANGAN_AUDIT` (folder ID `441172297609`) menunjukkan dua file XLSX:
+- Artefak lama: `clouzer_buatkan_sebuah_file_excel_xlsx_berna_20261125_212451 (1).xlsx`, ID `2615274299277`, 6.342 bytes, SHA-1 `df71c095a49001ae9886d98a85ca64aa455e6ff9`.
+- Artefak retest: `clouzer_ulangi_pembuatan_file_excel_buat_fil_20261125_222120.xlsx`, ID `2615366440395`, 5.412 bytes, SHA-1 `1639847add448b22ade59a8a3b576c0f2123721d`, created `2026-11-25T22:25:57Z`.
+
+### 35.2 Pemeriksaan binary XLSX
+- Artefak retest berhasil diunduh melalui Box ChatGPT connector dan dibuka dengan `openpyxl`; workbook bukan file rusak.
+- Tepat satu worksheet bernama `Data`.
+- Dimensi worksheet: 11 baris × 6 kolom (1 header + 10 baris data).
+- Header: `No`, `Nama`, `Umur`, `Kota`, `Harga`, `Status`.
+- Seluruh 11 baris memiliki enam nilai terisi; tidak ditemukan baris kosong pada tabel.
+- Keenam header bold.
+- Kolom `Harga` tersimpan sebagai numeric cells.
+- Kolom `No` juga numeric.
+- Kolom `Umur` tersimpan sebagai string (contoh `"25"`), bukan numeric.
+- Isi data mencakup 10 entri bernama Andi sampai Joko; contoh baris pertama: `1, Andi, 25, Jakarta, 150000, Aktif`.
+
+### 35.3 Status dan batas kesimpulan
+- **File validity:** PASS — workbook terbuka dan struktur XLSX valid.
+- **Basic table structure:** PASS — 11×6, semua baris lengkap, header bold.
+- **Harga numeric:** PASS.
+- **Umur numeric:** PARTIAL/quality note — umur ditulis sebagai teks; belum ada bukti bahwa prompt tes ini mensyaratkan umur sebagai angka.
+- **Requested acceptance:** belum dapat dinyatakan PASS penuh karena prompt/acceptance persis untuk retest file 5.412 byte tidak tersedia dalam log yang ada. Jangan samakan dengan tes XLSX sebelumnya di §29.3 yang meminta worksheet `Data Produk`, 30 baris produk, dan header `No/Nama Produk/Kategori/Harga/Stok/Status`; artefak 5.412 byte ini jelas merupakan tabel berbeda.
+- Keberadaan file di Box membuktikan file tersedia di folder dump. Itu sendiri tidak membuktikan CLOUZER runtime yang melakukan upload ke Box.
+- Log Discord yang tersedia sebelumnya berhenti pada `[XLSX-DIAG]`; belum ada konfirmasi independen dari log `[FILE-STAGE]` atau objek pesan Discord bahwa attachment dikirim. Jangan menandai tahap delivery Discord PASS hanya berdasarkan file di Box.
+
+### 35.4 Langkah lanjut
+1. Cocokkan file ini dengan prompt asli tes ulang bila prompt tersebut tersedia.
+2. Cari sisa log request `1575275179263791157` setelah `[XLSX-DIAG]` untuk memastikan validasi dan attachment Discord.
+3. Jika targetnya menguji acceptance XLSX §29.3 (Data Produk, 30 data rows), jalankan tes khusus itu kembali dan inspeksi artefak baru; file §35 ini bukan pengganti tes tersebut.
+4. Tidak ada source yang diubah, tidak ada deployment/restart, dan production `/home/container/main.py` tetap tidak disentuh.
