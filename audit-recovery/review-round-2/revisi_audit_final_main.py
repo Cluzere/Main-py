@@ -4631,7 +4631,7 @@ class ClouzerBot(commands.Bot):
         }
         effort = "high" if mode == "full" else "low"
         max_tokens = 8192 if mode == "full" else 4096
-        timeout = aiohttp.ClientTimeout(total=300, sock_read=180) if mode == "full" else aiohttp.ClientTimeout(total=180, sock_read=120)
+        timeout = aiohttp.ClientTimeout(total=600, sock_read=600) if mode == "full" else aiohttp.ClientTimeout(total=600, sock_read=600)
 
         instructions, input_items = self.to_responses_input(messages)
         tools: list[dict] = [{"type": "web_search"}]
