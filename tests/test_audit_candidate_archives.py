@@ -1691,12 +1691,22 @@ class ArchiveReaderTests(unittest.TestCase):
             ".ods": b"application/vnd.oasis.opendocument.spreadsheet",
             ".odp": b"application/vnd.oasis.opendocument.presentation",
         }
+        def make_odf(mimetype, compress_mimetype=False):
+            out = io.BytesIO()
+            with zipfile.ZipFile(out, "w") as archive:
+                info = zipfile.ZipInfo("mimetype")
+                info.compress_type = zipfile.ZIP_DEFLATED if compress_mimetype else zipfile.ZIP_STORED
+                archive.writestr(info, mimetype)
+                archive.writestr("content.xml", b"<document/>")
+            return out.getvalue()
+
         for ext, mimetype in odf_types.items():
             with self.subTest(ext=ext):
-                raw = self.make_zip([("mimetype", mimetype), ("content.xml", b"<document/>")])
-                self.assertIsNone(module.check_file_signature(ext, raw))
-                wrong = self.make_zip([("mimetype", b"application/zip"), ("content.xml", b"<document/>")])
+                self.assertIsNone(module.check_file_signature(ext, make_odf(mimetype)))
+                wrong = make_odf(b"application/zip")
                 self.assertIsNotNone(module.check_file_signature(ext, wrong))
+                compressed = make_odf(mimetype, compress_mimetype=True)
+                self.assertIsNotNone(module.check_file_signature(ext, compressed))
 
         epub = io.BytesIO()
         with zipfile.ZipFile(epub, "w") as archive:
