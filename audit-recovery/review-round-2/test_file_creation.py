@@ -40,9 +40,10 @@ class FileCreationTests(unittest.TestCase):
             {"prompt": "Generate a landscape", "kind": "image"},
         )
         self.assertEqual(
-            normalize_pending_retry_task({"kind": "audio", "prompt": "Buat audio narasi"}),
-            {"prompt": "Buat audio narasi", "kind": "audio"},
+            normalize_pending_retry_task({"kind": "audio", "prompt": "Buat audio narasi", "source_message_id": 12345}),
+            {"prompt": "Buat audio narasi", "kind": "audio", "source_message_id": 12345},
         )
+        self.assertIsNone(normalize_pending_retry_task({"kind": "audio", "prompt": "Buat audio", "source_message_id": -1}))
         self.assertEqual(
             normalize_pending_retry_task({"kind": "file", "format": "TXT", "prompt": "Buat TXT"}),
             {"prompt": "Buat TXT", "format": "txt", "kind": "file"},
