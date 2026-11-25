@@ -29,18 +29,18 @@ Active audit branch: `audit-recovery-gpt-2026-11-23`
 
 ### Current verified file blob SHAs
 
-- Candidate: `ed97417c86ddccc736efdac67c8694bdf80ea941` (282,602 bytes; 5,656 lines)
-- Candidate tests: `b3e2fc67db099f2a3a99287851829c682ac45fb5` (50,312 bytes; 1,374 lines)
+- Candidate: `c528ea4bec13e3f37b5420cb04fa1a155ebe95f6` (282,602 bytes; 5,656 lines)
+- Candidate tests: `b1821cf238b8ea358ddf6201cdbf58a1ed0f01ec` (50,312 bytes; 1,374 lines)
 - Existing regression tests: `5a735dc40bdf4c8504f4d7bf180e819004f40592` (38,349 bytes; 901 lines)
-- Audit report: `5d4832099503f0e865f28042002a0cee90fc33ef`
+- Audit report: `3e3b4ac1f9ad0e47d04fbae9623a663ce49a95f5`
 - Original source `main (4).py`: `ffffd0c17169b29504f4a8713dca396cf61ddeff` on both default `main` and audit branch; unchanged.
 
 ### Current branch and CI
 
-- Branch head at handoff refresh: `610e115a84b24e467cfb935cd3ccf312e48625a8`
-- Candidate source's latest code commit: `20f7d35e93c1e3de9b19fdfa8398d6e2373ced1a`
-- Latest verified candidate CI: run `45514190007`, SUCCESS.
-- Candidate suite: 56/56 PASS; existing regression suite: 74/74 PASS; total 130 tests.
+- Branch head at handoff refresh: `97a70d44429d8c86db76c32cee113b7e763842b7`
+- Candidate source's latest code commit: `675cd774c7d8a68caefde717f81f33f425611b18`
+- Latest verified candidate CI: run `45514556079`, SUCCESS.
+- Candidate suite: 57/57 PASS; existing regression suite: 74/74 PASS; total 131 tests.
 - Python 3.12 compile, `pip check`, Bandit medium/high severity, and `pip-audit --strict`: PASS; no known dependency vulnerabilities found.
 - Changes remain confined to audit candidate/tests/docs. The original source blob above is identical across branches.
 
@@ -66,6 +66,7 @@ The candidate contains earlier security work, including:
 - secret-redaction filter for logs and tracebacks;
 - attachment metadata checks, attachment count/total limits, concurrency limits, signature checks, and bounded streaming reads;
 - ZIP archive preflight limits for entry count, per-entry size, total expanded size, and compression ratio;
+- Archive member signature validation for known PDF/Office/audio formats before invoking their parsers;
 - XML protections against external entities, parameter entities, and entity expansion;
 - image pixel-count protections before/after image decode/reopen;
 - bounded diagnostic HTTP response reading;
@@ -102,15 +103,15 @@ The candidate received further bounds for provider output and function-call meta
 ## 6. Test and verification status — do not overstate
 
 Latest verified CI:
-- Run `45514190007`: SUCCESS on candidate branch commit `840a479e334f9ee9ea3e023c43221dd80ad8cc9f`.
-- Candidate regression suite: **56/56 PASS**.
+- Run `45514556079`: SUCCESS on candidate branch commit `840a479e334f9ee9ea3e023c43221dd80ad8cc9f`.
+- Candidate regression suite: **57/57 PASS**.
 - Existing audit regression suite: **74/74 PASS**.
-- Total: **130/130 tests PASS**.
+- Total: **131/131 tests PASS**.
 - CPython 3.12 compile: PASS.
 - `pip check`: PASS.
 - Bandit medium/high severity scan: PASS.
 - `pip-audit --strict`: PASS; no known dependency vulnerabilities found.
-- Latest candidate code blob remains `ed97417c86ddccc736efdac67c8694bdf80ea941`; later branch commits refreshed reports/docs and did not change candidate source.
+- Latest candidate code blob remains `c528ea4bec13e3f37b5420cb04fa1a155ebe95f6`; later branch commits refreshed reports/docs and did not change candidate source.
 
 These are CI/unit/regression results. They are not live end-to-end validation.
 
