@@ -9,11 +9,11 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
 - Commit terakhir yang mengubah file kandidat: `3b57a0c528e8e99da3a0ee97ff8a59f782d4cadb`
-- Commit branch terbaru yang diuji pada CI: `ee139b9de945b2837a1910f34bd1f1c3119a22f7`.
+- Commit branch terbaru yang diuji pada CI: `7bf317b2e1d0256b1a9821cfbf654486681dd90a`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Blob kandidat terbaru: `0297c534300cce5751294356efd647aeef2e4513`
 - Jumlah baris kandidat: 5.881
-- CI terbaru: [Run #45564734576 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45564530192)
+- CI terbaru: [Run #45565184659 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45564530192)
 
 ## Bukti CI terakhir
 
@@ -22,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat: **79/79 PASS**.
+- Tes kandidat: **81/81 PASS**.
 - Regresi audit yang sudah ada: **76/76 PASS**.
-- Total dua suite pada run terbaru: **155 tes PASS** (79 tes kandidat + 76 regresi lama).
+- Total dua suite pada run terbaru: **157 tes PASS** (81 tes kandidat + 76 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -95,7 +95,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 13 | PARTIAL | Anggota ZIP/7Z kini memeriksa struktur minimum DOCX/PPTX/XLSX serta signature PDF/audio; teks dan format langka tetap tidak punya signature kuat. Belum ada validasi semantik penuh semua anggota. |
 | 14 | DONE | Parser 7Z memakai `py7zr`; dependency wajib untuk deployment. |
 | 15 | PARTIAL | ZIP bersarang satu tingkat; path dan asal entri sudah eksplisit, tetapi ZIP lebih dalam dan 7Z bersarang tetap tidak diproses. |
-| 16 | PARTIAL | Batas ukuran/rasio/entry, encrypted ZIP dan password-protected 7Z ditolak; belum fuzz-test menyeluruh. |
+| 16 | PARTIAL | Batas ukuran/rasio/entry, encrypted ZIP dan password-protected 7Z ditolak; corpus deterministik ZIP terpotong dan local-header termutasi diuji, tetapi belum fuzz-test menyeluruh lintas format. |
 | 17 | DONE | Arsip yang tidak diparse tidak diklaim sudah dibaca. |
 
 ### C. Reply dan konteks percakapan
@@ -153,10 +153,10 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 
 | No. | Status | Catatan |
 |---:|---|---|
-| 49 | PARTIAL | Signature PDF/7Z/RTF/audio dan struktur container OOXML/ODF/EPUB diperiksa; image divalidasi parser. Format teks dan format langka tetap tidak punya magic signature kuat. |
+| 49 | PARTIAL | Signature PDF/7Z/RTF/audio dan struktur container OOXML/ODF/EPUB diperiksa; matriks signature semua ekstensi audio yang didukung dites dan image divalidasi parser. Format teks dan format langka tetap tidak punya magic signature kuat. |
 | 50 | PARTIAL | Ukuran, rasio, entry, gambar, teks, dan buffer dibatasi; bukan sandbox CPU/RAM tingkat OS. |
 | 51 | PARTIAL | Parser berat utama dijalankan via thread; belum profiling seluruh jalur parser di hosting. |
-| 52 | PARTIAL | Ditambah corpus deterministik untuk container Office/ODF/EPUB salah label, mimetype salah, file terpotong, dan signature binary mismatch; belum fuzz corpus lintas semua format. |
+| 52 | PARTIAL | Ditambah corpus deterministik container Office/ODF/EPUB salah label, mimetype salah, file terpotong, signature audio, serta ZIP truncated/local-header mutation; belum fuzz corpus lintas semua format. |
 | 53 | PARTIAL | Arsip tidak diekstrak ke disk; pembersihan semua state/resource tetap perlu uji restart/shutdown. |
 | 54 | PARTIAL | XML tidak tepercaya diproses dengan defusedxml dan batas entity; instruksi dokumen tetap ditangani lewat prompt boundary, bukan sandbox penuh. |
 
@@ -171,7 +171,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 59 | PARTIAL | Tes image generation/edit sebelumnya sudah dikonfirmasi pengguna; belum dire-run pada kandidat terbaru. |
 | 60 | PARTIAL | Scope user berbeda, konkurensi antar-scope, FIFO, queue timeout/full, dan cancellation dites via mock; belum tes dua user aktif bersamaan di Discord. |
 | 61 | PARTIAL | SSE partial disconnect dan retry policy dites; belum inject error pada upstream live. |
-| 62 | PARTIAL | Tes kini mencakup struktur Office/ODF/EPUB dan signature binary mismatch selain corrupt ZIP, rasio 7Z, dan batas file; belum seluruh format. |
+| 62 | PARTIAL | Tes mencakup struktur Office/ODF/EPUB, matriks signature audio, dan ZIP mutation selain corrupt ZIP, rasio 7Z, dan batas file; belum seluruh format. |
 | 63 | PARTIAL | History user/partial response dipertahankan dan retry dibatasi; belum pembuktian no-loss/no-duplicate live. |
 | 64 | PARTIAL | CI dan regresi lulus; staging dan promosi produksi belum dilakukan. |
 
@@ -222,7 +222,7 @@ Temuan bahwa parsing lampiran berlangsung sebelum lock percakapan telah diperbai
 ## Verifikasi CI dan runtime terbaru
 
 - Run GitHub Actions `45564530192`: seluruh job selesai dengan `success` pada commit `c735e75717c0bdb50cfcf0501befae728858ec14`.
-- Candidate suite: **79/79 PASS**; regresi lama: **76/76 PASS** (155 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB (termasuk urutan dan metode penyimpanan ODF), dan file binary terpotong/salah label.
+- Candidate suite: **81/81 PASS**; regresi lama: **76/76 PASS** (157 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB (termasuk urutan dan metode penyimpanan ODF), corpus ZIP terpotong/header termutasi, dan matriks signature seluruh format audio yang didukung.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
 - Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (kode blob `fa79b307051fc7e49e5e9c547c80b47d0f7fcff0`, dites pada commit `c735e75717c0bdb50cfcf0501befae728858ec14`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
