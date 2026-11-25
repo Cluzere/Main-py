@@ -1732,3 +1732,69 @@ Dengan acceptance prompt asli sekarang tersedia, artefak `clouzer_ulangi_pembuat
 ### 36.2 Kesimpulan
 Retest XLSX ini **FAIL** pada tiga syarat eksplisit (filename, worksheet title, Umur numeric), dan delivery Discord masih unverified. Jangan melabelinya PASS atau PARTIAL untuk acceptance penuh.
 Tidak ada perubahan source, deployment, restart, atau modifikasi production `/home/container/main.py` akibat evaluasi ini.
+
+---
+
+## 37. PERBAIKAN GENERATOR XLSX BERDASARKAN ACCEPTANCE TES PEGAWAI — 26 NOVEMBER 2026
+
+Perubahan dilakukan setelah user memberi izin eksplisit: perbaikan generator XLSX pada kandidat branch audit saja, termasuk regression test. Production `main.py` tetap dilarang disentuh.
+
+### 37.1 Source yang diperbarui
+- Branch: `audit-recovery-gpt-2026-11-23`.
+- Helper: `audit-recovery/review-round-2/clouzer_file_creation.py`.
+  - Blob SHA: `867bb2d9dd12f0b57b20e678f65fec1dacf9da0a`.
+- Regression tests: `audit-recovery/review-round-2/test_file_creation.py`.
+  - Blob SHA: `c5dff1647c66e33a34e59a33328ac3062afe498f`.
+- Candidate main `revisi_audit_final_main.py` tidak diubah dalam patch ini.
+- Branch HEAD setelah patch: `f241d47ce3262c04f1aa4c9490d0aef67e7cdc2b`.
+
+### 37.2 Perbaikan implementasi
+1. **Nama file eksplisit**
+   - Builder kini mengambil nama file yang secara eksplisit ditulis pada prompt jika ekstensi cocok dengan format yang diminta.
+   - Fallback nama otomatis lama tetap dipakai jika prompt tidak menyebut nama file.
+   - Untuk acceptance ini, target hasil adalah `TES_AUDIT_CLOUZER.xlsx`.
+
+2. **Nama worksheet**
+   - Instruksi worksheet/sheet dengan nama eksplisit diekstrak dari prompt.
+   - Jika tidak ada nama yang diminta, fallback tetap `Data`.
+   - Validasi pasca-build memastikan worksheet aktif sesuai nama eksplisit yang diminta.
+
+3. **Tipe numerik**
+   - Pengenalan header numerik diperluas untuk `Umur`, `Usia`, dan `Age`, selain kolom angka yang sudah didukung seperti `No`, `Nomor`, `Harga`, `Stok`, `Qty`, dan padanannya.
+   - Nilai non-numerik pada kolom yang dikenali ditolak dengan error yang menyebut kolom dan nomor baris; tidak dibiarkan diam-diam sebagai string.
+
+4. **Pipe-delimited input dan kesetiaan data**
+   - Builder menerima baris tabel yang dipisahkan dengan pipe mentah (`A|B|C`), tabel Markdown pipe, maupun tab-separated.
+   - Jika prompt menyertakan tabel pipe sebagai data sumber, builder mengekstrak blok tabel dan membandingkannya dengan data yang akan dibuat. Perbedaan data menyebabkan kegagalan eksplisit, bukan file berisi data yang diubah.
+   - Pemilihan blok sumber memakai run tabel berurutan yang konsisten jumlah kolomnya, bukan kalimat penjelasan yang kebetulan mengandung karakter pipe.
+
+5. **Validasi sebelum simpan dan setelah serialisasi**
+   - Sebelum menyimpan workbook, builder memeriksa dimensi worksheet, isi nonkosong, serta keberhasilan konversi kolom numerik.
+   - Validator membaca ulang hasil XLSX dan memeriksa worksheet tidak kosong, nama sheet yang diminta, jumlah baris/kolom, kesesuaian data dengan tabel sumber, serta numeric cells untuk semua header numerik yang dikenali.
+
+### 37.3 Regression tests dan CI
+- Ditambahkan tes acceptance khusus berdasarkan prompt asli user:
+  - nama file persis `TES_AUDIT_CLOUZER.xlsx`;
+  - worksheet persis `Data Pegawai`;
+  - header enam kolom sesuai;
+  - 10 baris data persis seperti sumber;
+  - total 11×6;
+  - `No`, `Umur`, dan `Harga` harus integer/numeric cells;
+  - satu worksheet bernama tepat dan tidak kosong.
+- Ditambahkan tes negatif untuk menolak umur non-numerik dan perubahan data sumber.
+- Pada commit final `f241d47ce3262c04f1aa4c9490d0aef67e7cdc2b`:
+  - Workflow Audit candidate syntax check run `45714713150`: **SUCCESS**.
+  - Workflow Audit recovery candidate run `45714712964`: **SUCCESS**.
+  - File creation unit tests: **19/19 PASS**.
+  - Existing archive regression tests: **93/93 PASS**.
+  - Combined existing audit test discovery: **95 tests PASS**.
+  - Compile, dependency check, Bandit high/medium, pip-audit strict, and archive regression steps passed.
+- Beberapa commit perantara menghasilkan CI failure ketika regression test pertama kali ditambahkan; penyebabnya ditemukan pada parsing nama worksheet dan fixture negatif. Keduanya dikoreksi. Jangan memakai hasil gagal commit perantara sebagai status final; status final yang relevan adalah dua workflow SUCCESS pada commit `f241d47...`.
+
+### 37.4 Batas bukti dan tindak lanjut
+- CI membuktikan builder/helper dan regression suite di GitHub Actions, bukan bahwa CLOUZER runtime sudah memuat patch atau berhasil mengirim attachment Discord.
+- Branch ini adalah branch yang dipakai startup Wispbyte untuk fetch kandidat. Restart Wispbyte berikutnya berpotensi mengambil HEAD baru `f241d47...`. Assistant tidak melakukan restart dan tidak mengakses panel Wispbyte.
+- Sebelum live retest, user perlu memastikan restart dilakukan pada instance kandidat yang memang menjalankan file `/home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py`.
+- Setelah live retest, ambil attachment Discord asli dan periksa nama file, workbook, worksheet, 11×6, nilai sumber, tipe `No/Umur/Harga`, serta log konfirmasi attachment. Simpan hasil ke Box `CLOUZER_BUANGAN_AUDIT`.
+- Belum boleh menyatakan acceptance test live PASS sampai artefak yang dikirim Discord benar-benar diperiksa.
+- Tidak ada perubahan pada candidate main dalam patch ini, tidak ada deployment/restart, dan production `/home/container/main.py` tidak disentuh.
