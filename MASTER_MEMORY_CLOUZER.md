@@ -1433,3 +1433,57 @@ Hasil inspeksi:
 ### 29.6 Ringkasan handoff singkat
 
 Alat bantu GitHub dan Box ChatGPT sudah terbukti bekerja untuk baca Master Memory, listing folder, download, dan inspeksi artefak sesuai batas masing-masing. Box runtime CLOUZER terbukti sampai OAuth + list folder, belum sampai read/download/upload/refresh end-to-end. Fokus utama berikutnya bukan menambah alat bantu, melainkan menelusuri dan memperbaiki kualitas XLSX: worksheet name salah dan Harga tersimpan sebagai string meskipun file berisi 30×6 data. Inspeksi source dulu; tidak ada perubahan kode tanpa izin. Production `main.py` tetap dilindungi.
+
+
+---
+
+## 30. ADDENDUM — Root cause awal XLSX ditemukan dari source kandidat (26 November 2026)
+
+Inspeksi read-only dilakukan pada branch `audit-recovery-gpt-2026-11-23`. Tidak ada source yang diubah dan tidak ada deployment/restart.
+
+### 30.1 Source dan versi yang diperiksa
+- `audit-recovery/review-round-2/revisi_audit_final_main.py` — blob SHA `f1baa9391864cf5b7d3f3e84470afb425292e2e0`.
+- `audit-recovery/review-round-2/clouzer_file_creation.py` — blob SHA `604dd8aa7d7a785d13d5069dba40a249ce96b161`.
+- `audit-recovery/review-round-2/test_file_creation.py` — blob SHA `027d776496fb29f31eb4755a7cafe6266a66aa59`.
+
+### 30.2 Akar masalah yang terkonfirmasi
+
+**A. Nama worksheet**
+- `_safe_title(content, prompt)` memilih baris pertama non-empty dari output model sebagai title.
+- `_make_xlsx()` menetapkan `sheet.title` dari title tersebut setelah mengganti karakter terlarang dan memotongnya sampai 31 karakter.
+- Karena itu jika baris pertama model adalah header tabel tab-separated, header tersebut dipakai sebagai nama worksheet. Ini cocok dengan nama worksheet aktual yang diperiksa pada §29.3.
+- Source belum menunjukkan ekstraksi nama worksheet eksplisit dari prompt. Perlu desain patch yang aman: gunakan nama sheet eksplisit jika diminta, atau fallback netral seperti `Data`; jangan pernah memakai seluruh header sebagai nama sheet.
+
+**B. Tipe angka**
+- `_make_xlsx()` menulis setiap nilai menggunakan `str(cell)` sebelum `sheet.append()`.
+- Konversi paksa ini menjadikan angka yang tampak seperti `78000` sebagai string cell. Ini cocok dengan workbook aktual §29.3 yang menyimpan Harga sebagai string.
+- Perbaikan perlu mempertahankan tipe angka yang valid secara aman, setidaknya untuk kolom numerik seperti Harga dan Stok ketika nilai dapat diparse sebagai angka. Hindari mengubah kode produk/ID yang mungkin memiliki leading zero menjadi angka secara membabi buta.
+
+**C. Validator dan unit test tidak menangkap defect**
+- `validate_document_file("xlsx", ...)` memuat workbook dengan openpyxl, tetapi mengubah seluruh nilai menjadi string dan hanya menjalankan `_check_table()` untuk header, jumlah baris/kolom, dan konsistensi lebar baris.
+- Validator belum memeriksa nama worksheet, tipe cell numerik, atau kesesuaian tipe data berdasarkan header.
+- Unit test `test_xlsx_exact_30_product_rows_and_six_columns` hanya memeriksa 30 baris dan 6 kolom. Nilai Harga pada fixture juga disuplai sebagai string; tidak ada assertion tipe cell numerik atau nama worksheet.
+- Dengan demikian test suite saat ini dapat lulus meskipun workbook melanggar dua acceptance tersebut.
+
+### 30.3 Hubungan dengan artefak live
+Temuan source di atas konsisten dengan inspeksi workbook aktual yang dicatat pada §29.3:
+- Dimensi 31×6 dan header benar.
+- Nama sheet salah karena sumber title mengambil baris header.
+- Harga tersimpan sebagai string karena helper mengubah semua cell ke string.
+- Stok juga string; ini temuan kualitas tambahan, bukan acceptance numerik eksplisit pada prompt tes tersebut.
+
+Status tes live tetap **PARTIAL**. Temuan kode ini meningkatkan keyakinan terhadap penyebab, tetapi bukan bukti bahwa perbaikan sudah dilakukan.
+
+### 30.4 Rekomendasi patch minimal — belum diimplementasikan
+1. Pisahkan konsep document title dan worksheet name. Untuk permintaan yang menyebut `Data Produk`, ambil nama sheet itu secara eksplisit; jika tidak ada nama eksplisit, pakai fallback netral yang valid.
+2. Tambahkan parser tipe cell yang konservatif untuk nilai numerik. Terapkan konversi ke kolom numerik yang teridentifikasi (misalnya Harga/Stok/No sesuai aturan), jangan mengonversi ID/kode ber-leading-zero secara sembarang.
+3. Perkuat validator XLSX untuk memeriksa:
+   - worksheet name yang diharapkan bila prompt menyebutkannya;
+   - jumlah baris/kolom yang diminta;
+   - kolom Harga berisi numeric cells untuk baris data;
+   - tipe tambahan seperti Stok bila acceptance secara eksplisit mensyaratkannya.
+4. Tambahkan unit test yang gagal pada implementasi lama: nama sheet `Data Produk`, Harga numeric cell, dan perlindungan ID ber-leading-zero.
+5. Jalankan tes terarah pada helper dan unit test terkait sebelum live retest.
+
+**Penting:** rekomendasi di atas belum menjadi perubahan kode. Tunggu izin eksplisit pengguna sebelum mengedit file kandidat. Branch audit dipakai dalam startup Wispbyte sehingga commit baru dapat terambil pada restart berikutnya. Production `main.py` tetap tidak boleh disentuh tanpa izin eksplisit.
+
