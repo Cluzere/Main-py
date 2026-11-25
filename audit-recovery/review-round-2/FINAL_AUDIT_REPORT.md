@@ -1,7 +1,7 @@
 # Audit Final — Candidate CLOUZER
 
 **Status saat ini: CI PASS, belum boleh disebut siap produksi.**  
-Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` tidak diubah.
+Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `main (4).py` tetap identik dengan branch `main`; file produksi Wispbyte tidak disentuh.
 
 ## Identitas kandidat
 
@@ -9,7 +9,6 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
 - Commit terakhir yang mengubah file kandidat: `675cd774c7d8a68caefde717f81f33f425611b18`
-- Commit branch yang diuji CI terakhir: `2ec913a3b3a698daca317e0a71cd3d3705cdd02a`.
 - Commit branch yang diuji CI terakhir: `2ec913a3b3a698daca317e0a71cd3d3705cdd02a`; pembaruan sesudahnya hanya mengubah laporan/README/handoff, bukan kode kandidat.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Blob kandidat: `c528ea4bec13e3f37b5420cb04fa1a155ebe95f6`
@@ -29,6 +28,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
+
+## Ringkasan 64 butir
+
+- **32 DONE**: perubahan dan tes relevan tersedia.
+- **32 PARTIAL**: mitigasi ada, tetapi masih perlu live staging, fuzzing, atau cakupan tambahan.
+- **0 NOT DONE**: tidak ada item yang sama sekali belum disentuh; item PARTIAL tetap belum boleh dianggap selesai.
 
 ## Perubahan nyata pada kandidat
 
