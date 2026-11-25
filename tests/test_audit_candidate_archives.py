@@ -1738,16 +1738,21 @@ class ArchiveReaderTests(unittest.TestCase):
 
     def test_zip_truncation_and_header_mutation_corpus_is_rejected(self):
         raw = self.make_zip([("payload.txt", "bounded archive mutation fixture")])
-        variants = [raw[:-cut] for cut in (1, 2, 4, 8, 16, 32)]
-        for offset in range(4):
-            mutated = bytearray(raw)
-            mutated[offset] ^= 0xFF
-            variants.append(bytes(mutated))
-
-        for index, candidate in enumerate(variants):
-            with self.subTest(variant=index):
+        truncated_variants = [raw[:-cut] for cut in (1, 2, 4, 8, 16, 32)]
+        for index, candidate in enumerate(truncated_variants):
+            with self.subTest(truncated=index):
                 with self.assertRaises(Exception):
                     self.bot._validate_zip_archive(candidate)
+
+        # zipfile's central-directory preflight can open archives whose local
+        # file header was altered; opening the member must still reject it.
+        for offset in range(4):
+            with self.subTest(local_header_offset=offset):
+                mutated = bytearray(raw)
+                mutated[offset] ^= 0xFF
+                text, _ = self.bot.extract_generic_zip_content(bytes(mutated), "mutated.zip")
+                self.assertIn("Anggota gagal dibaca", text)
+                self.assertNotIn("bounded archive mutation fixture", text)
 
 if __name__ == "__main__":
     unittest.main()
