@@ -89,5 +89,55 @@ class FileCreationTests(unittest.TestCase):
                 self.assertTrue(validate_document_file(fmt, "Buat " + fmt, data)["valid"])
 
 
+    def test_xlsx_sheet_name_numeric_cells_and_leading_zero(self):
+        from openpyxl import load_workbook
+        prompt = "Buat Excel dengan nama sheet 'Data Produk' berisi tepat 2 produk dan 3 kolom"
+        content = "No\tKode\tHarga\n1\t00123\t78000\n2\t00456\t19000"
+        data, _, _ = create_document_file("xlsx", prompt, content)
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            ws = wb.active
+            self.assertEqual(ws.title, "Data Produk")
+            self.assertIsInstance(ws["C2"].value, int)
+            self.assertEqual(ws["C2"].value, 78000)
+            self.assertEqual(ws["B2"].value, "00123")
+        finally:
+            wb.close()
+
+    def test_csv_quoted_multiline_field_is_preserved(self):
+        prompt = "Buat CSV dengan tepat 2 baris data dan 2 kolom"
+        content = 'id,deskripsi\n1,"baris pertama\nbaris kedua"\n2,normal'
+        data, _, _ = create_document_file("csv", prompt, content)
+        rows = list(csv.reader(io.StringIO(data.decode("utf-8-sig"))))
+        self.assertEqual(len(rows) - 1, 2)
+        self.assertEqual(rows[1][1], "baris pertama\nbaris kedua")
+
+    def test_csv_rejects_extra_rows_when_exact_count_requested(self):
+        prompt = "Buat CSV dengan tepat 2 baris data dan 2 kolom"
+        with self.assertRaisesRegex(ValueError, "tepat 2"):
+            create_document_file("csv", prompt, "id,nama\n1,A\n2,B\n3,C")
+
+    def test_pptx_preserves_lines_beyond_old_truncation_limit(self):
+        from pptx import Presentation
+        prompt = "Buat presentasi PowerPoint 2 slide"
+        first = "Judul pertama\n" + "\n".join(f"Baris konten {i}" for i in range(1, 36))
+        content = first + "\n--- SLIDE ---\nJudul kedua\nIsi slide kedua yang cukup panjang."
+        data, _, _ = create_document_file("pptx", prompt, content)
+        prs = Presentation(io.BytesIO(data))
+        self.assertEqual(len(prs.slides), 2)
+        all_text = "\n".join(shape.text for slide in prs.slides for shape in slide.shapes if getattr(shape, "has_text_frame", False))
+        self.assertIn("Baris konten 35", all_text)
+
+    def test_short_txt_is_valid(self):
+        data, _, _ = create_document_file("txt", "Buat TXT", "OK")
+        self.assertEqual(data, b"OK")
+
+    def test_zip_rejects_path_traversal(self):
+        prompt = "Buat ZIP"
+        content = "=== FILE: ../outside.txt ===\nkonten tidak aman"
+        with self.assertRaisesRegex(ValueError, "tidak aman"):
+            create_document_file("zip", prompt, content)
+
+
 if __name__ == "__main__":
     unittest.main()
