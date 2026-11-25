@@ -5182,6 +5182,22 @@ class ClouzerBot(commands.Bot):
 
                 if requested_file_format:
                     try:
+                        # A model refusal is not document content. Do not package it as a
+                        # successful TXT/PDF/etc.; retain the original request for Ulangi.
+                        file_reply_lower = (reply_text or "").strip().lower()
+                        file_refusal_markers = (
+                            "tidak menyediakan alat", "tidak tersedia alat",
+                            "tidak punya alat", "tidak memiliki alat",
+                            "tidak bisa membuat file", "tidak dapat membuat file",
+                            "belum bisa melampirkan", "tidak bisa melampirkan",
+                            "tidak dapat melampirkan", "cannot create a file",
+                            "cannot attach", "no file-generation tool",
+                        )
+                        if any(marker in file_reply_lower for marker in file_refusal_markers):
+                            raise RuntimeError(
+                                "Model menolak tugas pembuatan file sebelum menghasilkan isi dokumen. "
+                                "Respons penolakan tidak akan dikemas sebagai file."
+                            )
                         generated_bytes, generated_name, generated_mime = create_document_file(
                             requested_file_format, clean_content, reply_text or ""
                         )
