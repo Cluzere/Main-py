@@ -1769,5 +1769,17 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.subTest(ext=ext):
                 self.assertIsNone(module.check_file_signature(ext, raw))
 
+    def test_vector_design_file_signatures_validate_real_format_markers(self):
+        self.assertIsNone(
+            module.check_file_signature(".svg", b'<svg xmlns="http://www.w3.org/2000/svg"><title>ok</title></svg>')
+        )
+        self.assertIsNotNone(module.check_file_signature(".svg", b"<html>not svg</html>"))
+        self.assertIsNotNone(module.check_file_signature(".svg", b"<svg><!ENTITY broken></svg>"))
+        self.assertIsNone(module.check_file_signature(".eps", b"%!PS-Adobe-3.0 EPSF-3.0\\n%%BoundingBox: 0 0 10 10"))
+        self.assertIsNone(module.check_file_signature(".ai", b"%PDF-1.7\\n%Illustrator"))
+        self.assertIsNone(module.check_file_signature(".ai", b"%!PS-Adobe-3.0\\n%%Creator: Adobe Illustrator"))
+        self.assertIsNotNone(module.check_file_signature(".eps", b"plain text"))
+        self.assertIsNotNone(module.check_file_signature(".ai", b"plain text"))
+
 if __name__ == "__main__":
     unittest.main()
