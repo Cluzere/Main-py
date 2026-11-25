@@ -1736,5 +1736,18 @@ class ArchiveReaderTests(unittest.TestCase):
             with self.subTest(ext=ext):
                 self.assertIsNotNone(module.check_file_signature(ext, raw))
 
+    def test_zip_truncation_and_header_mutation_corpus_is_rejected(self):
+        raw = self.make_zip([("payload.txt", "bounded archive mutation fixture")])
+        variants = [raw[:-cut] for cut in (1, 2, 4, 8, 16, 32)]
+        for offset in range(4):
+            mutated = bytearray(raw)
+            mutated[offset] ^= 0xFF
+            variants.append(bytes(mutated))
+
+        for index, candidate in enumerate(variants):
+            with self.subTest(variant=index):
+                with self.assertRaises(Exception):
+                    self.bot._validate_zip_archive(candidate)
+
 if __name__ == "__main__":
     unittest.main()
