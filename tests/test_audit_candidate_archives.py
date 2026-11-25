@@ -269,8 +269,18 @@ class ArchiveReaderTests(unittest.TestCase):
         mixed_text, mixed_images = self.bot.extract_generic_zip_content(mixed, "11_arsip_campuran.zip")
         self.assertIn("VISUAL IMAGE #1 SOURCE: 11_arsip_campuran.zip!/05_gambar_uji_a.png", mixed_text)
         self.assertEqual(len(mixed_images), 1)
-        self.assertTrue(mixed_images[0].startswith("data:image/"))
-        self.assertEqual(base64.b64decode(mixed_images[0].split(",", 1)[1]), original_image_bytes)
+        self.assertTrue(mixed_images[0].startswith("data:image/jpeg;base64,"))
+        from PIL import Image, ImageChops, ImageStat
+        forwarded_bytes = base64.b64decode(mixed_images[0].split(",", 1)[1])
+        with Image.open(io.BytesIO(original_image_bytes)) as source_image:
+            expected_image = source_image.convert("RGB")
+        expected_image.thumbnail((800, 800))
+        with Image.open(io.BytesIO(forwarded_bytes)) as forwarded_image:
+            actual_image = forwarded_image.convert("RGB")
+        self.assertEqual(actual_image.size, expected_image.size)
+        difference = ImageChops.difference(expected_image, actual_image)
+        mean_error = sum(ImageStat.Stat(difference).mean) / 3
+        self.assertLessEqual(mean_error, 8.0, "Vision payload does not visually match the nested source image")
 
         # Run the reader against the actual original package, not a synthetic
         # wrapper, and prove that the corrupt member does not block real siblings.
