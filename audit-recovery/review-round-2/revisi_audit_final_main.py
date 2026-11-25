@@ -4988,16 +4988,59 @@ class ClouzerBot(commands.Bot):
             guild_state = self.get_guild_state(guild, user.id, channel_id)
             pending_retry_task = normalize_pending_retry_task(guild_state.get("pending_retry_task"))
             retrying_pending_task = bool(is_file_retry_command(clean_content) and pending_retry_task)
+            retry_source_message_id = None
             if retrying_pending_task:
                 clean_content = pending_retry_task["prompt"]
                 requested_file_format = pending_retry_task.get("format")
+                retry_source_message_id = pending_retry_task.get("source_message_id")
                 logging.warning(
-                    "[OPERATION-RETRY-CONTEXT] scope=%s kind=%s format=%s action=replay_failed_prompt",
+                    "[OPERATION-RETRY-CONTEXT] scope=%s kind=%s format=%s source_message=%s action=replay_failed_prompt",
                     scope_key, pending_retry_task.get("kind", "other"), requested_file_format or "n/a",
+                    retry_source_message_id or "n/a",
                 )
+                # Re-read the original attachments so audio, documents and source images
+                # are retried from the same Discord message, not from a stale text marker.
+                if retry_source_message_id and reply_to_message is not None:
+                    try:
+                        source_message = await reply_to_message.channel.fetch_message(int(retry_source_message_id))
+                        retry_http_images = []
+                        for source_attachment in list(source_message.attachments)[:MAX_ATTACHMENTS_PER_MESSAGE]:
+                            source_text, source_local_images, source_http_images, _source_type = await self.encode_attachment(source_attachment)
+                            if source_text:
+                                additional_file_text += source_text
+                            if source_local_images:
+                                image_data_urls.extend(source_local_images)
+                            if source_http_images:
+                                retry_http_images.extend(source_http_images)
+                        local_vision_images = merge_image_sources(image_data_urls)
+                        http_img_urls = [] if local_vision_images else merge_image_sources(list(llm_image_urls or []) + retry_http_images)
+                        current_turn_images = select_vision_images(local_vision_images, http_img_urls)
+                    except Exception as retry_attachment_exc:
+                        logging.exception(
+                            "[OPERATION-RETRY-ATTACHMENT] source_message=%s failed (%s)",
+                            retry_source_message_id, type(retry_attachment_exc).__name__,
+                        )
             else:
                 # Hanya operasi yang benar-benar gagal yang boleh menjadi konteks Ulangi.
                 guild_state.pop("pending_retry_task", None)
+
+            attachment_result_lower = str(additional_file_text or "").lower()
+            attachment_processing_failed = any(marker in attachment_result_lower for marker in (
+                "[gagal ", "gagal membaca", "gagal memproses", "gagal mentranskripsi",
+                "hasil transkripsi kosong", "tidak berhasil dibaca", "signature file tidak cocok",
+                "gagal dibaca atau ditolak", "gagal divalidasi",
+            ))
+            if attachment_processing_failed and not retrying_pending_task:
+                retry_kind = "audio" if any(
+                    os.path.splitext(getattr(att, "filename", "").lower())[1] in AUDIO_EXTS
+                    for att in (getattr(reply_to_message, "attachments", []) or [])
+                ) else "other"
+                guild_state["pending_retry_task"] = {
+                    "kind": retry_kind,
+                    "prompt": clean_content[:10_000],
+                    **({"source_message_id": int(reply_to_message.id)} if reply_to_message is not None and getattr(reply_to_message, "attachments", None) else {}),
+                }
+
             allow_img_tool = should_allow_image_tool(
                 clean_content,
                 has_file_or_pdf=bool(additional_file_text),
@@ -5164,6 +5207,7 @@ class ClouzerBot(commands.Bot):
                             "kind": "file",
                             "format": requested_file_format,
                             "prompt": clean_content[:10_000],
+                            **({"source_message_id": int(retry_source_message_id or reply_to_message.id)} if retry_source_message_id or (reply_to_message is not None and getattr(reply_to_message, "attachments", None)) else {}),
                         }
                         try:
                             await self.save_memory()
@@ -5387,6 +5431,7 @@ class ClouzerBot(commands.Bot):
                             guild_state["pending_retry_task"] = {
                                 "kind": "image",
                                 "prompt": clean_content[:10_000],
+                                **({"source_message_id": int(retry_source_message_id or reply_to_message.id)} if retry_source_message_id or (reply_to_message is not None and getattr(reply_to_message, "attachments", None)) else {}),
                             }
                             if is_edit:
                                 fail_msg = (
@@ -5401,6 +5446,8 @@ class ClouzerBot(commands.Bot):
                             raise
 
                 reply_text = reply_text or "Maaf, tidak ada respon."
+                if not attachment_processing_failed:
+                    guild_state.pop("pending_retry_task", None)
                 history_msgs.append({"role": "assistant", "content": reply_text})
                 guild_state["turn_count"] = guild_state.get("turn_count", 0) + 1
                 _memory_save_started = _turn_loop.time()
@@ -5457,6 +5504,13 @@ class ClouzerBot(commands.Bot):
                 retry_task = {"kind": retry_kind, "prompt": clean_content[:10_000]}
                 if requested_file_format:
                     retry_task["format"] = requested_file_format
+                source_message_id = retry_source_message_id or (
+                    int(reply_to_message.id)
+                    if reply_to_message is not None and getattr(reply_to_message, "attachments", None)
+                    else None
+                )
+                if source_message_id:
+                    retry_task["source_message_id"] = source_message_id
                 if clean_content and not is_file_retry_command(clean_content):
                     guild_state["pending_retry_task"] = retry_task
                 if requested_file_format:
