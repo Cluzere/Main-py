@@ -461,11 +461,16 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 raise ValueError("Isi ZIP melewati batas total 8 MB.")
             if archive.testzip():
                 raise ValueError("ZIP rusak.")
+            normalized_names = set()
             for name in names:
                 normalized = name.replace("\\", "/")
                 path = PurePosixPath(normalized)
-                if not normalized or "\x00" in normalized or path.is_absolute() or ".." in path.parts or re.match(r"^[A-Za-z]:", normalized):
-                    raise ValueError("ZIP memiliki path anggota tidak aman.")
+                canonical = path.as_posix()
+                if (not normalized or "\x00" in normalized or path.is_absolute()
+                        or ".." in path.parts or re.match(r"^[A-Za-z]:", normalized)
+                        or canonical in normalized_names or canonical in {"", "."}):
+                    raise ValueError("ZIP memiliki path anggota tidak aman atau duplikat.")
+                normalized_names.add(canonical)
             required = set(re.findall(r"(?<![\w.-])(?:[\w.-]+/)*[\w.-]+\.(?:txt|json|csv)\b", prompt, re.I))
             missing = sorted(required - set(names))
             if missing:
