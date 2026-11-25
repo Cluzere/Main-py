@@ -3177,6 +3177,7 @@ class ClouzerBot(commands.Bot):
         _depth: int = 0,
         _image_budget: int | None = None,
         _path_prefix: str = "",
+        _budget_state: dict | None = None,
     ) -> tuple[str, list[str]]:
         """Read a bounded ZIP in memory; never writes archive paths to disk.
 
@@ -3192,6 +3193,19 @@ class ClouzerBot(commands.Bot):
         max_members = 100
         if _image_budget is None:
             _image_budget = MAX_VISION_IMAGES_PER_TURN
+        # Share one decompressed-byte budget across the root archive and every
+        # nested ZIP. Per-archive limits alone let many small nested ZIPs each
+        # expand to the full limit in a single user upload.
+        if _budget_state is None:
+            _budget_state = {"bytes_read": 0, "max_bytes": max_read_bytes}
+        if (
+            not isinstance(_budget_state, dict)
+            or not isinstance(_budget_state.get("bytes_read"), int)
+            or not isinstance(_budget_state.get("max_bytes"), int)
+            or _budget_state["bytes_read"] < 0
+            or _budget_state["max_bytes"] < 1
+        ):
+            raise ValueError("State anggaran byte arsip tidak valid")
 
         text_exts = {
             ".txt", ".md", ".csv", ".tsv", ".json", ".xml", ".html", ".htm",
@@ -3225,18 +3239,25 @@ class ClouzerBot(commands.Bot):
                 if (unix_mode & 0o170000) == 0o120000:
                     parts.append(f"[Anggota symlink dilewati: {display_path[:120]}]")
                     continue
-                if info.file_size > max_read_bytes - total_bytes_read:
-                    parts.append("[Anggota selanjutnya tidak dibaca: batas total byte arsip tercapai.]")
+                remaining_budget = min(
+                    max_read_bytes - total_bytes_read,
+                    _budget_state["max_bytes"] - _budget_state["bytes_read"],
+                )
+                if info.file_size > remaining_budget:
+                    parts.append(
+                        "[Anggota selanjutnya tidak dibaca: batas total byte gabungan ZIP bersarang tercapai.]"
+                    )
                     break
 
                 ext = os.path.splitext(name.lower())[1]
                 try:
                     with zf.open(info, "r") as member_stream:
-                        member_bytes = member_stream.read(min(info.file_size, max_read_bytes - total_bytes_read) + 1)
+                        member_bytes = member_stream.read(min(info.file_size, remaining_budget) + 1)
                     if len(member_bytes) != info.file_size:
                         parts.append(f"[Ukuran anggota tidak cocok atau melebihi batas: {display_path[:120]}]")
                         continue
                     total_bytes_read += len(member_bytes)
+                    _budget_state["bytes_read"] += len(member_bytes)
 
                     signature_error = check_file_signature(ext, member_bytes)
                     if signature_error:
@@ -3306,6 +3327,7 @@ class ClouzerBot(commands.Bot):
                                 _depth=_depth + 1,
                                 _path_prefix=f"{display_path}!/",
                                 _image_budget=max(0, _image_budget - len(images)),
+                                _budget_state=_budget_state,
                             )
                             remaining = max(0, max_chars - total_chars)
                             clipped = nested_text[:remaining]
@@ -3421,6 +3443,12 @@ class ClouzerBot(commands.Bot):
                 if selected:
                     archive.extract(targets=selected, recursive=False, factory=factory)
 
+            # The 7Z factory has already decompressed every selected member.
+            # Nested ZIP contents must consume the same aggregate budget.
+            nested_zip_budget = {
+                "bytes_read": int(factory.total_written),
+                "max_bytes": ZIP_MAX_TOTAL_UNCOMPRESSED,
+            }
             images: list[str] = []
             total_chars = 0
             max_chars = 30000
@@ -3498,6 +3526,7 @@ class ClouzerBot(commands.Bot):
                         _depth=1,
                         _path_prefix=f"{member_name}!/",
                         _image_budget=max(0, MAX_VISION_IMAGES_PER_TURN - len(images)),
+                        _budget_state=nested_zip_budget,
                     )
                     remaining = max(0, max_chars - total_chars)
                     clipped_text = nested_text[:remaining]
