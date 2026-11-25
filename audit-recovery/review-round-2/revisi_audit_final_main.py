@@ -501,7 +501,9 @@ async def read_discord_attachment_limited(session, url: str, declared_size: int,
     if declared_size <= 0 or max_bytes <= 0:
         raise ValueError("Ukuran lampiran tidak valid")
     hard_cap = min(max_bytes, declared_size + 4096)
-    async with session.get(url, allow_redirects=False, timeout=60) as response:
+    # File besar diberi waktu unduh lebih panjang; unduhan kecil tetap memakai batas normal.
+    download_timeout = 600 if declared_size >= 5 * 1024 * 1024 else 60
+    async with session.get(url, allow_redirects=False, timeout=aiohttp.ClientTimeout(total=download_timeout, connect=15, sock_connect=15, sock_read=600 if download_timeout == 600 else 60)) as response:
         if response.status != 200:
             raise ValueError(f"CDN Discord menolak lampiran (HTTP {response.status})")
         return await read_limited_stream(response.content, hard_cap)
@@ -4631,7 +4633,7 @@ class ClouzerBot(commands.Bot):
         }
         effort = "high" if mode == "full" else "low"
         max_tokens = 8192 if mode == "full" else 4096
-        timeout = aiohttp.ClientTimeout(total=600, sock_read=600) if mode == "full" else aiohttp.ClientTimeout(total=600, sock_read=600)
+        timeout = aiohttp.ClientTimeout(total=300, sock_read=180) if mode == "full" else aiohttp.ClientTimeout(total=180, sock_read=120)
 
         instructions, input_items = self.to_responses_input(messages)
         tools: list[dict] = [{"type": "web_search"}]
