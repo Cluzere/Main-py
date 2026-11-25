@@ -1,3 +1,4 @@
+# Regression coverage for archive parsing and 7Z inventory diagnostics.
 import asyncio
 import importlib.util
 import io
