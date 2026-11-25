@@ -1,0 +1,23 @@
+AUDIT ULANG CLOUZER — PAKET 24 FILE
+
+Periksa seluruh isi ZIP yang saya lampirkan. Audit semua file satu per satu, bukan hanya manifest.
+
+1. Buat inventaris lengkap: nama, path, jenis file, dan arsip induk.
+2. Periksa ZIP, 7Z, dan arsip bersarang; bedakan folder, file root, dan isi arsip anak.
+3. Baca PDF, DOCX, XLSX, PPTX, gambar, teks, dan kode sesuai jenisnya. Kode hanya dibaca, jangan dijalankan.
+4. Jangan berhenti pada sampel. Periksa semua file yang tersedia.
+5. Catat file yang gagal atau dilewati, lengkap dengan path dan alasan.
+6. Laporkan batas ukuran, jumlah file, kedalaman arsip, atau tipe yang tidak didukung.
+7. Jangan mengarang hasil. Jangan mengklaim CRC/integritas berhasil jika tidak benar-benar diuji.
+8. Tes yang memerlukan interaksi Discord (konteks balasan atau banyak lampiran dalam satu pesan) tandai BELUM DIUJI jika tidak dilakukan.
+
+LAPORAN WAJIB:
+- Jumlah file dan folder.
+- Tabel inventaris semua file.
+- Status tiap file: PASS, PARTIAL, atau FAIL.
+- Ringkasan hasil pembacaan tiap file.
+- Daftar file yang gagal/dilewati dan alasannya.
+- Perbandingan dengan audit sebelumnya.
+- Rekap PASS, PARTIAL, FAIL, dan BELUM DIPERIKSA.
+
+Jangan menyatakan 24/24 PASS sebelum seluruh file benar-benar diperiksa dan didukung bukti.
