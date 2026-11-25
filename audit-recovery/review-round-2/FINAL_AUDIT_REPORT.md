@@ -56,7 +56,8 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 18. Anggota PDF/Office/audio dalam ZIP dan 7Z diperiksa signature-nya sebelum diparse; file dengan ekstensi yang tidak cocok ditolak dan dilaporkan.
 
-19. Sumber gambar untuk edit sekarang menggabungkan lampiran baru dan gambar dari pesan reply (deduplikasi, urutan prioritas, dan batas visual); 5 tes regresi helper baru lulus.\n20. Provenance ZIP diperjelas: setiap anggota diberi path lengkap, tipe, dan asal `ROOT`/`NESTED`; path nested memakai pemisah `!/`. Dua tes regresi memastikan `04_readme_proyek.txt` di root tidak salah diatribusikan ke `folder/inner_test.zip`.
+19. Sumber gambar untuk edit sekarang menggabungkan lampiran baru dan gambar dari pesan reply (deduplikasi, urutan prioritas, dan batas visual); 5 tes regresi helper baru lulus.
+20. Provenance ZIP diperjelas: setiap anggota diberi path lengkap, tipe, dan asal `ROOT`/`NESTED`; path nested memakai pemisah `!/`. Dua tes regresi memastikan `04_readme_proyek.txt` di root tidak salah diatribusikan ke `folder/inner_test.zip`.
 
 ## Audit 64 butir — status jujur
 
@@ -175,7 +176,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 
 ## Gerbang yang masih wajib sebelum produksi
 
-1. **Wispbyte staging:** pasang `py7zr>=1.0,<2`, jalankan kandidat dengan file data staging, jangan timpa `main.py`.
+1. **Wispbyte candidate runtime:** dependency `py7zr>=1.0,<2` sudah terpasang. Pada 2026-11-25, log Wispbyte membuktikan `git fetch` + `reset --hard` ke commit `0499632e2fd26994f1974c2d109634e793b2369d`, kandidat mencetak `[ONLINE]`, dan pengguna mengonfirmasi bot terlihat online di Discord. Ini memverifikasi startup dan koneksi Gateway, bukan seluruh fitur lampiran/arsip/streaming.
 2. **Discord real uploads:** unggah 10 file campuran nyata, termasuk ZIP/7Z, PDF scan, XLSX/PPTX, gambar, dan satu file corrupt/unsupported.
 3. **Reply real:** reply ke dokumen dan gambar; ulangi dengan lampiran baru pada pesan yang sama.
 4. **Multi-user:** dua atau lebih user mengirim pesan hampir bersamaan; pastikan history, status, dan jawaban tidak tertukar.
@@ -184,7 +185,26 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 7. **Provider behavior:** verifikasi Xingchi, Cloudflare, Discord CDN, dan fallback image dari jaringan Wispbyte.
 8. **Cost control:** kuota request global bukan billing hard cap; pasang alert/cap di provider jika tersedia.
 9. **Single process:** global budget menggunakan lock proses lokal. Jangan jalankan beberapa replica dengan file budget yang sama tanpa koordinasi lintas proses.
-10. **Credential/API smoke test:** workflow manual `.github/workflows/staging-smoke-test.yml` tersedia untuk memvalidasi `STAGING_DISCORD_BOT_TOKEN` dan `STAGING_XINGCHI_API_KEY`. Workflow ini belum dijalankan; jalankan dari GitHub Actions setelah memastikan secrets staging memang disetel. Tes ini hanya memvalidasi autentikasi Discord dan satu chat Xingchi, bukan startup bot atau Wispbyte end-to-end.
+10. **Credential/API smoke test:** workflow manual `.github/workflows/staging-smoke-test.yml` tersedia untuk memvalidasi `STAGING_DISCORD_BOT_TOKEN` dan `STAGING_XINGCHI_API_KEY`. Pengguna sebelumnya mengonfirmasi workflow ini berhasil (hijau). Tes ini hanya memvalidasi autentikasi Discord dan satu chat Xingchi, bukan startup kandidat atau Wispbyte end-to-end.
+
+## Re-audit statis tambahan — 2026-11-25
+
+Audit ulang terhadap blob kandidat `f66ce2290471fd1fc4294088b2d12f352b638fed`, test suite, dan log CI menemukan beberapa hal yang perlu ditindaklanjuti. Tidak ada kode kandidat atau production yang diubah pada putaran ini.
+
+1. **[BUG / prioritas tinggi] Gambar vision berpotensi dikirim dua kali.** `encode_attachment()` menghasilkan gambar lokal `data:image` sekaligus URL CDN. `process_ai_turn()` memasukkan URL CDN ke riwayat user, lalu `build_messages_payload()` menambahkan daftar `current_turn_images` yang berisi data URL dan URL CDN. Dedup hanya membandingkan string URL identik, sehingga satu gambar yang sama dapat masuk dua kali dalam payload Responses (baris sekitar 4661–4665, 4701–4705, 4166–4188). Dampak: konsumsi vision/token membengkak dan batas 10 gambar dapat habis dengan sekitar 5 gambar fisik. Perlu normalisasi sumber agar satu representasi per gambar.
+2. **[INEFISIENSI] Reply image diproses ulang saat image-edit.** `on_message()` sudah memanggil `resolve_replied_images()` sebelum `process_ai_turn()`; jika model memilih tool edit, `process_ai_turn()` memanggilnya lagi. Ini mengunduh/mengompres gambar reply dua kali dalam satu giliran (baris sekitar 5648–5655 dan 4826–4829). Hasil akhirnya dideduplikasi berdasarkan URL/data URL, tetapi pekerjaan I/O dan CPU tetap berulang.
+3. **[BUG / transparansi truncation] Isi nested ZIP dapat terpotong tanpa penanda eksplisit.** Cabang nested ZIP memotong `nested_text[:remaining]` dan menambahkannya tanpa catatan ketika konten melebihi sisa batas karakter (baris sekitar 3288–3299). Cabang ZIP di dalam 7Z melakukan hal serupa (sekitar 3458–3464). Ini dapat membuat AI menerima isi arsip tidak lengkap tanpa tahu bahwa nested content terpotong.
+4. **[BUG / notifikasi] Penghitungan peringatan gambar terlewati di ZIP dapat salah.** Setelah gambar hasil dokumen ditambahkan ke `images`, kondisi berikutnya membandingkan `len(parsed_images)` dengan sisa budget yang sudah berkurang oleh gambar yang baru ditambahkan (sekitar 3276–3281). Dalam kondisi budget pas, bot bisa menyatakan sebagian gambar dilewati walaupun semuanya sudah ditambahkan.
+
+Temuan 1 dan 3 berpengaruh langsung pada ketepatan input AI; temuan 2 berdampak pada latensi/resource; temuan 4 hanya pada akurasi notifikasi. Keempatnya belum diberi status DONE dan perlu patch kandidat + tes regresi terarah sebelum menutup item terkait.
+
+## Verifikasi CI dan runtime terbaru
+
+- Run GitHub Actions `45530257201`: seluruh job selesai dengan `success`.
+- Candidate suite: **62/62 PASS**; regresi lama: **76/76 PASS**. Log job menunjukkan kedua ringkasan tes tersebut.
+- `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
+- Wispbyte mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; file kandidat pada branch memiliki blob SHA `f66ce2290471fd1fc4294088b2d12f352b638fed`. File `main (4).py` di branch `main` masih SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
+- Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
 
 ## Keputusan
 
