@@ -120,21 +120,31 @@ _NUMERIC_XLSX_HEADER_RE = re.compile(
 
 
 def _prompt_pipe_table(prompt: str) -> list[list[str]]:
-    candidates = []
+    runs = []
+    current = []
     for line in str(prompt or "").splitlines():
         stripped = line.strip()
         if "|" not in stripped:
-            if candidates:
-                break
+            if current:
+                runs.append(current)
+                current = []
             continue
         cells = [cell.strip() for cell in stripped.strip("|").split("|")]
-        if len(cells) > 1:
-            if all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
-                continue
-            candidates.append(cells)
-    if len(candidates) >= 2 and len({len(row) for row in candidates}) == 1:
-        return candidates
-    return []
+        if len(cells) < 2:
+            if current:
+                runs.append(current)
+                current = []
+            continue
+        if all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
+            continue
+        if current and len(cells) != len(current[0]):
+            runs.append(current)
+            current = []
+        current.append(cells)
+    if current:
+        runs.append(current)
+    valid = [run for run in runs if len(run) >= 2 and len({len(row) for row in run}) == 1]
+    return max(valid, key=len) if valid else []
 
 
 def _safe_filename(prompt: str, extension: str) -> str:
