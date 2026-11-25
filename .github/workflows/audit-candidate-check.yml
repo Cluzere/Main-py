@@ -5,6 +5,7 @@ on:
     branches:
       - audit-recovery-gpt-2026-11-23
       - audit-7z-diagnostics-fix
+      - audit-gap-closure-2026-11-25
     paths:
       - "audit-recovery/review-round-2/revisi_audit_final_main.py"
       - ".github/workflows/audit-candidate-check.yml"
