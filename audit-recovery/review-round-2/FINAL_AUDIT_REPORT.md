@@ -8,12 +8,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit terakhir yang mengubah file kandidat: `f8c91c6874106044a49f760d241cc2687b8998e4`
-- Commit kandidat yang diuji pada CI terakhir: `35b8e5fdbf059ca9d13cd178ed738040230f9553`; commit sesudahnya hanya memperbarui laporan audit.
+- Commit terakhir yang mengubah file kandidat: `f18b89164f02f9fa4892fa0922bdf5340e116d62`
+- Commit kandidat yang diuji pada CI terakhir: `f18b89164f02f9fa4892fa0922bdf5340e116d62`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat: `8b0feabcef8e84e477b1e60987130861714b4fd5`
+- Blob kandidat: `f66ce2290471fd1fc4294088b2d12f352b638fed`
 - Jumlah baris: 5.670
-- CI terakhir: [Run #45518612532 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45518612532)
+- CI terakhir: [Run #45530257201 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45530257201)
 
 ## Bukti CI terakhir
 
@@ -23,8 +23,8 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
 - Tes kandidat tambahan: **62/62 PASS**.
-- Regresi audit yang sudah ada: **74/74 PASS**.
-- Total dua suite yang dijalankan pada run terakhir: **136 tes PASS** (62 kandidat + 74 regresi lama).
+- Regresi audit yang sudah ada: **76/76 PASS**.
+- Total dua suite yang dijalankan pada run terakhir: **138 tes PASS** (62 tes kandidat + 76 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -42,7 +42,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 3. Satu file gagal tidak menghentikan pemrosesan file lain.
 4. Semaphore lampiran menunggu giliran FIFO, bukan timeout lalu meminta pengguna mengunggah ulang.
 5. ZIP dan 7Z dibaca tanpa mengekstrak path arsip ke filesystem. Ada batas jumlah anggota, ukuran per anggota, total hasil ekstraksi, rasio kompresi, dan kedalaman arsip.
-6. Isi ZIP/7Z mendukung teks/kode, gambar, PDF, DOCX, PPTX, dan XLSX yang dikenali parser. ZIP bersarang hanya satu tingkat; 7Z bersarang tidak diperluas.
+6. Isi ZIP/7Z mendukung teks/kode, gambar, PDF, DOCX, PPTX, dan XLSX yang dikenali parser. ZIP bersarang hanya satu tingkat; setiap entri kini diberi path penuh dan asal `ROOT`/`NESTED` secara eksplisit. 7Z bersarang tidak diperluas.
 7. 7Z memerlukan dependency `py7zr`. Tanpanya, file diberi status unsupported dan tidak diklaim telah dibaca.
 8. Dokumen dari pesan yang di-reply ikut dibaca bersama lampiran baru, dengan sisa anggaran ukuran dan teks yang sama.
 9. Jika pesan sumber reply tidak bisa diambil, bot menjelaskan bahwa lampiran aslinya tidak tersedia.
@@ -56,7 +56,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 18. Anggota PDF/Office/audio dalam ZIP dan 7Z diperiksa signature-nya sebelum diparse; file dengan ekstensi yang tidak cocok ditolak dan dilaporkan.
 
-19. Sumber gambar untuk edit sekarang menggabungkan lampiran baru dan gambar dari pesan reply (deduplikasi, urutan prioritas, dan batas visual); 5 tes regresi helper baru lulus.
+19. Sumber gambar untuk edit sekarang menggabungkan lampiran baru dan gambar dari pesan reply (deduplikasi, urutan prioritas, dan batas visual); 5 tes regresi helper baru lulus.\n20. Provenance ZIP diperjelas: setiap anggota diberi path lengkap, tipe, dan asal `ROOT`/`NESTED`; path nested memakai pemisah `!/`. Dua tes regresi memastikan `04_readme_proyek.txt` di root tidak salah diatribusikan ke `folder/inner_test.zip`.
 
 ## Audit 64 butir — status jujur
 
@@ -85,7 +85,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 12 | DONE | Teks, gambar, PDF, DOCX, PPTX, XLSX dibaca dari arsip. |
 | 13 | PARTIAL | Signature PDF/Office/audio pada anggota ZIP/7Z diperiksa; file teks dan format langka masih dikenali terutama dari ekstensi. |
 | 14 | DONE | Parser 7Z memakai `py7zr`; dependency wajib untuk deployment. |
-| 15 | PARTIAL | ZIP bersarang satu tingkat; 7Z bersarang dilewati. |
+| 15 | PARTIAL | ZIP bersarang satu tingkat; path dan asal entri sudah eksplisit, tetapi ZIP lebih dalam dan 7Z bersarang tetap tidak diproses. |
 | 16 | PARTIAL | Batas ukuran/rasio/entry, encrypted ZIP dan password-protected 7Z ditolak; belum fuzz-test menyeluruh. |
 | 17 | DONE | Arsip yang tidak diparse tidak diklaim sudah dibaca. |
 
@@ -188,7 +188,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 
 ## Keputusan
 
-Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 62 tes khusus kandidat, dan 74 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
+Kandidat saat ini telah melewati compile, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 62 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
 
 Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
 
