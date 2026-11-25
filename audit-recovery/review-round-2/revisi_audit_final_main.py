@@ -1719,6 +1719,20 @@ def check_file_signature(ext: str, data: bytes) -> str | None:
         except (OSError, ValueError, zipfile.BadZipFile, RuntimeError, KeyError):
             return "container ZIP/Office rusak atau tidak valid"
         return None
+    if ext == ".svg":
+        try:
+            root = safe_xml_fromstring(data)
+            root_name = root.tag.rsplit("}", 1)[-1].lower()
+            if root_name != "svg":
+                return "dokumen XML bukan elemen root SVG"
+        except Exception:
+            return "isi file bukan SVG/XML yang valid"
+        return None
+    if ext == ".eps":
+        return None if data.lstrip().startswith(b"%!PS-Adobe") else "signature file bukan EPS/PostScript valid"
+    if ext == ".ai":
+        valid = b"%PDF-" in data[:1024] or data.lstrip().startswith(b"%!PS-Adobe")
+        return None if valid else "signature file bukan Adobe Illustrator/PDF/PostScript valid"
     if ext == ".rtf":
         return None if data.lstrip()[:5] == b"{\\rtf" else "isi file bukan RTF yang valid"
     if ext in AUDIO_EXTS:
