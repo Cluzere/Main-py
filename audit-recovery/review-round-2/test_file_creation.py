@@ -139,5 +139,21 @@ class FileCreationTests(unittest.TestCase):
             create_document_file("zip", prompt, content)
 
 
+    def test_pdf_keeps_content_across_multiple_pages(self):
+        import pymupdf
+        content = "# Laporan PDF\n" + "\n".join(f"Baris konten {i}" for i in range(1, 90))
+        data, _, _ = create_document_file("pdf", "Buat PDF", content)
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            extracted = "\n".join(page.get_text() for page in doc)
+            self.assertGreaterEqual(doc.page_count, 2)
+            self.assertIn("Baris konten 89", extracted)
+
+    def test_docx_does_not_duplicate_plain_first_line_as_title(self):
+        from docx import Document
+        data, _, _ = create_document_file("docx", "Buat DOCX", "Judul singkat\n\nIsi dokumen.")
+        doc = Document(io.BytesIO(data))
+        self.assertEqual(sum(p.text == "Judul singkat" for p in doc.paragraphs), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
