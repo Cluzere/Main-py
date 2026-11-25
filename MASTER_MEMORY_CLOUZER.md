@@ -1602,3 +1602,41 @@ CI pada commit `9fbbb15f9586cdf2ab4d399db5a7185b6e44840d`:
 - Setelah file masuk, audit baca metadata dan konten; untuk Office/PDF/ZIP yang perlu diperiksa byte aslinya, gunakan download file biner, bukan hanya ringkasan teks.
 - Catat file ID Box, nama, ukuran, waktu modifikasi, hasil validasi, dan status PASS/PARTIAL/FAIL di Master Memory.
 - Jangan menghapus/memindahkan artefak lama tanpa instruksi eksplisit.
+
+
+---
+
+## 33. DIAGNOSTIK KHUSUS KEGAGALAN GENERATOR XLSX (26 November 2026)
+
+### 33.1 Bukti kegagalan live sebelum patch
+- Candidate Wispbyte yang dijalankan berasal dari:
+  `/home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py`.
+- Branch saat log diterima: `audit-recovery-gpt-2026-11-23`, HEAD saat itu `73c4f7397df2995e2444645ec5b64028bfc5f745`.
+- Bot berhasil online. Dua permintaan XLSX (request ID `1575272943313879081` dan `1575273144229560413`) gagal pada `clouzer_file_creation.py`, fungsi `_make_xlsx`, ketika `_check_table(rows, "", "XLSX")` melempar:
+  `XLSX harus memiliki header dan setidaknya satu baris data.`
+- Stack trace menunjukkan kegagalan terjadi ketika builder memvalidasi struktur baris, sebelum tahap validasi file dan pengiriman attachment Discord.
+- Bukti ini menetapkan bahwa parser menerima kurang dari dua baris atau header kosong. Bukti tersebut **belum** menentukan apakah respons model kosong, hanya satu baris, atau gagal dikenali sebagai tabel.
+- Waktu `first_text` dan `response_completed` dari log Responses bukan bukti bahwa teks akhir yang diteruskan ke builder memiliki struktur tabel yang benar.
+
+### 33.2 Patch diagnostik candidate
+- Atas persetujuan user (“Gas langsung”), ditambahkan diagnostik metadata-only pada candidate main sebelum pemanggilan `create_document_file()`, khusus ketika `requested_file_format == "xlsx"`.
+- Commit patch awal: `1d25797abc39c5019bf535bd9ef6eca3d29f0c94`.
+- Commit koreksi deteksi TAB: **`ad636fe754e40ef8fb16120a51213f72a51dbf99`**.
+- Candidate main path: `audit-recovery/review-round-2/revisi_audit_final_main.py`.
+- Blob SHA terbaru: **`1555ea5947dd0d655e7ee0db3b05ef20673cd938`**.
+- Log baru menggunakan prefix `[XLSX-DIAG]` dan mencatat:
+  - `scope` dan tipe objek respons;
+  - jumlah karakter respons (`chars`);
+  - jumlah baris non-kosong (`nonempty_lines`);
+  - jumlah baris yang mengandung TAB aktual (`tab_rows`);
+  - jumlah baris tabel Markdown yang diawali dan diakhiri karakter pipe (`markdown_pipe_rows`).
+- Tidak mencatat isi teks/dokumen, sehingga isi respons privat tidak ditulis ke log.
+- Kode diagnostik diverifikasi ulang melalui fetch GitHub; deteksi TAB menggunakan karakter tab aktual (`"\\t"` dalam literal Python), bukan dua karakter backslash dan huruf t.
+
+### 33.3 Langkah retest dan batas perubahan
+1. User perlu restart instance candidate agar Wispbyte mengambil commit terbaru pada branch tersebut.
+2. Pastikan log startup menunjukkan bot online, lalu ulangi permintaan XLSX yang sebelumnya gagal.
+3. Ambil baris `[XLSX-DIAG]` dan traceback terbaru untuk mengisolasi apakah respons kosong, hanya satu baris, atau format tabel tidak dikenali.
+4. Belum ada hasil retest setelah patch pada saat catatan ini dibuat; jangan menyatakan masalah XLSX sudah selesai.
+5. Patch hanya menyentuh candidate `revisi_audit_final_main.py` di branch audit. Production `/home/container/main.py` tidak diubah, tidak di-deploy, dan tidak di-restart.
+6. Patch diagnostik ini belum boleh dianggap sebagai bukti CI/regression test baru; jalankan pemeriksaan yang sesuai setelah log retest diperoleh.
