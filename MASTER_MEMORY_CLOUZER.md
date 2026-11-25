@@ -1640,3 +1640,29 @@ CI pada commit `9fbbb15f9586cdf2ab4d399db5a7185b6e44840d`:
 4. Belum ada hasil retest setelah patch pada saat catatan ini dibuat; jangan menyatakan masalah XLSX sudah selesai.
 5. Patch hanya menyentuh candidate `revisi_audit_final_main.py` di branch audit. Production `/home/container/main.py` tidak diubah, tidak di-deploy, dan tidak di-restart.
 6. Patch diagnostik ini belum boleh dianggap sebagai bukti CI/regression test baru; jalankan pemeriksaan yang sesuai setelah log retest diperoleh.
+
+
+---
+
+## 34. RETEST XLSX SETELAH PATCH DIAGNOSTIK — 26 NOVEMBER 2026
+
+### 34.1 Restart candidate terkonfirmasi
+- Log Wispbyte terbaru menunjukkan branch `audit-recovery-gpt-2026-11-23` mengalami forced update dari `73c4f73` ke `ad636fe`.
+- Checkout berhasil: `HEAD is now at ad636fe Fix XLSX tab-row diagnostic to detect actual tabs`.
+- Proses yang dijalankan tetap candidate `/home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py`; bot menampilkan `[ONLINE]`.
+- Ini mengonfirmasi server mengambil commit diagnostik terbaru. Tidak ada bukti production `/home/container/main.py` diubah.
+
+### 34.2 Hasil diagnostik live
+- Request ID: `1575275179263791157`.
+- Log: `[XLSX-DIAG] scope=guild_1572609789849116672_ch_1572609790654550109_user_696701796097458287 response_type=str chars=353 nonempty_lines=11 tab_rows=11 markdown_pipe_rows=0`.
+- Artinya respons berupa string 353 karakter, 11 baris tidak kosong, seluruh 11 baris mengandung karakter TAB aktual, dan tidak menggunakan tabel Markdown pipe.
+- Bentuk ini cocok dengan parser XLSX candidate yang menerima baris tab-delimited. Ini bukti kuat bahwa respons pada percobaan ini memiliki struktur tabular yang dikenali parser, berbeda dari dua kegagalan sebelumnya.
+- User juga melaporkan CLOUZER mengirim pesan berhasil dibuat untuk `clouzer_ulangi_pembuatan_file_excel_buat_fil_20261125_222120.xlsx`, ukuran 5.412 byte. Timestamp nama file cocok dengan waktu log lokal (00:21:20 server; 22:21:20 WIB/UTC+7) dan kemungkinan besar merupakan artefak dari request yang sama.
+- Namun, log yang dibagikan berhenti tepat setelah baris diagnostik. Belum ada log tahap `[FILE-STAGE]`/konfirmasi attachment dari pesan Discord, dan file biner belum diperiksa. Karena itu statusnya **PARTIAL / provisional success**, bukan PASS final.
+- Belum terbukti file dapat dibuka, memiliki jumlah kolom/baris dan isi yang benar, atau diterima sebagai attachment yang dapat diunduh.
+
+### 34.3 Tindak lanjut verifikasi
+1. Ambil sisa log setelah `[XLSX-DIAG]` untuk mencari validasi file dan konfirmasi attachment Discord.
+2. Periksa file asli 5.412 byte: buka workbook, cek worksheet, dimensi, header, jumlah baris/kolom, nilai, dan konsistensi dengan permintaan.
+3. Jika artefak sudah berada di Box `All Files / Test file / CLOUZER_BUANGAN_AUDIT`, audit dari Box tanpa meminta upload ulang ke chat; jika belum, user perlu menyediakan file atau menaruhnya di folder itu.
+4. Setelah inspeksi biner dan isi selesai, ubah status menjadi PASS/PARTIAL/FAIL berdasarkan hasil aktual.
