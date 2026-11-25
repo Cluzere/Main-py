@@ -496,6 +496,13 @@ class ArchiveReaderTests(unittest.TestCase):
             def is_channel_allowed(self, channel, guild):
                 return True
 
+            def get_scope_key(self, guild, user_id, channel_id):
+                return f"dm_{user_id}_ch_{channel_id}"
+
+            @module.asynccontextmanager
+            async def ingress_lock(self, key):
+                yield True, None
+
             async def encode_attachment(self, attachment):
                 self.processed.append(attachment.filename)
                 if attachment.filename == "03.docx":
@@ -549,6 +556,13 @@ class ArchiveReaderTests(unittest.TestCase):
 
             def is_channel_allowed(self, channel, guild):
                 return True
+
+            def get_scope_key(self, guild, user_id, channel_id):
+                return f"dm_{user_id}_ch_{channel_id}"
+
+            @module.asynccontextmanager
+            async def ingress_lock(self, key):
+                yield True, None
 
             async def encode_attachment(self, attachment):
                 self.processed.append(attachment.filename)
@@ -714,6 +728,13 @@ class ArchiveReaderTests(unittest.TestCase):
 
             def is_channel_allowed(self, channel, guild):
                 return True
+
+            def get_scope_key(self, guild, user_id, channel_id):
+                return f"dm_{user_id}_ch_{channel_id}"
+
+            @module.asynccontextmanager
+            async def ingress_lock(self, key):
+                yield True, None
 
             async def encode_attachment(self, attachment):
                 return ("X" * 120, [], [], "text")
@@ -1091,6 +1112,13 @@ class ArchiveReaderTests(unittest.TestCase):
 
             def is_channel_allowed(self, channel, guild):
                 return True
+
+            def get_scope_key(self, guild, user_id, channel_id):
+                return f"dm_{user_id}_ch_{channel_id}"
+
+            @module.asynccontextmanager
+            async def ingress_lock(self, key):
+                yield True, None
 
             async def encode_attachment(self, attachment):
                 return None, ["data:image/png;base64,NEW"], [], "image"
