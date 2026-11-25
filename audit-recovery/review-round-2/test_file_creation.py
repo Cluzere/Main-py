@@ -210,7 +210,7 @@ Wajib menghasilkan 1 header dan 10 baris data. Wajib menghasilkan tepat 6 kolom.
             wb.close()
 
     def test_xlsx_rejects_non_numeric_age_and_changed_source_data(self):
-        prompt = "Buat Excel worksheet bernama Data Pegawai dengan tepat 2 baris data dan 2 kolom. Sumber: A|Umur\\n1|25\\n2|30"
+        prompt = "Buat Excel worksheet bernama Data Pegawai dengan tepat 2 baris data dan 2 kolom.\\n\\nA|Umur\\n1|25\\n2|30"
         with self.assertRaisesRegex(ValueError, "harus berupa angka"):
             create_document_file("xlsx", prompt, "A|Umur\\n1|dua puluh lima\\n2|30")
         with self.assertRaisesRegex(ValueError, "tidak sama persis"):
