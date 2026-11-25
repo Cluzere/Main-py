@@ -124,6 +124,61 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("kedalaman maksimum", text)
         self.assertNotIn("TOO DEEP", text)
 
+    def test_reads_two_nested_zip_levels(self):
+        deepest = self.make_zip([("02_catatan_b.txt", "KEBUN KOTA BLOK SELATAN - 18 TANAMAN")])
+        middle = self.make_zip([("folder/inner_test.zip", deepest)])
+        outer = self.make_zip([("12_arsip_bersarang.zip", middle)])
+        text, images = self.bot.extract_generic_zip_content(outer, "package.zip")
+        self.assertIn("KEBUN KOTA BLOK SELATAN - 18 TANAMAN", text)
+        self.assertIn("12_arsip_bersarang.zip!/folder/inner_test.zip!/02_catatan_b.txt", text)
+        self.assertNotIn("kedalaman maksimum", text)
+        self.assertEqual(images, [])
+
+    def test_nested_zip_image_is_returned_for_vision(self):
+        from PIL import Image
+        image_buffer = io.BytesIO()
+        Image.new("RGB", (32, 24), (20, 180, 40)).save(image_buffer, format="PNG")
+        middle = self.make_zip([("05_gambar_uji_a.png", image_buffer.getvalue())])
+        outer = self.make_zip([("11_arsip_campuran.zip", middle)])
+        text, images = self.bot.extract_generic_zip_content(outer, "package.zip")
+        self.assertIn("Gambar arsip disertakan sebagai visual", text)
+        self.assertEqual(len(images), 1)
+        self.assertTrue(images[0].startswith("data:image/"))
+
+    def test_xlsx_formula_cells_are_preserved(self):
+        import openpyxl
+        wb = openpyxl.Workbook()
+        north = wb.active
+        north.title = "Utara"
+        north["A1"], north["B1"] = "Tanaman", "Jumlah"
+        north["A2"], north["B2"] = "Tomat", 10
+        north["A3"], north["B3"] = "Cabai", 14
+        south = wb.create_sheet("Selatan")
+        south["A1"], south["B1"] = "Tanaman", "Jumlah"
+        south["A2"], south["B2"] = "Bayam", 8
+        south["A3"], south["B3"] = "Kangkung", 10
+        summary = wb.create_sheet("Ringkasan")
+        summary["A1"], summary["B1"] = "Lokasi", "Total"
+        summary["A2"], summary["B2"] = "Utara", "=SUM(Utara!B2:B3)"
+        summary["A3"], summary["B3"] = "Selatan", "=SUM(Selatan!B2:B3)"
+        raw = io.BytesIO()
+        wb.save(raw)
+        wb.close()
+        text, _ = self.bot.extract_xlsx_content(raw.getvalue(), "09_data_uji.xlsx")
+        self.assertIn("=SUM(Utara!B2:B3)", text)
+        self.assertIn("=SUM(Selatan!B2:B3)", text)
+        self.assertIn("Tomat", text)
+        self.assertIn("Kangkung", text)
+
+    def test_corrupt_nested_zip_is_reported_and_other_members_continue(self):
+        raw = self.make_zip([
+            ("14_file_rusak.zip", b"not a zip archive"),
+            ("valid.txt", "VALID MEMBER STILL READ"),
+        ])
+        text, _ = self.bot.extract_generic_zip_content(raw, "package.zip")
+        self.assertIn("BadZipFile", text)
+        self.assertIn("VALID MEMBER STILL READ", text)
+
     def test_skips_symlink_entries(self):
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as archive:
