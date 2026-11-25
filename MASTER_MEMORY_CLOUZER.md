@@ -1191,3 +1191,65 @@ Kesimpulan berbasis bukti:
 - Log yang diberikan tidak menunjukkan perubahan port allocation atau Startup Command; command yang dipakai tetap menjalankan kandidat dari folder `clouzer-audit`.
 - Jangan menyimpan Client Secret, access token, refresh token, authorization code, atau isi file token dalam Master Memory.
 - Jangan mengklaim integrasi Box end-to-end selesai sebelum tes API folder dan operasi file dari runtime Wispbyte berhasil.
+
+
+---
+
+## 27. ADDENDUM — Box API berhasil me-list folder target dari runtime CLOUZER (26 November 2026)
+
+Catatan ini menambahkan bukti baru yang diberikan pengguna setelah §26. Status sebelumnya yang menyebut Box API list masih menunggu kini diperbarui: pengujian list folder telah berhasil. Bagian §26 tetap dipertahankan sebagai riwayat tahapan OAuth dan startup.
+
+### 27.1 Bukti hasil Box API
+
+Pengguna melaporkan hasil sukses:
+
+```
+✅ Box API berhasil! Folder: Folder 441035368657 (menampilkan 5 item pertama)
+```
+
+Lima nama file yang dikembalikan:
+1. `clouzer_buatkan_file_excel_xlsx_dengan_nama__20261125_152528.xlsx`
+2. `clouzer_buat_dokumen_word_bernama_clouzer_te_20261125_150453.docx`
+3. `clouzer_buat_file_arsip_zip_bernama_clouzer__20261125_154453.zip`
+4. `clouzer_buat_file_powerpoint_bernama_clouzer_20261125_153834-2.pptx`
+5. `clouzer_buat_file_txt_bernama_clouzer_test_t_20261125_150316.txt`
+
+### 27.2 Kesimpulan yang sudah terbukti
+
+Berdasarkan hasil yang dilaporkan pengguna, CLOUZER berhasil melakukan operasi Box API untuk mengambil daftar item dari folder ID `441035368657`, dan respons memuat setidaknya lima nama file dengan tipe XLSX, DOCX, ZIP, PPTX, dan TXT.
+
+Rantai integrasi yang telah memiliki bukti keberhasilan:
+1. OAuth Box callback selesai dan aplikasi menyatakan token tersimpan di server (§26).
+2. Service health `clouzer-box-oauth` sebelumnya merespons `status: ok` (§26).
+3. Box API berhasil diakses untuk me-list folder target `441035368657` dan mengembalikan lima item pertama (bukti §27).
+
+Dengan demikian, pengujian **OAuth callback → token tersimpan menurut aplikasi → Box API list folder** berhasil berdasarkan bukti yang diberikan pengguna.
+
+### 27.3 Batas klaim — tes berikutnya masih diperlukan
+
+Keberhasilan list folder tidak otomatis membuktikan:
+- Isi file XLSX/DOCX/PPTX/TXT berhasil diunduh dan dibaca.
+- File ZIP berhasil diunduh dan diekstrak.
+- Upload, create, update, move, atau delete file/folder berhasil.
+- Refresh token dan token rotation berjalan dengan benar.
+- Seluruh isi folder telah ditampilkan; laporan pengguna secara eksplisit menyebut lima item pertama.
+- Command Discord untuk seluruh operasi Box berfungsi untuk semua pengguna/kasus.
+
+Jangan menaikkan status fitur-fitur tersebut menjadi PASS sebelum ada hasil tes masing-masing.
+
+### 27.4 Prioritas pengujian berikutnya
+
+1. Uji metadata dan download satu file TXT yang tidak sensitif dari daftar tersebut.
+2. Uji baca konten TXT dan cocokkan dengan isi sumber.
+3. Uji download dan pembacaan satu DOCX, XLSX, serta PPTX secara terpisah.
+4. Uji ZIP secara terpisah: download, inventaris isi, lalu ekstraksi aman.
+5. Uji upload file uji baru ke folder target hanya jika memang diizinkan pengguna; verifikasi file muncul di daftar Box.
+6. Uji refresh token setelah masa berlaku access token atau melalui prosedur uji yang aman.
+7. Catat setiap hasil dengan status PASS/PARTIAL/FAIL dan bukti respons, tanpa menyimpan token atau data sensitif.
+
+### 27.5 Batas produksi dan keamanan
+
+- Bukti baru ini berkaitan dengan integrasi Box pada kandidat/branch audit CLOUZER yang dijelaskan pada §26.
+- Tidak ada bukti bahwa production `main.py`, branch `main`, atau deployment produksi diubah.
+- Jangan menyimpan access token, refresh token, client secret, authorization code, atau isi dokumen pengguna ke Master Memory.
+- Simpan nama file di atas hanya sebagai bukti inventaris tes yang diberikan pengguna; jangan menganggap konten file sudah diperiksa.
