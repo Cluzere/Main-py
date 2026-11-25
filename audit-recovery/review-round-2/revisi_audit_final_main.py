@@ -2115,6 +2115,20 @@ class AIResponseView(discord.ui.View):
             await reply_ephemeral(interaction, "⚠️ Gagal kirim DM. Pastikan DM Discord lu tidak dikunci!")
 
 
+async def send_turn_status_message(target_channel, reply_to_message=None):
+    """Send the processing status; a deleted/inaccessible reply target must not drop the turn."""
+    status_text = "⏳ Pesan diterima. Menunggu giliran diproses..."
+    if reply_to_message is not None:
+        try:
+            return await reply_to_message.reply(status_text, mention_author=False)
+        except Exception:
+            logging.warning(
+                "Gagal mengirim status sebagai reply; mencoba mengirim langsung ke channel",
+                exc_info=True,
+            )
+    return await target_channel.send(status_text)
+
+
 class ClouzerBot(commands.Bot):
     _EMBEDDED_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
@@ -4745,11 +4759,7 @@ class ClouzerBot(commands.Bot):
 
         # Kirim status segera sebelum menunggu lock; asyncio.Lock melayani waiter secara FIFO.
         _queue_status_started = _turn_loop.time()
-        status_msg = await (
-            reply_to_message.reply("⏳ Pesan diterima. Menunggu giliran diproses...", mention_author=False)
-            if reply_to_message
-            else target_channel.send("⏳ Pesan diterima. Menunggu giliran diproses...")
-        )
+        status_msg = await send_turn_status_message(target_channel, reply_to_message)
         _turn_diag["queue_status_send_seconds"] = _turn_loop.time() - _queue_status_started
         _queue_wait_started = _turn_loop.time()
         async with self.guild_lock(scope_key, status_message=status_msg) as _queue_acquired:
