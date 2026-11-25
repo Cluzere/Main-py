@@ -1670,13 +1670,49 @@ _ZIP_BASED_EXTS = frozenset({".docx", ".pptx", ".xlsx", ".odt", ".ods", ".odp", 
 
 
 def check_file_signature(ext: str, data: bytes) -> str | None:
-    """Cocokkan isi file dengan ekstensinya (anti file yang diberi nama menyesatkan). None = lolos."""
+    """Validasi magic bytes dan struktur minimum container; None berarti lolos."""
     if ext == ".pdf":
         return None if b"%PDF-" in data[:1024] else "isi file bukan PDF yang valid"
     if ext == ".7z":
         return None if data[:6] == bytes((55, 122, 188, 175, 39, 28)) else "signature file bukan 7Z valid"
     if ext in _ZIP_BASED_EXTS:
-        return None if data[:4] in (b"PK\x03\x04", b"PK\x05\x06") else "isi file bukan arsip Office/EPUB yang valid"
+        if data[:4] not in (b"PK\x03\x04", b"PK\x05\x06"):
+            return "isi file bukan arsip Office/EPUB yang valid"
+        if ext == ".zip":
+            return None
+        required_parts = {
+            ".docx": {"[Content_Types].xml", "word/document.xml"},
+            ".pptx": {"[Content_Types].xml", "ppt/presentation.xml"},
+            ".xlsx": {"[Content_Types].xml", "xl/workbook.xml"},
+        }
+        odf_mimetypes = {
+            ".odt": b"application/vnd.oasis.opendocument.text",
+            ".ods": b"application/vnd.oasis.opendocument.spreadsheet",
+            ".odp": b"application/vnd.oasis.opendocument.presentation",
+        }
+        try:
+            with zipfile.ZipFile(io.BytesIO(data), "r") as archive:
+                infos = archive.infolist()
+                names = {info.filename for info in infos}
+                if len(infos) > ZIP_MAX_ENTRIES:
+                    return "container ZIP memiliki terlalu banyak anggota"
+                if any(info.file_size > ZIP_MAX_ENTRY_UNCOMPRESSED for info in infos):
+                    return "anggota container ZIP melewati batas ukuran"
+                if sum(info.file_size for info in infos) > ZIP_MAX_TOTAL_UNCOMPRESSED:
+                    return "container ZIP melewati batas total ukuran"
+                if ext in required_parts and not required_parts[ext].issubset(names):
+                    return f"struktur {ext.lstrip('.').upper()} tidak lengkap"
+                if ext == ".epub":
+                    if not infos or infos[0].filename != "mimetype" or infos[0].compress_type != zipfile.ZIP_STORED:
+                        return "struktur EPUB tidak valid: mimetype harus menjadi entri pertama tanpa kompresi"
+                    if archive.read(infos[0]) != b"application/epub+zip":
+                        return "mimetype EPUB tidak valid"
+                if ext in odf_mimetypes:
+                    if "mimetype" not in names or archive.read("mimetype") != odf_mimetypes[ext]:
+                        return f"mimetype {ext.lstrip('.').upper()} tidak valid"
+        except (OSError, ValueError, zipfile.BadZipFile, RuntimeError, KeyError):
+            return "container ZIP/Office rusak atau tidak valid"
+        return None
     if ext == ".rtf":
         return None if data.lstrip()[:5] == b"{\\rtf" else "isi file bukan RTF yang valid"
     if ext in AUDIO_EXTS:
@@ -1702,7 +1738,6 @@ def check_file_signature(ext: str, data: bytes) -> str | None:
             valid = True
         return None if valid else "signature file tidak cocok dengan format audio"
     return None
-
 
 _XML_ENTITY_DECL_RE = re.compile(rb"<!ENTITY\s+(%\s+)?[^\s>]+\s+(SYSTEM|PUBLIC|\"[^\"]*\"|'[^']*')", re.IGNORECASE)
 _XML_NESTED_ENTITY_RE = re.compile(rb"<!ENTITY\s+[^\s>]+\s+(?:\"[^\"]*&[A-Za-z_#][^\";]*;[^\"]*\"|'[^']*&[A-Za-z_#][^';]*;[^']*')")
