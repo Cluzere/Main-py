@@ -898,3 +898,65 @@ class FinalAttachmentFailureHandlingTests(unittest.TestCase):
         self.assertIn('logging.exception("Gagal memproses lampiran gambar', source)
         self.assertNotIn('type(e).__name__}: {e}', source)
         self.assertIn("allow_redirects=False", source)
+
+
+extract_generic_zip_content_method = extract_method("ClouzerBot", "extract_generic_zip_content")
+extract_generic_zip_content_method.__globals__.update({
+    "io": io,
+    "os": os,
+    "zipfile": zipfile,
+    "MAX_VISION_IMAGES_PER_TURN": 10,
+    "IMAGE_EXTS": set(),
+    "CODE_EXTS": {".py", ".js", ".ts"},
+    "check_file_signature": lambda ext, data: None,
+    "scan_secrets": lambda content, code_mode=False: types.SimpleNamespace(blocked=False, text=content),
+})
+
+
+class NestedZipProvenanceTests(unittest.TestCase):
+    @staticmethod
+    def make_zip(entries):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            for name, payload in entries:
+                archive.writestr(name, payload)
+        return buffer.getvalue()
+
+    def test_root_readme_is_not_attributed_to_nested_zip(self):
+        inner = self.make_zip([
+            ("02_catatan_b.txt", "DOKUMEN UJI B\\nBlok Selatan\\n18 tanaman".encode("utf-8")),
+        ])
+        outer = self.make_zip([
+            ("folder/inner_test.zip", inner),
+            ("04_readme_proyek.txt", b"README UJI\\nDip asangkan dengan 03_hitung_total.py"),
+        ])
+
+        class ParserHarness:
+            _validate_zip_archive = staticmethod(validate_zip_archive_method)
+            _wrap_doc_content = staticmethod(
+                lambda label, filename, body: f"--- KONTEN {label} ({filename}) ---\\n{body}\\n"
+            )
+            extract_generic_zip_content = extract_generic_zip_content_method
+
+        parsed, images = ParserHarness().extract_generic_zip_content(outer, "12_arsip_bersarang.zip")
+
+        self.assertEqual(images, [])
+        self.assertIn("[ARCHIVE ENTRY: 04_readme_proyek.txt | origin=ROOT", parsed)
+        self.assertIn("[ARCHIVE ENTRY: folder/inner_test.zip!/02_catatan_b.txt | origin=NESTED", parsed)
+        self.assertNotIn("folder/inner_test.zip!/04_readme_proyek.txt", parsed)
+        self.assertIn("18 tanaman", parsed)
+
+    def test_nested_archive_marker_keeps_parent_path(self):
+        inner = self.make_zip([("inside.txt", b"nested content")])
+        outer = self.make_zip([("folder/inner_test.zip", inner)])
+        
+        class ParserHarness:
+            _validate_zip_archive = staticmethod(validate_zip_archive_method)
+            _wrap_doc_content = staticmethod(
+                lambda label, filename, body: f"--- KONTEN {label} ({filename}) ---\\n{body}\\n"
+            )
+            extract_generic_zip_content = extract_generic_zip_content_method
+
+        parsed, _ = ParserHarness().extract_generic_zip_content(outer, "outer.zip")
+        self.assertIn("[ARCHIVE ENTRY: folder/inner_test.zip | origin=ROOT", parsed)
+        self.assertIn("[ARCHIVE ENTRY: folder/inner_test.zip!/inside.txt | origin=NESTED", parsed)
