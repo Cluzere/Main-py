@@ -12,8 +12,8 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Commit branch terbaru yang diuji pada CI: `c735e75717c0bdb50cfcf0501befae728858ec14`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Blob kandidat terbaru: `fa79b307051fc7e49e5e9c547c80b47d0f7fcff0`
-- Jumlah baris kandidat: 5.888
-- CI terbaru: [Run #45564530192 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45561655560)
+- Jumlah baris kandidat: 5.875
+- CI terbaru: [Run #45564530192 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45564530192)
 
 ## Bukti CI terakhir
 
