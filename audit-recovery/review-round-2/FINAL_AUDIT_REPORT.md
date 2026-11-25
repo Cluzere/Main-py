@@ -8,12 +8,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit terakhir yang mengubah file kandidat: `20f7d35e93c1e3de9b19fdfa8398d6e2373ced1a`
+- Commit terakhir yang mengubah file kandidat: `675cd774c7d8a68caefde717f81f33f425611b18`
 - Branch head saat verifikasi terakhir: `610e115a84b24e467cfb935cd3ccf312e48625a8`
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat: `ed97417c86ddccc736efdac67c8694bdf80ea941`
-- Jumlah baris: 5.656
-- CI terakhir: [Run #45514190007 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45514190007)
+- Blob kandidat: `c528ea4bec13e3f37b5420cb04fa1a155ebe95f6`
+- Jumlah baris: 5.670
+- CI terakhir: [Run #45514556079 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45514190007)
 
 ## Bukti CI terakhir
 
@@ -22,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File produksi `main.py` 
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat tambahan: **56/56 PASS**.
+- Tes kandidat tambahan: **57/57 PASS**.
 - Regresi audit yang sudah ada: **74/74 PASS**.
-- Total dua suite yang dijalankan pada run terakhir: **130 tes PASS**.
+- Total dua suite yang dijalankan pada run terakhir: **131 tes PASS**.
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -48,6 +48,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 15. Antrean percakapan FIFO per scope user/channel dibatasi maksimal 10 waiter, timeout 300 detik, dan memberi status bila penuh/timeout/dibatalkan. Cancellation membersihkan referensi lock; scope antar-user terpisah. Antrean tetap in-memory dan tidak dipulihkan setelah hard restart.
 16. Environment override resource diberi hard cap: 10 lampiran, 10 gambar vision, 100 MB total lampiran, batas teks dokumen/konteks, serta batas konkurensi AI/image/audio.
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
+18. Anggota PDF/Office/audio dalam ZIP dan 7Z diperiksa signature-nya sebelum diparse; file dengan ekstensi yang tidak cocok ditolak dan dilaporkan.
 
 ## Audit 64 butir — status jujur
 
@@ -74,7 +75,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 |---:|---|---|
 | 11 | DONE | ZIP umum dibaca, bukan hanya Office ZIP. |
 | 12 | DONE | Teks, gambar, PDF, DOCX, PPTX, XLSX dibaca dari arsip. |
-| 13 | PARTIAL | Format anggota dikenali terutama dari ekstensi; validasi signature belum menyeluruh per anggota. |
+| 13 | PARTIAL | Signature PDF/Office/audio pada anggota ZIP/7Z diperiksa; file teks dan format langka masih dikenali terutama dari ekstensi. |
 | 14 | DONE | Parser 7Z memakai `py7zr`; dependency wajib untuk deployment. |
 | 15 | PARTIAL | ZIP bersarang satu tingkat; 7Z bersarang dilewati. |
 | 16 | PARTIAL | Batas ukuran/rasio/entry, encrypted ZIP dan password-protected 7Z ditolak; belum fuzz-test menyeluruh. |
