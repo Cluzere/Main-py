@@ -317,3 +317,117 @@ Do not deploy speculative fixes straight to production. The audit branch is curr
 
 ---
 End of Master Memory.
+
+
+## 13. Detailed live format-test record — 2026-11-25 (user-supplied)
+
+This section records the exact test evidence supplied in the continuation of the session. Distinguish user-observed outcomes, model/assistant claims, and log evidence. A successful Discord message pipeline is not equivalent to a successful file attachment.
+
+### 13.1 TXT — user reported successful creation
+
+User report:
+- Test outcome: **TXT berhasil dibuat**.
+- The user explicitly asked to record the successful result and its data.
+- This is a user-reported success. The actual TXT attachment bytes/content were not independently inspected in this session.
+
+Associated log supplied by the user:
+
+```
+2026-11-25 17:03:16,549 WARNING root: [RESPONSES-DETAIL] request_id=1575164956356247584 mode=fast allow_tools=True allow_image_tool=False continuation_items=0 headers=3.704s first_event=3.705s first_text=3.899s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=5.129s
+2026-11-25 17:03:16,551 WARNING root: [TTFT-DIAG] request_id=1575164956356247584 mode=fast budget=0.021s semaphore=0.000s request_to_first_event=3.705s request_to_first_text=3.899s total=5.151s
+```
+
+Interpretation:
+- Responses request completed in 5.129 s.
+- First event arrived at 3.705 s; first text at 3.899 s.
+- No function calls were reported.
+- These two log lines alone do not prove attachment creation or delivery; the positive status is based on the user's direct report.
+
+### 13.2 DOCX — reported created; artifact inspection pending
+
+User supplied the following log after reporting that the DOCX file was successfully created and said the result/artifact would be sent later for inspection:
+
+```
+[RESPONSES-DETAIL] request_id=1575165365472727202 mode=fast allow_tools=True allow_image_tool=False continuation_items=0 headers=2.634s first_event=2.635s first_text=2.833s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=3.990s
+2026-11-25 17:04:53,658 WARNING root: [TTFT-DIAG] request_id=1575165365472727202 mode=fast budget=0.006s semaphore=0.000s request_to_first_event=2.635s request_to_first_text=2.833s total=3.998s
+```
+
+Status:
+- User-reported result: DOCX was created successfully.
+- Verification status: **NOT YET CHECKED**; no DOCX artifact was supplied for structural/content inspection.
+- Log indicates a completed model response in 3.990 s, with no function calls. It does not independently prove DOCX creation or Discord attachment delivery.
+- Preserve the distinction: “reported created by the creator/user” is not “independently verified”.
+
+### 13.3 PDF — test prompt/content and log; creation/delivery not proven by supplied evidence
+
+Test filename: `clouzer_test.pdf`.
+
+The test content provided in the conversation was a CLOUZER AI report with these exact required sections:
+1. Pendahuluan
+2. Tujuan Pengujian
+3. Metode Pengujian
+4. Hasil yang Diharapkan
+5. Kesimpulan
+
+The supplied draft described these PDF acceptance checks:
+- PDF opens in a reader.
+- Text is real/selectable/searchable, not page images only.
+- Select and copy sample sentences.
+- Search for the phrase “CLOUZER”.
+- Inspect all pages for clipped/truncated text.
+- Send as a Discord attachment and download it again for inspection.
+- Consistent title, headings, paragraphs, and spacing.
+- The original request expected at least two paragraphs in each section; the displayed draft contained the first three sections only and was visibly cut off before “Hasil yang Diharapkan” and “Kesimpulan”. Therefore the displayed draft itself was incomplete and must not be treated as the complete five-section PDF payload.
+
+User-supplied log:
+
+```
+[RESPONSES-DETAIL] request_id=1575166131235328154 mode=fast allow_tools=True allow_image_tool=True continuation_items=0 headers=2.846s first_event=2.846s first_text=2.846s web_first_start=n/a web_call_count=0 web_call_durations=none web_total=n/a web_inter_search_gaps=none web_last_to_first_text=n/a web_events=none function_calls=0 response_completed=15.769s
+2026-11-25 17:08:07,894 WARNING root: [TTFT-DIAG] request_id=1575166131235328154 mode=fast budget=0.861s semaphore=0.000s request_to_first_event=2.846s request_to_first_text=2.846s total=16.634s
+2026-11-25 17:08:08,889 WARNING root: [TURN-PIPELINE] message_id=1575166129821847715 status_message_id=1575166131235328154 pre_attachment=0.001s attachments=0.000s prompt_prep=0.350s status_send=0.267s first_responses_call=0.000s memory_save=0.023s discord_delivery=0.893s total=18.246s result=success
+```
+
+Interpretation:
+- Responses completed in 15.769 s.
+- The Discord turn pipeline completed with `result=success` in 18.246 s.
+- The same pipeline log reports `attachments=0.000s`.
+- `function_calls=0`.
+- Therefore these logs prove a successful text-response pipeline, **not** PDF generation or attachment delivery.
+- The visible assistant response supplied PDF-ready prose and explicitly said it could not attach a PDF directly from that session. The prose shown was incomplete (only the first three sections).
+- PDF status: **NOT CONFIRMED CREATED / NOT CONFIRMED ATTACHED / NOT VERIFIED**. Do not mark PDF PASS based on this log.
+
+### 13.4 Earlier multi-format and CSV refusal cases
+
+Earlier user-supplied test requests covered:
+- `panduan_keamanan_digital.txt`
+- `laporan_perkembangan_ai.docx`
+- `panduan_python.pdf`
+- `data_keuangan_bulanan.xlsx`
+- `presentasi_keamanan_siber.pptx`
+- `daftar_produk.csv`
+- `konfigurasi_aplikasi.json`
+- `paket_dokumen.zip`
+
+The assistant responded that it could not create/send attachments in that session and offered a Python script as an alternative. No successful attachments were established for this batch. A separate `stress_test.csv` request also received a refusal saying the CSV had not been created and its row count could not be confirmed. Do not classify these as verified generator defects without inspecting the code path; they may represent model refusal before local file generation.
+
+### 13.5 Evidence matrix as of 2026-11-25 17:08 local log time
+
+| Format / case | Current recorded status | Evidence level | What remains |
+|---|---|---|---|
+| TXT | Reported successful creation | User-reported success; associated Responses log only | Inspect actual attachment if available |
+| DOCX | Reported created successfully | User-reported; log shows model completion only | Inspect actual DOCX structure/content |
+| PDF `clouzer_test.pdf` | Not confirmed created or attached | Log shows pipeline success but `attachments=0.000s`; visible response was text-only and incomplete | Re-run with complete five-section content; confirm attachment and inspect selectable/searchable text |
+| XLSX | Not established | Earlier multi-format request refused | Test separately |
+| PPTX | Not established | Earlier multi-format request refused | Test separately |
+| CSV | Not established; separate `stress_test.csv` was explicitly reported not created | Refusal response; no attachment evidence | Test separately; verify row count and CSV parsing |
+| JSON | Not established | Earlier multi-format request refused | Test separately and parse JSON |
+| ZIP | Not established | Earlier multi-format request refused | Test separately; inspect archive members and integrity |
+
+Important:
+- “Pipeline success” means the Discord response turn completed; it does not mean a file exists.
+- “Responses completed” means the model response ended; it does not mean a file exists.
+- A format is confirmed successful only when the file was actually created, delivered as an attachment, and (where required) inspected.
+- For user-reported success without an artifact, label it “user-reported / not independently verified”.
+- For any future test, retain the exact filename, format, user request, Discord message/attachment evidence, relevant log lines, file size, and validation result.
+
+---
