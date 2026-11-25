@@ -2995,7 +2995,7 @@ class ClouzerBot(commands.Bot):
             ("title", "subject", "author", "keywords", "comments", "category", "language", "identifier", "last_modified_by"),
         )
         if metadata:
-            metadata_block = "[Metadata inti DOCX]\\n" + "\\n".join(metadata)
+            metadata_block = "[Metadata inti DOCX]\n" + "\n".join(metadata)
             parts.append(metadata_block)
             total_chars += len(metadata_block) + 2
 
@@ -3074,7 +3074,7 @@ class ClouzerBot(commands.Bot):
                 ("title", "subject", "author", "keywords", "comments", "category", "language", "identifier", "last_modified_by"),
             )
             if metadata:
-                metadata_block = "[Metadata inti PPTX]\\n" + "\\n".join(metadata)
+                metadata_block = "[Metadata inti PPTX]\n" + "\n".join(metadata)
                 parts.append(metadata_block)
                 total_chars += len(metadata_block) + 2
             for s_idx, slide in enumerate(prs.slides, start=1):
@@ -3177,7 +3177,7 @@ class ClouzerBot(commands.Bot):
                 ("title", "subject", "creator", "keywords", "description", "category", "identifier", "language", "lastModifiedBy"),
             )
             if metadata:
-                metadata_block = "[Metadata inti XLSX]\\n" + "\\n".join(metadata)
+                metadata_block = "[Metadata inti XLSX]\n" + "\n".join(metadata)
                 parts.append(metadata_block)
                 total_chars += len(metadata_block) + 2
 
