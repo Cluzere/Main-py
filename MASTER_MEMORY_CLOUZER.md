@@ -1487,3 +1487,85 @@ Status tes live tetap **PARTIAL**. Temuan kode ini meningkatkan keyakinan terhad
 
 **Penting:** rekomendasi di atas belum menjadi perubahan kode. Tunggu izin eksplisit pengguna sebelum mengedit file kandidat. Branch audit dipakai dalam startup Wispbyte sehingga commit baru dapat terambil pada restart berikutnya. Production `main.py` tetap tidak boleh disentuh tanpa izin eksplisit.
 
+
+
+---
+
+## 31. AUDIT MENYELURUH GENERATE FILE — PATCH KANDIDAT & CI (26 November 2026)
+
+Ruang lingkup audit ini khusus jalur pembuatan file di kandidat CLOUZER, mencakup deteksi format, builder, validasi, batas resource, integrasi Discord, dan tes. Production `main.py` tidak diubah; tidak ada deployment atau restart.
+
+### 31.1 Source yang diperbarui
+- Branch: `audit-recovery-gpt-2026-11-23`.
+- `audit-recovery/review-round-2/clouzer_file_creation.py` — blob SHA `af82968e2441245cedafc2a123080a107c8e503b`.
+- `audit-recovery/review-round-2/test_file_creation.py` — blob SHA `d2368d6ab2cde7b317a8f12279eedf69cfe40f0c`.
+- `audit-recovery/review-round-2/revisi_audit_final_main.py` — blob SHA `b4aa9d0faca62b60356ecd312e95950968ecfbfe`.
+
+### 31.2 Temuan yang diperbaiki
+1. **XLSX**
+   - Nama worksheet dipisahkan dari judul isi; nama sheet dibaca dari instruksi worksheet eksplisit atau fallback `Data`.
+   - Kolom numerik yang dikenali dari header (Harga/Price/Biaya/Cost, Stok/Stock/Qty/Jumlah, No/Nomor) dikonversi menjadi numeric cells.
+   - Nilai ber-leading-zero seperti kode `00123` tetap string.
+   - Cell lebih dari batas Excel 32.767 karakter ditolak, bukan dipotong diam-diam.
+   - Validator memeriksa batas tabel, dimensi tepat bila diminta, dan numeric cells untuk kolom harga.
+
+2. **CSV**
+   - Parsing memakai `csv.reader` pada seluruh stream untuk mendukung field quoted multiline.
+   - Dimensi baris/kolom sekarang tepat sesuai permintaan angka, kecuali prompt eksplisit menyebut minimal/setidaknya/paling sedikit.
+   - Batas tabel 10.000 baris data dan 256 kolom.
+
+3. **PPTX**
+   - Menghapus pemotongan diam-diam 30 baris dan 1.000 karakter per baris.
+   - Isi teks tiap slide dipertahankan; batas 100 slide diberlakukan.
+   - Validator memeriksa slide tidak kosong/pesan gagal dan jumlah slide eksplisit.
+
+4. **PDF**
+   - Hasil `insert_textbox` diperiksa; overflow menyebabkan kegagalan jelas, bukan hasil terpotong diam-diam.
+   - Judul Markdown pertama tidak digandakan di badan PDF.
+   - Tes multipage memastikan teks sampai baris terakhir dapat diekstrak.
+
+5. **DOCX/TXT**
+   - Validator menerima konten pendek yang tetap non-empty; tidak lagi menolak TXT/DOCX/PDF hanya karena kurang dari 20 karakter.
+   - DOCX mencegah judul plain first-line ditambahkan lagi sebagai heading duplikat.
+
+6. **ZIP**
+   - Menghapus implementasi `_make_zip` duplikat yang tertimpa definisi berikutnya.
+   - Nama anggota dinormalisasi ke POSIX path dan pemeriksaan menolak absolute path, traversal, drive path, NUL, path duplikat, serta nama terlalu panjang.
+   - Pemeriksaan ZIP membatasi jumlah anggota dan total ukuran uncompressed sebelum memeriksa CRC/membaca isi.
+   - JSON dan CSV internal divalidasi; CSV internal memakai parser multiline yang sama.
+
+7. **Discord delivery**
+   - Candidate main sekarang hanya mencatat attachment sebagai terkonfirmasi jika objek hasil edit menyediakan daftar attachment dan filename yang dikirim benar-benar ada.
+   - Jika Discord tidak memberikan konfirmasi, alur masuk penanganan kegagalan/retry, bukan log sukses palsu.
+
+### 31.3 Regresi dan CI
+Tes file creation kini mencakup:
+- semua delapan format terdeteksi/dibuat dan divalidasi;
+- XLSX sheet name, numeric Harga, leading-zero preservation, 30×6, dan dimensi;
+- CSV multiline dan exact row count;
+- PPTX isi lebih dari 30 baris dan lima slide;
+- PDF multipage sampai teks terakhir;
+- DOCX duplicate title;
+- TXT pendek;
+- ZIP dynamic members dan path traversal;
+- JSON valid/invalid.
+
+CI pada commit `9fbbb15f9586cdf2ab4d399db5a7185b6e44840d`:
+- Audit recovery workflow run `45708528377`: SUCCESS.
+- Audit candidate syntax workflow run `45708528439`: SUCCESS.
+- Candidate regression + file-creation tests: **93/93 PASS** (76 audit regressions + 17 file creation tests).
+- Compile, Bandit high/medium, pip check, pip-audit strict, archive regression, and existing audit regressions: PASS.
+- Ini bukti CI pada candidate branch, bukan bukti Discord/Wispbyte live delivery atau visual rendering pada aplikasi Office/PDF reader.
+
+### 31.4 Sisa risiko / bukti belum ada
+- Belum ada retest live delapan format melalui Discord dan pemeriksaan file hasil yang diterima pengguna.
+- CI menguji ekstraksi teks PDF dan struktur PPTX, bukan fidelity visual semua font, overflow visual di PowerPoint, atau tampilan lintas aplikasi.
+- Numeric inference XLSX bersifat header-based dan konservatif; format angka ambigu/currency bertanda pemisah ribuan perlu aturan eksplisit.
+- Generator masih bergantung pada model untuk menyusun konten yang benar; validator format tidak menjamin fakta/kualitas substantif isi.
+- Retry/persistence/attachment behavior live tetap memerlukan tes staging Discord.
+- Jangan menyatakan audit live selesai hanya dari CI.
+
+### 31.5 Status dan batas operasional
+- Kandidat sudah diperbaiki dan CI hijau pada SHA di atas.
+- Tidak ada perubahan production root `main.py`, deployment, atau restart.
+- Tahap berikutnya: audit artefak aktual tiap format, lalu retest live Discord secara terkontrol setelah izin staging/restart yang relevan. Jangan mempromosikan kandidat ke production tanpa gerbang staging dan izin eksplisit.
