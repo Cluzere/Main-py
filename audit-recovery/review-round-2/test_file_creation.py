@@ -5,7 +5,7 @@ import zipfile
 from clouzer_file_creation import (
     create_document_file,
     detect_requested_file_format,
-    is_file_retry_command,
+    is_retry_command,
     normalize_pending_file_task,
     normalize_pending_retry_task,
 )
@@ -31,8 +31,8 @@ class FileCreationTests(unittest.TestCase):
     def test_file_retry_commands_are_recognized(self):
         for prompt in ("Ulangi", "ulang", "Coba lagi", "Lanjutkan", "teruskan dong", "retry!"):
             with self.subTest(prompt=prompt):
-                self.assertTrue(is_file_retry_command(prompt))
-        self.assertFalse(is_file_retry_command("Ulangi penjelasan tentang Discord"))
+                self.assertTrue(is_retry_command(prompt))
+        self.assertFalse(is_retry_command("Ulangi penjelasan tentang Discord"))
 
     def test_pending_retry_task_supports_non_file_operations(self):
         self.assertEqual(
