@@ -44,11 +44,12 @@ class FileCreationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "hanya berisi 1 baris data"):
             create_document_file("xlsx", prompt, "ID\tNama\tHarga\n1\tA\t10")
 
-    def test_pptx_slide_count_and_refusal(self):
-        prompt = "Buat PowerPoint 2 slide"
-        content = "Judul\nMateri pengenalan\n--- SLIDE ---\nKesimpulan\nMateri akhir"
+    def test_pptx_five_slide_requirement_and_refusal(self):
+        prompt = "Buat presentasi PowerPoint 5 slide tentang CLOUZER"
+        sections = [("Pengenalan", "CLOUZER adalah bot Discord AI."), ("Tujuan", "Membantu pengguna menyelesaikan tugas."), ("Cara kerja", "Discord meneruskan pesan ke layanan AI."), ("Manfaat", "Membaca dokumen dan membuat file."), ("Kesimpulan", "CLOUZER menggabungkan percakapan dan otomasi.")]
+        content = "\n--- SLIDE ---\n".join(title + "\n" + body for title, body in sections)
         data, _, _ = create_document_file("pptx", prompt, content)
-        self.assertEqual(validate_document_file("pptx", prompt, data)["slides"], 2)
+        self.assertEqual(validate_document_file("pptx", prompt, data)["slides"], 5)
         with self.assertRaises(ValueError):
             create_document_file("pptx", prompt, "Gagal: file PPTX tidak dapat dibuat atau dikirim sebagai attachment.")
 
@@ -62,6 +63,15 @@ class FileCreationTests(unittest.TestCase):
             self.assertEqual(set(archive.namelist()), {"README.txt", "data.json", "data.csv"})
         with self.assertRaises(ValueError):
             create_document_file("zip", prompt, "tidak ada marker anggota")
+
+    def test_xlsx_exact_30_product_rows_and_six_columns(self):
+        prompt = "Buat Excel berisi 30 produk dan 6 kolom"
+        header = ["ID", "Nama", "Harga", "Kategori", "Stok", "Status"]
+        rows = [header] + [[str(i), f"Produk {i}", str(i * 1000), "Umum", str(100-i), "Aktif"] for i in range(1, 31)]
+        content = "\n".join("\t".join(row) for row in rows)
+        data, _, _ = create_document_file("xlsx", prompt, content)
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"]), (30, 6))
 
     def test_docx_does_not_duplicate_existing_title(self):
         from docx import Document

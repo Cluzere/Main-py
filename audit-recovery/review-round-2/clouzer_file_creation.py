@@ -271,7 +271,7 @@ def _check_table(rows: list[list[str]], prompt: str, label: str) -> None:
     if len(rows) < 2 or not rows[0]:
         raise ValueError(label + " harus memiliki header dan setidaknya satu baris data.")
     low = prompt.lower()
-    row_match = re.search(r"\b(\d{1,4})\s*(?:baris data|baris|rows?|produk|records?)\b", low)
+    row_match = re.search(r"\b(\d{1,4})\s*(?:baris data|baris|rows?|produk(?:s)?|products?|records?)\b", low)
     col_match = re.search(r"\b(\d{1,3})\s*(?:kolom|columns?)\b", low)
     if row_match and len(rows)-1 < int(row_match.group(1)):
         raise ValueError(f"{label} hanya berisi {len(rows)-1} baris data; permintaan minimal {row_match.group(1)}.")
@@ -311,7 +311,7 @@ def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
         for i, match in enumerate(matches):
             name = match.group(1).strip().replace("\\", "/")
             path = PurePosixPath(name)
-            if not name or path.is_absolute() or ".." in path.parts or name in files:
+            if not name or path.is_absolute() or ".." in path.parts or name in files or re.match(r"^[A-Za-z]:", name):
                 raise ValueError("Nama anggota ZIP tidak aman atau duplikat: " + name)
             end = matches[i+1].start() if i+1 < len(matches) else len(content)
             files[name] = content[match.end():end].strip() + "\n"

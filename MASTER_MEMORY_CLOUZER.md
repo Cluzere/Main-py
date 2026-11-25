@@ -791,3 +791,12 @@ CI lanjutan mengonfirmasi generator format tests, compile, dependency checks, Ba
 - Parser menyertakan nama arsip terluar pada setiap provenance path (contoh outer.zip!/folder/inner_test.zip), sedangkan test lama mengharapkan path relatif tanpa outer archive. Test diperbarui untuk menilai origin ROOT/NESTED dengan path penuh.
 - Normalisasi gambar untuk vision mengubah gambar menjadi JPEG dan membatasi sisi terpanjang hingga 800 px. Assertion kini membandingkan ukuran thumbnail yang diharapkan dan warna rata-rata, bukan ukuran asli atau bytes identik.
 - Test DOCX ditambah untuk mencegah judul ganda.
+
+
+## 20. ADDENDUM — full-size spreadsheet and presentation acceptance cases (26 November 2026)
+
+Tes acceptance ditambahkan untuk target spesifik hasil Box:
+- XLSX harus memenuhi 30 produk × 6 kolom; tes menghasilkan 30 baris data dan 6 kolom serta memvalidasi workbook hasil.
+- PPTX harus memenuhi 5 slide dengan materi non-kosong; tes memeriksa tepat lima slide dan menolak pesan kegagalan.
+- Deteksi dimensi tabel mencakup istilah produk/products, baris/rows, dan kolom/columns.
+- Nama anggota ZIP menolak path absolut, traversal, dan drive path Windows.
