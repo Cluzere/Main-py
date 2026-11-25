@@ -800,3 +800,50 @@ Tes acceptance ditambahkan untuk target spesifik hasil Box:
 - PPTX harus memenuhi 5 slide dengan materi non-kosong; tes memeriksa tepat lima slide dan menolak pesan kegagalan.
 - Deteksi dimensi tabel mencakup istilah produk/products, baris/rows, dan kolom/columns.
 - Nama anggota ZIP menolak path absolut, traversal, dan drive path Windows.
+
+
+## 21. FINAL STATUS — file generation audit candidate (26 November 2026)
+
+**Candidate branch final head sebelum pembaruan memori ini:** ecfcd03ed5346070448e0d4acd1a788489195096.
+
+### Perubahan kode yang sudah masuk branch audit
+- Helper: dukungan format TXT, PDF, DOCX, XLSX, PPTX, ZIP, CSV, JSON.
+- CSV: parsing data tabel, header + baris, pemeriksaan dimensi sesuai prompt.
+- JSON: parsing ketat; file tidak dibuat bila JSON tidak valid.
+- XLSX: validasi workbook hasil, jumlah data rows dan kolom sesuai target yang disebutkan; acceptance test 30 produk × 6 kolom.
+- PPTX: validasi file hasil, isi setiap slide, dan jumlah slide yang diminta; acceptance test 5 slide.
+- ZIP: anggota dinamis melalui marker === FILE: nama_file.ext ===; validasi anggota wajib, JSON/CSV internal, integritas arsip, dan nama path aman.
+- PDF/DOCX/TXT: pemeriksaan hasil file setelah dibuat; DOCX tidak menggandakan judul yang sudah menjadi heading pertama.
+- Pipeline: format CSV/JSON dikenali sebagai file intent sehingga tidak diarahkan ke image tool; file divalidasi sebelum attachment; log validasi dan konfirmasi attachment Discord ditambahkan.
+- Master Memory tetap append-only. Production main.py tidak diubah.
+
+### Bukti CI final
+Dua workflow terakhir untuk commit ecfcd03ed5346070448e0d4acd1a788489195096 selesai dengan conclusion SUCCESS:
+- Audit candidate syntax check — run 45662674045:
+  - dependency consistency / pip check: SUCCESS
+  - compile candidate: SUCCESS
+  - pip-audit --strict: SUCCESS
+  - Bandit medium/high: SUCCESS
+  - file creation tests: 9 tests, SUCCESS
+  - candidate archive regression tests: 93 tests, SUCCESS
+  - audit regression tests: 85 tests, SUCCESS
+- Audit recovery candidate — run 45662673863:
+  - compile: SUCCESS
+  - Bandit high severity: SUCCESS
+  - focused regression tests: 85 tests, SUCCESS
+
+Jumlah unik tes yang dieksekusi pada workflow candidate syntax check: 187 tes (9 + 93 + 85). Workflow audit recovery mengulang 85 tes regresi tambahan sebagai pemeriksaan terpisah. Tidak ada kegagalan pada dua workflow final.
+
+### Cakupan perubahan dan batas yang belum dilakukan
+Perbandingan branch terhadap parent sebelum rangkaian patch menunjukkan hanya enam file audit/test/memory berubah:
+1. MASTER_MEMORY_CLOUZER.md
+2. audit-recovery/review-round-2/clouzer_file_creation.py
+3. audit-recovery/review-round-2/revisi_audit_final_main.py
+4. audit-recovery/review-round-2/test_audit_regressions.py
+5. audit-recovery/review-round-2/test_file_creation.py
+6. tests/test_audit_candidate_archives.py
+
+Tidak ada perubahan pada production-main-py/main (1).py atau root production main.py. Tidak ada merge ke main, deployment, atau restart Wispbyte.
+
+**Status akhir yang benar:** candidate code and CI regression suite are green; live Discord attachment delivery has not yet been verified against a running staging bot. Jangan klaim semua delapan format sudah lulus uji live. Langkah operasional berikutnya hanya setelah persetujuan terpisah: pasang candidate di lingkungan staging, jalankan tes Discord nyata untuk delapan format, inspeksi artefak baru di Box, dan bandingkan hasilnya dengan acceptance criteria. Production tetap tidak boleh disentuh tanpa izin eksplisit.
+
