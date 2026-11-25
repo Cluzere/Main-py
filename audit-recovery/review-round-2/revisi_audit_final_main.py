@@ -4989,6 +4989,7 @@ class ClouzerBot(commands.Bot):
             pending_retry_task = normalize_pending_retry_task(guild_state.get("pending_retry_task"))
             retrying_pending_task = bool(is_file_retry_command(clean_content) and pending_retry_task)
             retry_source_message_id = None
+            retry_attachment_failed = False
             if retrying_pending_task:
                 clean_content = pending_retry_task["prompt"]
                 requested_file_format = pending_retry_task.get("format")
@@ -5016,6 +5017,7 @@ class ClouzerBot(commands.Bot):
                         http_img_urls = [] if local_vision_images else merge_image_sources(list(llm_image_urls or []) + retry_http_images)
                         current_turn_images = select_vision_images(local_vision_images, http_img_urls)
                     except Exception as retry_attachment_exc:
+                        retry_attachment_failed = True
                         logging.exception(
                             "[OPERATION-RETRY-ATTACHMENT] source_message=%s failed (%s)",
                             retry_source_message_id, type(retry_attachment_exc).__name__,
@@ -5025,10 +5027,11 @@ class ClouzerBot(commands.Bot):
                 guild_state.pop("pending_retry_task", None)
 
             attachment_result_lower = str(additional_file_text or "").lower()
-            attachment_processing_failed = any(marker in attachment_result_lower for marker in (
+            attachment_processing_failed = retry_attachment_failed or any(marker in attachment_result_lower for marker in (
                 "[gagal ", "gagal membaca", "gagal memproses", "gagal mentranskripsi",
                 "hasil transkripsi kosong", "tidak berhasil dibaca", "signature file tidak cocok",
-                "gagal dibaca atau ditolak", "gagal divalidasi",
+                "gagal dibaca atau ditolak", "gagal divalidasi", "terdeteksi, tetapi",
+                "semua akun cloudflare", "anggaran transkripsi audio",
             ))
             if attachment_processing_failed and not retrying_pending_task:
                 retry_kind = "audio" if any(
