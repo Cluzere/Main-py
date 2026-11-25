@@ -1708,7 +1708,13 @@ def check_file_signature(ext: str, data: bytes) -> str | None:
                     if archive.read(infos[0]) != b"application/epub+zip":
                         return "mimetype EPUB tidak valid"
                 if ext in odf_mimetypes:
-                    if "mimetype" not in names or archive.read("mimetype") != odf_mimetypes[ext]:
+                    if (
+                        not infos
+                        or infos[0].filename != "mimetype"
+                        or infos[0].compress_type != zipfile.ZIP_STORED
+                    ):
+                        return "struktur ODF tidak valid: mimetype harus menjadi entri pertama tanpa kompresi"
+                    if archive.read(infos[0]) != odf_mimetypes[ext]:
                         return f"mimetype {ext.lstrip('.').upper()} tidak valid"
         except (OSError, ValueError, zipfile.BadZipFile, RuntimeError, KeyError):
             return "container ZIP/Office rusak atau tidak valid"
