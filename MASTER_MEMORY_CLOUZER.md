@@ -772,3 +772,14 @@ Perbaikan yang dikerjakan di branch audit: dukungan CSV/JSON, pemeriksaan tabel 
 
 Batas: production main.py tidak diubah. Tidak ada deployment atau restart. CI dan tes unit bukan bukti live Discord delivery; staging memerlukan kredensial staging.
 
+
+
+---
+
+## 18. ADDENDUM — CI regression findings and follow-up (26 November 2026)
+
+Commit 85f8f91bd2e36992703549cd388dd45ebf3bbacb berhasil compile dan security scan awal; tes generator delapan format lulus. CI gabungan menemukan:
+- test_audit_regressions.py mengekstrak AST method tetapi namespace test tidak menyertakan dependency/global yang dipakai method (aiohttp, re, ZIP_MAX_NESTED_DEPTH); ini cacat harness, bukan import runtime utama candidate.
+- test_audit_candidate_archives.py membandingkan bytes gambar PNG sumber dengan bytes hasil kompresi gambar untuk vision. Implementasi memang menormalisasi gambar ke JPEG; assertion perlu menguji dimensi dan kesetaraan visual yang toleran terhadap lossy JPEG, bukan byte-identical.
+- Perbaikan lanjutan menambahkan dependency/global ke AST test harness dan mengganti assertion gambar dengan pemeriksaan format, dimensi, dan rerata kanal warna.
+- Helper juga diperbaiki agar JSON valid kecil tidak ditolak hanya karena jumlah karakter kurang dari 20, dan judul DOCX tidak diduplikasi.

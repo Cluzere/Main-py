@@ -10,6 +10,7 @@ import time
 import math
 import re
 import asyncio
+import aiohttp
 import urllib.parse
 import xml.etree.ElementTree as ET
 import zipfile
@@ -30,6 +31,7 @@ def extract_method(class_name, method_name):
                     ast.fix_missing_locations(module)
                     namespace = {
                         "os": os, "json": json, "logging": logging, "zipfile": zipfile,
+                        "re": re, "aiohttp": aiohttp, "ZIP_MAX_NESTED_DEPTH": 2,
                         "MEMORY_FILE": "", "MAX_MEMORY_FILE_BYTES": 1024,
                         "IMAGE_EXTS": {".png", ".jpg", ".jpeg", ".webp", ".gif"},
                         "AUDIO_EXTS": {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".webm", ".aac", ".opus"},
@@ -61,7 +63,7 @@ def extract_top_level_function(function_name, constant_names=()):
         raise AssertionError(f"top-level function not found: {function_name}")
     module = ast.Module(body=nodes, type_ignores=[])
     ast.fix_missing_locations(module)
-    namespace = {"os": os, "re": __import__("re")}
+    namespace = {"os": os, "re": __import__("re"), "aiohttp": aiohttp}
     exec(compile(module, str(SOURCE), "exec"), namespace)
     return namespace[function_name]
 

@@ -100,8 +100,8 @@ def _validate_content(content: str) -> str:
         raise ValueError("Model tidak menghasilkan isi dokumen.")
     if len(content) > MAX_GENERATED_TEXT_CHARS:
         raise ValueError("Isi dokumen melewati batas 400.000 karakter.")
-    if len(content) < 20 or any(x in content.lower() for x in ("gagal membuat file", "gagal: file", "tidak bisa membuat file", "tidak dapat membuat file", "tidak tersedia tool", "tidak dapat melampirkan", "cannot create a file")):
-        raise ValueError("Model mengembalikan isi kosong, terlalu pendek, atau pesan kegagalan; tidak dikemas sebagai file.")
+    if any(x in content.lower() for x in ("gagal membuat file", "gagal: file", "tidak bisa membuat file", "tidak dapat membuat file", "tidak tersedia tool", "tidak dapat melampirkan", "cannot create a file")):
+        raise ValueError("Model mengembalikan pesan kegagalan, bukan isi dokumen; tidak dikemas sebagai file.")
     return content
 
 
@@ -131,20 +131,23 @@ def _make_docx(content: str, title: str) -> bytes:
     except ImportError as exc:
         raise RuntimeError("python-docx belum terpasang; DOCX tidak bisa dibuat.") from exc
     document = Document()
-    document.add_heading(title, level=0)
-    for block in re.split(r"\n\s*\n", content):
-        block = block.strip()
-        if not block:
-            continue
+    blocks = [block.strip() for block in re.split(r"\n\s*\n", content) if block.strip()]
+    first_heading = re.sub(r"^#\s+", "", blocks[0]).strip() if blocks and re.match(r"^#\s+", blocks[0]) else ""
+    if first_heading.casefold() != title.casefold():
+        document.add_heading(title, level=0)
+    for block in blocks:
         lines = block.splitlines()
-        if len(lines) == 1 and lines[0].startswith("# "):
-            document.add_heading(lines[0][2:].strip(), level=1)
+        if len(lines) == 1 and re.match(r"^#{1,6}\s+", lines[0]):
+            match = re.match(r"^(#{1,6})\s+(.*)$", lines[0])
+            document.add_heading(match.group(2).strip(), level=min(len(match.group(1)), 3))
         else:
             paragraph = document.add_paragraph()
             for index, line in enumerate(lines):
                 if index:
                     paragraph.add_run().add_break()
-                paragraph.add_run(line)
+                cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", line)
+                cleaned = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", cleaned)
+                paragraph.add_run(cleaned)
     output = io.BytesIO()
     document.save(output)
     return output.getvalue()
@@ -318,6 +321,8 @@ def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
     missing = sorted(required - set(files))
     if missing:
         raise ValueError("ZIP tidak memiliki anggota yang diminta: " + ", ".join(missing))
+    if len(files) > 100:
+        raise ValueError("ZIP melebihi batas 100 anggota.")
     import csv
     for name, value in files.items():
         if name.lower().endswith(".json"):

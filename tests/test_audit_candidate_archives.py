@@ -191,6 +191,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_original_clouzer_package_four_gap_regressions(self):
         import base64
         import openpyxl
+        from PIL import Image, ImageStat
 
         package_path = os.getenv("CLOUZER_AUDIT_PACKAGE")
         if not package_path or not os.path.isfile(package_path):
@@ -269,7 +270,18 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertIn("VISUAL IMAGE #1 SOURCE: 11_arsip_campuran.zip!/05_gambar_uji_a.png", mixed_text)
         self.assertEqual(len(mixed_images), 1)
         self.assertTrue(mixed_images[0].startswith("data:image/"))
-        self.assertEqual(base64.b64decode(mixed_images[0].split(",", 1)[1]), original_image_bytes)
+        normalized_image_bytes = base64.b64decode(mixed_images[0].split(",", 1)[1])
+        with Image.open(io.BytesIO(original_image_bytes)) as original_image:
+            original_size = original_image.size
+            original_mean = ImageStat.Stat(original_image.convert("RGB")).mean
+        with Image.open(io.BytesIO(normalized_image_bytes)) as normalized_image:
+            self.assertEqual(normalized_image.format, "JPEG")
+            self.assertEqual(normalized_image.size, original_size)
+            normalized_mean = ImageStat.Stat(normalized_image.convert("RGB")).mean
+        # The vision pipeline intentionally normalizes source images to JPEG;
+        # assert visual content preservation, not byte-for-byte identity.
+        for original_channel, normalized_channel in zip(original_mean, normalized_mean):
+            self.assertLessEqual(abs(original_channel - normalized_channel), 20)
 
         # Run the reader against the actual original package, not a synthetic
         # wrapper, and prove that the corrupt member does not block real siblings.

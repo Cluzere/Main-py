@@ -27,6 +27,8 @@ class FileCreationTests(unittest.TestCase):
         self.assertEqual((len(rows)-1, len(rows[0])), (3, 3))
 
     def test_json_is_valid_and_invalid_rejected(self):
+        tiny_data, _, _ = create_document_file("json", "Buat JSON", "{}")
+        self.assertEqual(json.loads(tiny_data), {})
         data, filename, mime = create_document_file("json", "Buat file JSON", '{"project":"CLOUZER"}')
         self.assertTrue(filename.endswith(".json"))
         self.assertIn("application/json", mime)
