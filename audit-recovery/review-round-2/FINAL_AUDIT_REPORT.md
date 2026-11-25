@@ -8,12 +8,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit terakhir yang mengubah file kandidat: `2fb18aafefa0e6074d0438cbc10c6859af315f67`
-- Commit branch terbaru yang diuji pada CI: `0f78c92d7e80aefb7f1de3985b41d82841534a4a`.
+- Commit terakhir yang mengubah file kandidat: `4f7043cec8c9df88f90dac16a313208d3f80777f`
+- Commit branch terbaru yang diuji pada CI: `c735e75717c0bdb50cfcf0501befae728858ec14`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat terbaru: `4bf80cda886ae58c734cc34dcced0351697333d6`
-- Jumlah baris kandidat: 5.840
-- CI terbaru: [Run #45561655560 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45561655560)
+- Blob kandidat terbaru: `fa79b307051fc7e49e5e9c547c80b47d0f7fcff0`
+- Jumlah baris kandidat: 5.888
+- CI terbaru: [Run #45564530192 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45561655560)
 
 ## Bukti CI terakhir
 
@@ -22,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat: **76/76 PASS**.
+- Tes kandidat: **79/79 PASS**.
 - Regresi audit yang sudah ada: **76/76 PASS**.
-- Total dua suite pada run terbaru: **152 tes PASS** (76 tes kandidat + 76 regresi lama).
+- Total dua suite pada run terbaru: **155 tes PASS** (79 tes kandidat + 76 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -55,6 +55,7 @@ Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare,
 16. Environment override resource diberi hard cap: 10 lampiran, 10 gambar vision, 100 MB total lampiran, batas teks dokumen/konteks, serta batas konkurensi AI/image/audio.
 17. XML parser beralih ke `defusedxml` dengan batas internal entity yang kompatibel dengan XML sederhana lama, tanpa mengizinkan external DTD/entity.
 18. Anggota PDF/Office/audio dalam ZIP dan 7Z diperiksa signature-nya sebelum diparse; file dengan ekstensi yang tidak cocok ditolak dan dilaporkan.
+19. Container DOCX/PPTX/XLSX wajib memiliki part inti OOXML. ODT/ODS/ODP dan EPUB memeriksa mimetype format. Container juga dibatasi jumlah anggota, ukuran per anggota, dan total ukuran sebelum parser dokumen dijalankan.
 
 19. Sumber gambar edit menggabungkan lampiran baru dan gambar reply dengan deduplikasi, urutan prioritas, dan batas visual.
 20. Provenance ZIP memberi path penuh, tipe, dan asal `ROOT`/`NESTED`; dua tes memastikan file root tidak salah diatribusikan ke arsip nested.
@@ -80,7 +81,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 4 | DONE | Konkurensi attachment default 3. |
 | 5 | DONE | Semaphore menunggu giliran, tidak membuang file karena timeout. |
 | 6 | DONE | Manifest nama, ekstensi, MIME, ukuran. |
-| 7 | PARTIAL | Label ekstensi/MIME; signature check hanya untuk format tertentu. |
+| 7 | PARTIAL | Signature binary PDF/7Z/RTF/audio diperiksa; container OOXML/ODF/EPUB kini juga memerlukan struktur internal dan mimetype yang sesuai. Teks biasa memang tidak memiliki satu magic signature universal. |
 | 8 | DONE | Status per file dicatat. |
 | 9 | DONE | Manifest menyertakan alasan error/unsupported yang sudah disanitasi; beberapa error tetap hanya dapat dikategorikan. |
 | 10 | DONE | Kegagalan satu file diisolasi; ada tes batch 10 file dengan satu kegagalan. |
@@ -91,7 +92,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 |---:|---|---|
 | 11 | DONE | ZIP umum dibaca, bukan hanya Office ZIP. |
 | 12 | DONE | Teks, gambar, PDF, DOCX, PPTX, XLSX dibaca dari arsip. |
-| 13 | PARTIAL | Signature PDF/Office/audio pada anggota ZIP/7Z diperiksa; file teks dan format langka masih dikenali terutama dari ekstensi. |
+| 13 | PARTIAL | Anggota ZIP/7Z kini memeriksa struktur minimum DOCX/PPTX/XLSX serta signature PDF/audio; teks dan format langka tetap tidak punya signature kuat. Belum ada validasi semantik penuh semua anggota. |
 | 14 | DONE | Parser 7Z memakai `py7zr`; dependency wajib untuk deployment. |
 | 15 | PARTIAL | ZIP bersarang satu tingkat; path dan asal entri sudah eksplisit, tetapi ZIP lebih dalam dan 7Z bersarang tetap tidak diproses. |
 | 16 | PARTIAL | Batas ukuran/rasio/entry, encrypted ZIP dan password-protected 7Z ditolak; belum fuzz-test menyeluruh. |
@@ -152,10 +153,10 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 
 | No. | Status | Catatan |
 |---:|---|---|
-| 49 | PARTIAL | Signature PDF/ZIP/7Z/RTF dan container audio umum diperiksa; image divalidasi parser; teks dan format langka tetap tidak punya magic signature kuat. |
+| 49 | PARTIAL | Signature PDF/7Z/RTF/audio dan struktur container OOXML/ODF/EPUB diperiksa; image divalidasi parser. Format teks dan format langka tetap tidak punya magic signature kuat. |
 | 50 | PARTIAL | Ukuran, rasio, entry, gambar, teks, dan buffer dibatasi; bukan sandbox CPU/RAM tingkat OS. |
 | 51 | PARTIAL | Parser berat utama dijalankan via thread; belum profiling seluruh jalur parser di hosting. |
-| 52 | PARTIAL | Corrupt/empty/oversize/mismatch punya guard dan beberapa tes; belum semua format/fuzz corpus. |
+| 52 | PARTIAL | Ditambah corpus deterministik untuk container Office/ODF/EPUB salah label, mimetype salah, file terpotong, dan signature binary mismatch; belum fuzz corpus lintas semua format. |
 | 53 | PARTIAL | Arsip tidak diekstrak ke disk; pembersihan semua state/resource tetap perlu uji restart/shutdown. |
 | 54 | PARTIAL | XML tidak tepercaya diproses dengan defusedxml dan batas entity; instruksi dokumen tetap ditangani lewat prompt boundary, bukan sandbox penuh. |
 
@@ -164,13 +165,13 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | No. | Status | Catatan |
 |---:|---|---|
 | 55 | PARTIAL | 10 file campuran diuji melalui mocked Discord event; belum 10 upload sungguhan melalui Discord CDN. |
-| 56 | PARTIAL | ZIP berisi beberapa format, termasuk PDF/Office, serta mismatch signature PDF; belum semua kombinasi format/korupsi. |
+| 56 | PARTIAL | ZIP berisi beberapa format dan mismatch signature diuji; container DOCX/PPTX/XLSX kini diperiksa struktur internalnya, tetapi belum semua kombinasi format/korupsi. |
 | 57 | PARTIAL | 7Z teks/DOCX, compression-ratio bomb, dan mismatch signature PDF dites; encrypted/arsip dunia nyata belum live diuji. |
 | 58 | PARTIAL | Reply dokumen dan gambar, termasuk penggabungan gambar baru + gambar reply serta isolasi kegagalan gambar, dites via mock; live Discord staging tetap wajib. |
 | 59 | PARTIAL | Tes image generation/edit sebelumnya sudah dikonfirmasi pengguna; belum dire-run pada kandidat terbaru. |
 | 60 | PARTIAL | Scope user berbeda, konkurensi antar-scope, FIFO, queue timeout/full, dan cancellation dites via mock; belum tes dua user aktif bersamaan di Discord. |
 | 61 | PARTIAL | SSE partial disconnect dan retry policy dites; belum inject error pada upstream live. |
-| 62 | PARTIAL | Corrupt ZIP, signature mismatch, rasio 7Z, dan batas file dites; belum seluruh format. |
+| 62 | PARTIAL | Tes kini mencakup struktur Office/ODF/EPUB dan signature binary mismatch selain corrupt ZIP, rasio 7Z, dan batas file; belum seluruh format. |
 | 63 | PARTIAL | History user/partial response dipertahankan dan retry dibatasi; belum pembuktian no-loss/no-duplicate live. |
 | 64 | PARTIAL | CI dan regresi lulus; staging dan promosi produksi belum dilakukan. |
 
@@ -220,15 +221,15 @@ Temuan bahwa parsing lampiran berlangsung sebelum lock percakapan telah diperbai
 
 ## Verifikasi CI dan runtime terbaru
 
-- Run GitHub Actions `45561655560`: seluruh job selesai dengan `success` pada commit `0f78c92d7e80aefb7f1de3985b41d82841534a4a`.
-- Candidate suite: **76/76 PASS**; regresi lama: **76/76 PASS** (152 tes total). Log job menunjukkan kedua suite selesai `OK`; termasuk tes integrasi urutan ingress, cancellation, dan batas waiter.
+- Run GitHub Actions `45564530192`: seluruh job selesai dengan `success` pada commit `c735e75717c0bdb50cfcf0501befae728858ec14`.
+- Candidate suite: **79/79 PASS**; regresi lama: **76/76 PASS** (155 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB, dan file binary terpotong/salah label.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
-- Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (kode blob `4bf80cda886ae58c734cc34dcced0351697333d6`, dites pada commit `0f78c92d7e80aefb7f1de3985b41d82841534a4a`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
+- Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (kode blob `fa79b307051fc7e49e5e9c547c80b47d0f7fcff0`, dites pada commit `c735e75717c0bdb50cfcf0501befae728858ec14`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
 
 ## Keputusan
 
-Kandidat saat ini telah melewati compile, pip check, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 76 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
+Kandidat saat ini telah melewati compile, pip check, Bandit medium/high severity, pip-audit tanpa kerentanan yang diketahui, 79 tes khusus kandidat, dan 76 tes regresi lama. Itu bukti kuat untuk gerbang otomatis, **bukan bukti bahwa 64 butir semuanya sudah selesai atau bot siap produksi**.
 
 Jangan menimpa `main.py` sampai semua tes staging di atas selesai.
 
