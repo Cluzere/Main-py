@@ -1702,3 +1702,33 @@ Listing terbaru folder `All Files / Test file / CLOUZER_BUANGAN_AUDIT` (folder I
 2. Cari sisa log request `1575275179263791157` setelah `[XLSX-DIAG]` untuk memastikan validasi dan attachment Discord.
 3. Jika targetnya menguji acceptance XLSX §29.3 (Data Produk, 30 data rows), jalankan tes khusus itu kembali dan inspeksi artefak baru; file §35 ini bukan pengganti tes tersebut.
 4. Tidak ada source yang diubah, tidak ada deployment/restart, dan production `/home/container/main.py` tetap tidak disentuh.
+
+---
+
+## 36. ACCEPTANCE PROMPT ASLI UNTUK XLSX RETEST — 26 NOVEMBER 2026
+
+User kemudian memberikan prompt asli yang digunakan untuk request ulang pembuatan file. Acceptance yang diminta:
+- Nama file persis `TES_AUDIT_CLOUZER.xlsx`.
+- Nama worksheet persis `Data Pegawai`.
+- Header: `No|Nama|Umur|Kota|Harga|Status`.
+- Tepat 1 header + 10 baris data (11 baris total).
+- Tepat 6 kolom.
+- `No`, `Umur`, dan `Harga` harus berupa angka.
+- Data persis seperti tabel pada prompt user (Andi sampai Joko); tidak boleh mengarang/mengubah data.
+- Tidak boleh ada worksheet kosong.
+- Validasi baris/kolom sebelum menyimpan.
+- File .xlsx harus dikirim sebagai attachment Discord yang dapat diunduh.
+- Jika gagal, tampilkan penyebab sebenarnya dan jangan mengklaim berhasil.
+
+### 36.1 Penilaian ulang artefak 5.412 byte (§35)
+Dengan acceptance prompt asli sekarang tersedia, artefak `clouzer_ulangi_pembuatan_file_excel_buat_fil_20261125_222120.xlsx` (Box file ID `2615366440395`) dinyatakan **FAIL terhadap acceptance penuh**, bukan sekadar PARTIAL:
+- Nama file salah: nama otomatis, bukan `TES_AUDIT_CLOUZER.xlsx`.
+- Worksheet salah: `Data`, bukan `Data Pegawai`.
+- Kolom Umur salah tipe: nilai `25`, `30`, dst tersimpan sebagai string, bukan numeric cells.
+- Sisi yang lulus: workbook terbuka; 11×6; header dan 10 baris data sesuai data yang diberikan; No dan Harga numeric; tidak ada worksheet kosong.
+- Tidak ada bukti independen dari log bahwa Discord mengirim attachment yang dapat diunduh. File ditemukan di Box dump, tetapi itu bukan bukti Discord delivery maupun CLOUZER runtime upload otomatis.
+- Tidak ada bukti dari artefak saja bahwa validasi dilakukan sebelum penyimpanan; hanya hasil struktur akhirnya yang dapat diperiksa.
+
+### 36.2 Kesimpulan
+Retest XLSX ini **FAIL** pada tiga syarat eksplisit (filename, worksheet title, Umur numeric), dan delivery Discord masih unverified. Jangan melabelinya PASS atau PARTIAL untuk acceptance penuh.
+Tidak ada perubahan source, deployment, restart, atau modifikasi production `/home/container/main.py` akibat evaluasi ini.
