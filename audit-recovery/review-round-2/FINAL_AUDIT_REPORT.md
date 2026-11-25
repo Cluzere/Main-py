@@ -8,12 +8,12 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - Repository: `Cluzere/Main-py`
 - Branch: `audit-recovery-gpt-2026-11-23`
 - File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
-- Commit terakhir yang mengubah file kandidat: `09e0dd9ee5c1c0aee355136cfe73faa4873750c8`
-- Commit branch terbaru yang diuji pada CI: `1467c1c079372a518623582a0224d89101374877`.
+- Commit terakhir yang mengubah file kandidat: `6a92f1692128a2a330aad37f5d77b571e36c99c9`
+- Commit branch terbaru yang diuji pada CI: `886af9936e9c601407bd59dd300c5dad51db6255`.
 - File sumber asli di repo (`main (4).py`) identik dengan `main` branch: SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
-- Blob kandidat terbaru: `468fa94d09cf3f86fba2985879decf7e251efa7f`
-- Jumlah baris kandidat: 5.895
-- CI terbaru: [Run #45565641122 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45565328153)
+- Blob kandidat terbaru: `da46080de4a8b9f3921bc44ead480ae2d819fa53`
+- Jumlah baris kandidat: 5.934
+- CI terbaru: [Run #45565802138 — SUCCESS](https://github.com/Cluzere/Main-py/actions/runs/45565328153)
 
 ## Bukti CI terakhir
 
@@ -22,9 +22,9 @@ Seluruh perubahan audit dilakukan pada kandidat branch. File sumber asli repo `m
 - `defusedxml` dipakai untuk XML tidak tepercaya; DOCTYPE eksternal, entity eksternal, nested entity, nilai entity terlalu panjang, dan referensi entity berlebihan ditolak.
 - `pip check`: PASS.
 - `pip-audit --strict`: PASS, tidak ada kerentanan dependency yang diketahui.
-- Tes kandidat: **84/84 PASS**.
+- Tes kandidat: **85/85 PASS**.
 - Regresi audit yang sudah ada: **76/76 PASS**.
-- Total dua suite pada run terbaru: **160 tes PASS** (84 tes kandidat + 76 regresi lama).
+- Total dua suite pada run terbaru: **161 tes PASS** (85 tes kandidat + 76 regresi lama).
 - Dependensi CI mengikuti versi hosting yang diketahui, termasuk `PyMuPDF<2`, `py7zr>=1.0,<2`, dan `defusedxml`.
 
 Ini tes unit/regresi. Bukan live test Discord Gateway, CDN, Xingchi, Cloudflare, Pollinations, atau Wispbyte.
@@ -144,7 +144,7 @@ Status: **DONE** = perubahan dan tes relevan tersedia; **PARTIAL** = ada mitigas
 | 42 | PARTIAL | PDF panjang dibatasi dan halaman scan dikirim sebagai visual; tidak ada OCR khusus untuk tulisan tangan/scan buruk. |
 | 43 | DONE | Halaman yang dilewati akibat batas dilaporkan oleh parser PDF. |
 | 44 | PARTIAL | XLSX sheet/chart metadata dan PPTX chart/slide data dibaca; column/bar dan pie chart kini punya fixture regresi, tetapi tidak semua jenis chart/cache/format kompleks tercakup. |
-| 45 | PARTIAL | DOCX header/footer, PPTX speaker notes, dan media tertanam tertentu; bukan seluruh metadata/header/footer/embedded object. |
+| 45 | PARTIAL | DOCX header/footer dan core metadata; PPTX speaker notes/chart dan core metadata; XLSX core metadata serta chart data. Comments, footnotes, embedded object, dan metadata kompleks belum seluruhnya diekstrak. |
 | 46 | DONE | Pemotongan teks diberi keterangan, termasuk nested ZIP dan ZIP dalam 7Z. |
 | 47 | DONE | Ada batas gabungan dan manifest file yang terdampak truncation. |
 | 48 | DONE | Legacy DOC/XLS/PPT tidak dijanjikan sebagai format yang terbaca; format yang tak didukung harus ditandai. |
@@ -222,7 +222,7 @@ Temuan bahwa parsing lampiran berlangsung sebelum lock percakapan telah diperbai
 ## Verifikasi CI dan runtime terbaru
 
 - Run GitHub Actions `45565328153`: seluruh job selesai dengan `success` pada commit `75c3f294001e5949220c8832d1f7e4ada7b2b237`.
-- Candidate suite: **84/84 PASS**; regresi lama: **76/76 PASS** (160 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB, corpus ZIP mutation, matriks signature audio/vector, isolasi/expiry konteks gambar, serta pie chart XLSX/PPTX.
+- Candidate suite: **85/85 PASS**; regresi lama: **76/76 PASS** (161 tes total). Tes tambahan mencakup struktur container Office, mimetype ODF/EPUB, corpus ZIP mutation, matriks signature audio/vector, isolasi/expiry konteks gambar, pie chart XLSX/PPTX, dan metadata inti DOCX/PPTX/XLSX.
 - `py_compile`, `pip check`, Bandit medium/high, dan `pip-audit --strict` selesai sukses pada workflow.
 - Wispbyte runtime terakhir yang dikonfirmasi masih mengambil commit `0499632e2fd26994f1974c2d109634e793b2369d`; kandidat terbaru (kode blob `468fa94d09cf3f86fba2985879decf7e251efa7f`, dites pada commit `75c3f294001e5949220c8832d1f7e4ada7b2b237`) belum di-deploy. File `main (4).py` pada `main` tetap SHA `ffffd0c17169b29504f4a8713dca396cf61ddeff`.
 - Tes manual attachment sebelumnya bukan pengganti tes ulang setelah commit terbaru; kuota API CLOUZER saat ini tidak dipakai untuk tes tambahan.
