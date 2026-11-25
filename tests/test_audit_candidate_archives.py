@@ -1485,5 +1485,52 @@ class ArchiveReaderTests(unittest.TestCase):
         self.assertEqual(len(stored), module.MAX_VISION_IMAGES_PER_TURN)
         self.assertEqual(len(set(stored)), len(stored))
 
+    def test_ingress_lock_preserves_fifo_before_attachment_work(self):
+        async def run():
+            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+            bot.ingress_locks = {}
+            bot.ingress_lock_refs = {}
+            order = []
+            first_started = asyncio.Event()
+            release_first = asyncio.Event()
+
+            async def worker(name, hold=False):
+                async with bot.ingress_lock("same-scope") as (acquired, reason):
+                    self.assertTrue(acquired, reason)
+                    order.append(name)
+                    if hold:
+                        first_started.set()
+                        await release_first.wait()
+
+            first = asyncio.create_task(worker("first", hold=True))
+            await first_started.wait()
+            second = asyncio.create_task(worker("second"))
+            await asyncio.sleep(0)
+            third = asyncio.create_task(worker("third"))
+            await asyncio.sleep(0)
+            release_first.set()
+            await asyncio.gather(first, second, third)
+            self.assertEqual(order, ["first", "second", "third"])
+            self.assertEqual(bot.ingress_lock_refs, {})
+            self.assertEqual(bot.ingress_locks, {})
+
+        asyncio.run(run())
+
+    def test_ingress_lock_rejects_excess_waiters(self):
+        async def run():
+            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+            bot.ingress_locks = {}
+            bot.ingress_lock_refs = {}
+            lock = asyncio.Lock()
+            await lock.acquire()
+            bot.ingress_locks["scope"] = lock
+            bot.ingress_lock_refs["scope"] = module.MAX_QUEUE_PENDING_PER_SCOPE + 1
+            async with bot.ingress_lock("scope") as (acquired, reason):
+                self.assertFalse(acquired)
+                self.assertEqual(reason, "full")
+            lock.release()
+
+        asyncio.run(run())
+
 if __name__ == "__main__":
     unittest.main()
