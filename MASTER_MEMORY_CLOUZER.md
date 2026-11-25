@@ -1569,3 +1569,36 @@ CI pada commit `9fbbb15f9586cdf2ab4d399db5a7185b6e44840d`:
 - Kandidat sudah diperbaiki dan CI hijau pada SHA di atas.
 - Tidak ada perubahan production root `main.py`, deployment, atau restart.
 - Tahap berikutnya: audit artefak aktual tiap format, lalu retest live Discord secara terkontrol setelah izin staging/restart yang relevan. Jangan mempromosikan kandidat ke production tanpa gerbang staging dan izin eksplisit.
+
+
+---
+
+## 32. TEMPAT PENAMPUNGAN / DUMP ARTEFAK AUDIT FILE (26 November 2026)
+
+### 32.1 Lokasi resmi yang harus dipakai
+- Box parent folder: `Test file`
+- Parent folder ID: `441035368657`
+- Subfolder khusus pembuangan artefak audit: `CLOUZER_BUANGAN_AUDIT`
+- Subfolder ID: `441172297609`
+- Path Box: `All Files / Test file / CLOUZER_BUANGAN_AUDIT`
+- Semua file hasil generate untuk audit berikutnya, salinan attachment Discord, dan artefak pendukung audit diarahkan ke subfolder `CLOUZER_BUANGAN_AUDIT`. Jangan mencampur file audit baru ke root `Test file` jika subfolder khusus tersedia.
+
+### 32.2 Verifikasi isi folder pada 26 November 2026
+- Box listing parent `Test file` mengembalikan 6 item: subfolder `CLOUZER_BUANGAN_AUDIT` dan lima file lama (XLSX, DOCX, ZIP, PPTX, TXT).
+- Listing langsung subfolder `CLOUZER_BUANGAN_AUDIT` mengembalikan 1 file:
+  - `clouzer_buatkan_sebuah_file_excel_xlsx_berna_20261125_212451 (1).xlsx`
+  - File ID `2615274299277`, ukuran 6.342 bytes.
+- Ini membuktikan folder dump dapat diakses dan berisi satu artefak XLSX saat pemeriksaan. Ini **tidak** dengan sendirinya membuktikan semua hasil generator otomatis masuk ke folder tersebut.
+
+### 32.3 Apakah user perlu upload manual?
+- ChatGPT memiliki akses Box connector untuk listing folder, membaca teks dokumen, dan meminta download file biner. Karena itu user **tidak perlu mengunggah ulang ke chat** jika artefak sudah berada di Box folder di atas; audit dapat mengambilnya melalui Box tools.
+- Syaratnya: file memang sudah berhasil tersimpan di `CLOUZER_BUANGAN_AUDIT` dan dapat diakses. Jika file masih hanya ada sebagai attachment Discord/lokal dan belum masuk Box, file perlu dikirim ke Box atau diunggah ke chat sebagai jalur alternatif.
+- Integrasi CLOUZER→Box untuk upload otomatis seluruh file generator belum boleh dianggap tuntas hanya dari keberadaan satu file di folder. Uji upload otomatis dan verifikasi file ID/nama/ukuran tetap menjadi acceptance test tersendiri.
+- Box MCP connector yang dipakai ChatGPT adalah jalur akses audit dari sesi ChatGPT; jangan menyamakannya dengan bukti bahwa bot CLOUZER runtime sudah mampu upload/download semua format.
+
+### 32.4 Aturan operasional
+- Untuk setiap retest format, simpan salinan file hasil asli ke `All Files / Test file / CLOUZER_BUANGAN_AUDIT`.
+- Simpan log/manifest uji bersama file jika tersedia, dengan nama yang mengaitkan format, waktu, dan test case.
+- Setelah file masuk, audit baca metadata dan konten; untuk Office/PDF/ZIP yang perlu diperiksa byte aslinya, gunakan download file biner, bukan hanya ringkasan teks.
+- Catat file ID Box, nama, ukuran, waktu modifikasi, hasil validasi, dan status PASS/PARTIAL/FAIL di Master Memory.
+- Jangan menghapus/memindahkan artefak lama tanpa instruksi eksplisit.
