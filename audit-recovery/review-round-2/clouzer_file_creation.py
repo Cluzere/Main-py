@@ -1467,16 +1467,26 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
 
     conclusion_index = heading_indexes["Kesimpulan"]
     conclusion_heading = records[conclusion_index]
-    opening = next((
-        record for record in records[conclusion_index + 1:]
-        if record["page"] == conclusion_heading["page"]
-        and record["rect"].y0 >= conclusion_heading["rect"].y0
-        and record["rect"].x0 < 100
-        and len(record["text"]) >= 60
-        and not is_table_block(record)
+    conclusion_page_text = page_texts[conclusion_heading["page"]]
+    conclusion_lines = conclusion_page_text.splitlines()
+    heading_line_index = next((
+        index for index, line in enumerate(conclusion_lines)
+        if normalized(line) == "kesimpulan"
     ), None)
-    if opening is None:
+    opening_text = ""
+    if heading_line_index is not None:
+        for line in conclusion_lines[heading_line_index + 1:]:
+            cleaned = re.sub(r"\s+", " ", line).strip()
+            if not cleaned:
+                continue
+            if re.match(r"(?i)^Halaman\s+\d+$", cleaned):
+                break
+            opening_text += (" " if opening_text else "") + cleaned
+            if len(opening_text) >= 80:
+                break
+    if len(opening_text) < 60:
         raise ValueError("Heading Kesimpulan tidak langsung diikuti paragraf pembuka yang cukup pada halaman yang sama.")
+
 
     if len(data_rows) != 10:
         raise ValueError(f"Tabel MASTER FINAL harus memiliki tepat 10 baris produk; terdeteksi {len(data_rows)}.")
