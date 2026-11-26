@@ -859,5 +859,50 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
 
 
 
+
+    def test_xlsx_recovers_missing_header_from_explicit_schema_and_validates_all_numeric_columns(self):
+        from openpyxl import load_workbook
+
+        prompt = """Buat XLSX bernama TES_SCHEMA_RECOVERY.xlsx.
+Buat worksheet bernama Data Pegawai.
+Buat tepat 5 baris data dan 4 kolom: Nama, Umur, Jabatan, Gaji.
+Umur dan Gaji wajib berupa angka Excel."""
+        # Model returned five records but omitted the header row.
+        content = """Andi Pratama|28|Staf Administrasi|5500000
+Siti Rahmawati|32|Manajer Keuangan|12000000
+Budi Santoso|26|Staf Teknologi Informasi|7500000
+Dewi Lestari|30|Supervisor Pemasaran|9000000
+Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
+        data, filename, _ = create_document_file("xlsx", prompt, content)
+        self.assertEqual(filename, "TES_SCHEMA_RECOVERY.xlsx")
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"], summary["sheet_name"]), (5, 4, "Data Pegawai"))
+
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            ws = wb["Data Pegawai"]
+            self.assertEqual([ws.cell(1, col).value for col in range(1, 5)],
+                             ["Nama", "Umur", "Jabatan", "Gaji"])
+            for row in range(2, 7):
+                for col in (2, 4):
+                    self.assertIsInstance(ws.cell(row, col).value, (int, float))
+                    self.assertNotIsInstance(ws.cell(row, col).value, bool)
+            self.assertEqual(ws["D2"].value, 5500000)
+            self.assertEqual(ws["D6"].value, 5000000)
+            self.assertTrue(ws["A1"].font.bold)
+        finally:
+            wb.close()
+
+        broken = load_workbook(io.BytesIO(data), data_only=False)
+        try:
+            broken["Data Pegawai"]["A1"] = "Nama Pegawainya"
+            output = io.BytesIO()
+            broken.save(output)
+        finally:
+            broken.close()
+        with self.assertRaisesRegex(ValueError, "Header XLSX tidak sesuai"):
+            validate_document_file("xlsx", prompt, output.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
