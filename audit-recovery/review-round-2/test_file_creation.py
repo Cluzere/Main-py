@@ -1137,7 +1137,7 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
         prompt = """Buat PDF sungguhan bernama Tes_PDF_Final.pdf dan kirim sebagai attachment Discord.
 Judul laporan: LAPORAN PENGUJIAN GENERATOR PDF CLOUZER.
 Wajib ada bagian Pendahuluan, Tujuan Pengujian, Metode Pengujian, Hasil Pengujian, dan Kesimpulan, masing-masing minimal dua paragraf.
-Buat tabel 10 produk dengan 7 kolom: No, Nama, Produk, Kategori, Harga, Stok, Status.
+Buat tabel berisi 10 data produk dengan 7 kolom: No, Nama, Produk, Kategori, Harga, Stok, Status.
 Gunakan format A4 minimal 4 halaman, teks bold dan italic, daftar bernomor dan daftar berpoin.
 Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat diseleksi, disalin, dan dicari, termasuk kata CLOUZER."""
         long_a = (
@@ -1166,6 +1166,15 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
                 )
         content = "# LAPORAN PENGUJIAN GENERATOR PDF CLOUZER\n\n" + "\n\n".join(sections)
         return prompt, content
+
+    def test_master_final_pdf_detector_accepts_ten_data_produk_wording(self):
+        from clouzer_file_creation import _is_master_final_pdf_prompt
+        prompt, _ = self._master_final_pdf_fixture()
+        self.assertIn("10 data produk", prompt.casefold())
+        self.assertTrue(_is_master_final_pdf_prompt(prompt))
+        self.assertFalse(_is_master_final_pdf_prompt(
+            prompt.replace("10 data produk", "10 data barang", 1)
+        ))
 
     def test_master_final_pdf_enforces_report_sections_paragraphs_and_table(self):
         import pymupdf
