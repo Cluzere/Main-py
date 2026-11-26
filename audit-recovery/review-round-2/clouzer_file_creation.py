@@ -582,8 +582,8 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
             elif row_index > 0 and column_index < len(headers) and re.search(r"(?:tanggal|date)", headers[column_index]):
                 value = _xlsx_date_value(value)
             elif row_index > 0 and column_index < len(headers) and _NUMERIC_XLSX_HEADER_RE.search(headers[column_index]):
-                if _is_xlsx_total_row(row):
-                    value = value.strip() or None
+                if _is_xlsx_total_row(row) and not value.strip():
+                    value = None
                 else:
                     try:
                         value = _xlsx_number_value(value)
