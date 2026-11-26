@@ -378,39 +378,177 @@ def _validate_content(content: str) -> str:
 
 
 def _make_pdf(content: str, title: str) -> bytes:
+    """Build a readable, selectable-text PDF with real tables and Excel-like styling."""
     try:
         import pymupdf as fitz
     except ImportError as exc:
         raise RuntimeError("PyMuPDF belum terpasang; PDF tidak bisa dibuat.") from exc
-    wrapped = []
-    source_lines = content.splitlines() or [content]
-    if source_lines:
-        first = re.sub(r"^\s{0,3}#{1,6}\s*", "", source_lines[0]).strip()
-        if first.casefold() == title.casefold():
-            source_lines = source_lines[1:]
-    for line in source_lines:
-        line = re.sub(r"^\s{0,3}#{1,6}\s*", "", line)
-        if re.fullmatch(r"\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*", line):
-            continue
-        if line.strip().startswith("|") and line.strip().endswith("|"):
-            line = " | ".join(cell.strip() for cell in line.strip().strip("|").split("|"))
-        line = re.sub(r"\*\*(.*?)\*\*", r"\1", line)
-        line = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", line)
-        line = line.replace(chr(96), "")
-        wrapped.extend(textwrap.wrap(line, width=96, break_long_words=True, break_on_hyphens=False) if line.strip() else [""])
+
+    page_width, page_height = 595, 842
+    left, right = 46, 549
+    content_width = right - left
+    top, bottom = 82, 790
+    navy = (0.21, 0.37, 0.57)
+    pale = (0.91, 0.94, 0.97)
+    stripe = (0.96, 0.97, 0.98)
+    ink = (0.13, 0.16, 0.20)
+    muted = (0.38, 0.42, 0.47)
     doc = fitz.open()
+    page = None
+    y = top
+    page_number = 0
+
+    def new_page():
+        nonlocal page, y, page_number
+        page = doc.new_page(width=page_width, height=page_height)
+        page_number += 1
+        page.draw_rect(fitz.Rect(0, 0, page_width, 66), color=None, fill=(0.97, 0.98, 0.99))
+        page.insert_text((left, 39), title[:100], fontsize=15, fontname="hebo", color=navy)
+        page.draw_line((left, 55), (right, 55), color=navy, width=1.1)
+        page.draw_line((left, 810), (right, 810), color=(0.82, 0.84, 0.87), width=0.5)
+        page.insert_text((right - 75, 826), f"Halaman {page_number}", fontsize=8, fontname="helv", color=muted)
+        y = top
+
+    def wrap_cell(value, font, size, width):
+        words = str(value).split()
+        if not words:
+            return [""]
+        result, current = [], ""
+        for word in words:
+            candidate = word if not current else current + " " + word
+            if fitz.get_text_length(candidate, fontname=font, fontsize=size) <= width or not current:
+                current = candidate
+            else:
+                result.append(current)
+                current = word
+        if current:
+            result.append(current)
+        return result
+
+    def draw_paragraph(text, size=9.5, font="helv", color=ink, gap=7):
+        nonlocal y
+        lines = wrap_cell(text, font, size, content_width)
+        line_height = size * 1.45
+        needed = len(lines) * line_height + gap
+        if y + needed > bottom:
+            new_page()
+        rect = fitz.Rect(left, y, right, min(bottom, y + needed))
+        remaining = page.insert_textbox(rect, "\n".join(lines), fontsize=size,
+                                        fontname=font, color=color, lineheight=1.35)
+        if remaining < 0:
+            raise ValueError("Paragraf PDF tidak muat; pembuatan dibatalkan agar teks tidak terpotong.")
+        y += needed
+
+    def draw_table(rows):
+        nonlocal y
+        if len(rows) < 2:
+            for row in rows:
+                draw_paragraph(" | ".join(row))
+            return
+        columns = len(rows[0])
+        if columns > 12:
+            raise ValueError("PDF mendukung maksimal 12 kolom agar tabel tetap terbaca.")
+        normalized = [list(row) + [""] * (columns - len(row)) for row in rows]
+        max_chars = [max((len(str(row[c])) for row in normalized), default=8) for c in range(columns)]
+        weights = [max(8, min(30, value)) ** 0.72 for value in max_chars]
+        total = sum(weights)
+        widths = [content_width * weight / total for weight in weights]
+        widths[-1] = content_width - sum(widths[:-1])
+        pad_x, pad_y, font_size = 6, 5, (8.2 if columns <= 5 else 7.2)
+        inner_widths = [max(18, width - 2 * pad_x) for width in widths]
+        header_lines = [wrap_cell(value, "hebo", font_size, inner_widths[i])
+                        for i, value in enumerate(normalized[0])]
+        header_height = max(len(lines) for lines in header_lines) * (font_size * 1.25) + 2 * pad_y
+
+        def header():
+            nonlocal y
+            x = left
+            for i, lines in enumerate(header_lines):
+                rect = fitz.Rect(x, y, x + widths[i], y + header_height)
+                page.draw_rect(rect, color=(0.72, 0.78, 0.85), fill=navy, width=0.45)
+                page.insert_textbox(fitz.Rect(x + pad_x, y + pad_y, x + widths[i] - pad_x, y + header_height - pad_y),
+                                    "\n".join(lines), fontsize=font_size, fontname="hebo",
+                                    color=(1, 1, 1), lineheight=1.2)
+                x += widths[i]
+            y += header_height
+
+        if y + header_height + 25 > bottom:
+            new_page()
+        header()
+        for row_index, row in enumerate(normalized[1:], 1):
+            cell_lines = [wrap_cell(value, "helv", font_size, inner_widths[i])
+                          for i, value in enumerate(row)]
+            row_height = max(len(lines) for lines in cell_lines) * (font_size * 1.25) + 2 * pad_y
+            if y + row_height > bottom:
+                new_page()
+                header()
+            x = left
+            fill = stripe if row_index % 2 == 0 else (1, 1, 1)
+            for i, lines in enumerate(cell_lines):
+                rect = fitz.Rect(x, y, x + widths[i], y + row_height)
+                page.draw_rect(rect, color=(0.82, 0.84, 0.87), fill=fill, width=0.4)
+                remaining = page.insert_textbox(
+                    fitz.Rect(x + pad_x, y + pad_y, x + widths[i] - pad_x, y + row_height - pad_y),
+                    "\n".join(lines), fontsize=font_size, fontname="helv",
+                    color=ink, lineheight=1.2,
+                )
+                if remaining < 0:
+                    raise ValueError("Sel tabel PDF tidak muat; konten tidak akan dipotong.")
+                x += widths[i]
+            y += row_height
+        y += 10
+
     try:
-        for offset in range(0, max(1, len(wrapped)), 52):
-            page = doc.new_page(width=595, height=842)
-            page.insert_text((48, 48), title[:90], fontsize=14, fontname="helv")
-            page.draw_line((48, 60), (547, 60), color=(0.35, 0.35, 0.35), width=0.6)
-            remaining = page.insert_textbox(
-                fitz.Rect(48, 76, 547, 790),
-                "\n".join(wrapped[offset:offset + 52]),
-                fontsize=9.5, fontname="helv", lineheight=1.2,
-            )
-            if remaining < 0:
-                raise ValueError("Teks PDF tidak muat pada layout; konten tidak akan dipotong diam-diam.")
+        new_page()
+        lines = content.splitlines()
+        blocks, current_table = [], []
+
+        def flush_table():
+            nonlocal current_table
+            if current_table:
+                blocks.append(("table", current_table))
+                current_table = []
+
+        for raw in lines:
+            stripped = raw.strip()
+            if not stripped:
+                flush_table()
+                continue
+            if stripped.startswith("|") and stripped.endswith("|"):
+                cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+                if cells and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
+                    continue
+                if current_table and len(cells) != len(current_table[0]):
+                    flush_table()
+                current_table.append(cells)
+            elif "\t" in raw:
+                cells = [cell.strip() for cell in raw.split("\t")]
+                if current_table and len(cells) != len(current_table[0]):
+                    flush_table()
+                current_table.append(cells)
+            else:
+                flush_table()
+                blocks.append(("text", stripped))
+        flush_table()
+
+        for kind, value in blocks:
+            if kind == "table":
+                draw_table(value)
+                continue
+            heading = re.match(r"^(#{1,6})\s+(.+)$", value)
+            if heading:
+                level = len(heading.group(1))
+                label = re.sub(r"\*\*(.*?)\*\*", r"\1", heading.group(2)).strip()
+                size = 14 if level == 1 else 11 if level == 2 else 10
+                if y + size * 2.2 > bottom:
+                    new_page()
+                y += 5
+                draw_paragraph(label, size=size, font="hebo", color=navy, gap=5)
+                continue
+            value = re.sub(r"\*\*(.*?)\*\*", r"\1", value)
+            value = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", value)
+            value = value.replace(chr(96), "")
+            draw_paragraph(value)
         return doc.tobytes(deflate=True)
     finally:
         doc.close()
