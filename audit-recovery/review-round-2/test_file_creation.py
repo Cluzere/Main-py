@@ -1139,12 +1139,12 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         long_a = (
             "Pengujian ini dilakukan dengan prosedur yang terukur untuk memastikan setiap tahap berjalan sesuai tujuan. "
             "Data diperiksa dari sisi kelengkapan, konsistensi, keterbacaan, dan kesesuaian terhadap spesifikasi yang ditetapkan. "
-            "Hasil utama harus dapat ditelusuri dan dijelaskan tanpa mengarang bukti yang tidak tersedia. " * 7
+            "Hasil utama **harus dapat ditelusuri** dan dijelaskan dengan *konsistensi* tanpa mengarang bukti yang tidak tersedia. " * 18
         )
         long_b = (
             "Catatan evaluasi menjelaskan hasil yang benar-benar diamati, batas pemeriksaan, dan alasan setiap status diberikan. "
             "Setiap kesimpulan harus didukung oleh keluaran yang dapat diperiksa ulang serta tidak boleh menyamakan pengujian otomatis "
-            "dengan pemeriksaan visual atau pengujian runtime. " * 7
+            "dengan pemeriksaan visual atau pengujian runtime. " * 18
         )
         sections = []
         for heading in ("Pendahuluan", "Tujuan Pengujian", "Metode Pengujian", "Hasil Pengujian", "Kesimpulan"):
