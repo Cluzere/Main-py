@@ -1356,6 +1356,35 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 ]
                 if not conclusion_pages:
                     raise ValueError("Heading Kesimpulan tidak ditemukan bersama isi paragraf pada halaman yang sama.")
+            table_groups = []
+            repeated_header_pages = 0
+            for page in doc:
+                row_cells = {}
+                navy_cells = {}
+                for drawing in page.get_drawings():
+                    rect = drawing.get("rect")
+                    if rect is None:
+                        continue
+                    if rect.x0 < 40 or rect.x1 > 555 or rect.y0 < 75 or rect.y1 > 795:
+                        continue
+                    if rect.width < 18 or rect.height < 8:
+                        continue
+                    key = round(rect.y0, 1)
+                    row_cells[key] = row_cells.get(key, 0) + 1
+                    fill = drawing.get("fill")
+                    if fill and len(fill) >= 3 and all(abs(fill[i] - (0.21, 0.37, 0.57)[i]) < 0.03 for i in range(3)):
+                        navy_cells[key] = navy_cells.get(key, 0) + 1
+                table_groups.extend(count for count in row_cells.values() if count >= 2)
+                if any(count >= 2 for count in navy_cells.values()):
+                    repeated_header_pages += 1
+            result["table_row_groups"] = len(table_groups)
+            result["table_header_pages"] = repeated_header_pages
+            if re.search(r"\b(?:10|sepuluh)\s+produk\b", prompt, re.I) and len(table_groups) < 11:
+                raise ValueError(
+                    f"Tabel diminta memuat 10 produk, tetapi hanya {len(table_groups)} kelompok baris sel yang terdeteksi."
+                )
+            if re.search(r"header\s+tabel\s+(?:harus\s+)?berulang|ulang(?:i|an)?\s+header\s+tabel", prompt, re.I) and repeated_header_pages < 2:
+                raise ValueError("Header tabel berulang belum terbukti pada minimal dua halaman.")
             result["text_layer"] = True
             result["bold_spans"] = sum(bool(flag & 16) for flag in flags)
             result["italic_spans"] = sum(bool(flag & 2) for flag in flags)
