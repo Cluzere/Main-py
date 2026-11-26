@@ -1622,11 +1622,6 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 raise ValueError(
                     f"Tabel diminta memuat 10 produk, tetapi hanya {len(table_groups)} kelompok baris sel yang terdeteksi."
                 )
-            conditional_repeat = bool(re.search(
-                r"(?:ulangi|ulang(?:i|an)?)\s+header(?:\s+tabel)?\s+jika\s+tabel\s+berlanjut|"
-                r"header(?:\s+tabel)?\s+(?:diulang|berulang)\s+jika\s+tabel\s+berlanjut",
-                prompt, re.I,
-            ))
             repeat_requested = bool(re.search(
                 r"header\s+tabel\s+(?:harus\s+)?berulang|ulang(?:i|an)?\s+header\s+tabel",
                 prompt, re.I,
