@@ -2706,3 +2706,21 @@ Implement and test the following on `audit-recovery-gpt-2026-11-23` only:
 
 Status at time of writing: audit findings confirmed from artifact contents and candidate helper source; remediation is a plan and must not be represented as implemented or tested until a new commit and CI result exist.
 
+### 52.5 Remediation implementation record — audit branch only
+
+The following code changes were committed to `audit-recovery-gpt-2026-11-23` after the findings above:
+
+- `0d21871fe9e0aec002efa53a4e1912793c0be115` — added detection patterns for MD, HTML, XML, YAML, RTF, and ODT.
+- `9001d056974d96a25d5bf6416d0f03cd57a7f8c7` — added RTF generation and a native ODT OpenDocument package builder; changed PDF rendering to remove Markdown heading/emphasis syntax and render pipe-table rows as readable text.
+- `c7e987344500234982f61b5099c8cc6c1544ea0e` — added format-specific validators and exact MIME/builder dispatch for the six formats; ODT validation checks the package mimetype, required XML parts, and native table presence when requested.
+- `f7f0db917b7b07490479b917a37d4d49ed7d25dc` — added seven regression tests for detection and native artifact structure/validation.
+- `132d28841ee352319d83667f845ebec690e51d54` — improved extraction of fenced source blocks and tightened the no-PyYAML YAML fallback against unbalanced brackets/quotes.
+
+Files changed:
+- `audit-recovery/review-round-2/clouzer_file_creation.py`
+- `audit-recovery/review-round-2/test_file_creation.py`
+
+**Verification status:** The code and tests are committed, but the new test suite has **not yet been executed**. The repository workflow run lookup and combined commit status returned no run/status for the new commit; do not claim py_compile, unit tests, CI, or live runtime success. A temporary draft CI-validation PR (#5) was created, retargeted briefly, and closed without merging; it did not produce a workflow run. Production `main.py`, production branch `main`, and Wispbyte runtime were not modified or restarted. Latest code commit recorded here: `132d28841ee352319d83667f845ebec690e51d54`.
+
+Next required step before live testing: execute `python -m py_compile` on the candidate entrypoint/helper and run the full `test_file_creation.py` suite in a Python 3.12 environment with the same runtime dependencies. Fix any failures before asking the user to restart Wispbyte. If the tests pass, tell the user the exact candidate commit to fetch; do not imply it is deployed until fresh startup logs prove it.
+
