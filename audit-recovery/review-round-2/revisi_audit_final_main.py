@@ -4268,7 +4268,7 @@ class ClouzerBot(commands.Bot):
                 return archive_text, archive_imgs, [], "archive"
             except Exception as exc:
                 logging.exception("Gagal membaca ZIP %s", scrub_secrets(attachment.filename)[:120])
-                return f"\\n\\n[ZIP {scrub_secrets(attachment.filename)[:120]} gagal dibaca: {type(exc).__name__}: {scrub_secrets(str(exc))[:200]}]\\n", [], [], "archive_error"
+                return f"\n\n[ZIP {scrub_secrets(attachment.filename)[:120]} gagal dibaca: {type(exc).__name__}: {scrub_secrets(str(exc))[:200]}]\n", [], [], "archive_error"
 
         elif ext == ".7z" and attachment.size <= 30 * 1024 * 1024:
             try:
@@ -4283,7 +4283,7 @@ class ClouzerBot(commands.Bot):
                 return archive_text, archive_imgs, [], archive_type
             except Exception as exc:
                 logging.exception("Gagal membaca 7Z %s", scrub_secrets(attachment.filename)[:120])
-                return f"\\n\\n[7Z {scrub_secrets(attachment.filename)[:120]} gagal divalidasi: {type(exc).__name__}]\\n", [], [], "archive_error"
+                return f"\n\n[7Z {scrub_secrets(attachment.filename)[:120]} gagal divalidasi: {type(exc).__name__}]\n", [], [], "archive_error"
 
         elif ext in {".odt", ".ods", ".odp", ".epub"} and attachment.size <= 20 * 1024 * 1024:
             try:
@@ -4341,7 +4341,7 @@ class ClouzerBot(commands.Bot):
                 "metadata_only",
             )
 
-        return (f"\\n\\n[Format file {scrub_secrets(attachment.filename)[:120]} tidak didukung. Ekstensi: {ext or 'tanpa ekstensi'}; MIME: {getattr(attachment, 'content_type', None) or 'tidak diketahui'}.]\\n", [], [], "unsupported")
+        return (f"\n\n[Format file {scrub_secrets(attachment.filename)[:120]} tidak didukung. Ekstensi: {ext or 'tanpa ekstensi'}; MIME: {getattr(attachment, 'content_type', None) or 'tidak diketahui'}.]\n", [], [], "unsupported")
 
     async def resolve_replied_files(
         self,
@@ -5784,7 +5784,7 @@ async def box_test_cmd(interaction: discord.Interaction, folder_id: str = "44103
         else:
             lines = []
             for item in entries[:15]:
-                item_name = str(item.get("name") or "(tanpa nama)").replace("\\n", " ")[:120]
+                item_name = str(item.get("name") or "(tanpa nama)").replace("\n", " ")[:120]
                 item_type = "Folder" if item.get("type") == "folder" else "File"
                 lines.append(f"• **{item_type}:** {item_name}")
             result_text = (
@@ -6301,7 +6301,7 @@ async def on_message(message: discord.Message):
             except Exception as exc:
                 logging.exception("Attachment processing failed: %s", safe_filename)
                 text_res, local_res, http_res, ftype = (
-                    f"\\n\\n[File {safe_filename} gagal diproses: {type(exc).__name__}: {scrub_secrets(str(exc))[:200]}]\\n",
+                    f"\n\n[File {safe_filename} gagal diproses: {type(exc).__name__}: {scrub_secrets(str(exc))[:200]}]\n",
                     [], [], "error"
                 )
             status_map = {
@@ -6523,14 +6523,14 @@ class _HostResourceTracker:
             os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
             with open(self.log_path, "a", encoding="utf-8", buffering=1) as f:
                 if f.tell() == 0:
-                    f.write("timestamp,uptime_s,process_cpu_one_core_pct,process_cpu_host_pct,cgroup_cpu_pct,rss_mb,cgroup_memory_mb,cgroup_memory_limit_mb,cpu_throttled_usec_total,cpu_throttle_events_delta,cpu_quota\\n")
+                    f.write("timestamp,uptime_s,process_cpu_one_core_pct,process_cpu_host_pct,cgroup_cpu_pct,rss_mb,cgroup_memory_mb,cgroup_memory_limit_mb,cpu_throttled_usec_total,cpu_throttle_events_delta,cpu_quota\n")
                 while not self._stop.wait(self.interval):
                     row = self._sample()
                     f.write(",".join("" if row[k] is None else str(row[k]) for k in (
                         "timestamp", "uptime_s", "process_cpu_one_core_pct", "process_cpu_host_pct",
                         "cgroup_cpu_pct", "rss_mb", "cgroup_memory_mb", "cgroup_memory_limit_mb",
                         "cpu_throttled_usec_total", "cpu_throttle_events_delta", "cpu_quota"
-                    )) + "\\n")
+                    )) + "\n")
                     if time.monotonic() - self._last_report >= 30:
                         logging.warning(
                             "[RESOURCE] proc_cpu=%s%% one-core | cgroup_cpu=%s%% | RSS=%s MB | cgroup_mem=%s/%s MB | throttle_events+%s",
