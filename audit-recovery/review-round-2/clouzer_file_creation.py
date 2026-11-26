@@ -1370,6 +1370,17 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
     import pymupdf
 
     extracted = "\n".join(page_texts)
+    normalized_extracted = extracted.casefold()
+    summary_present = "ringkasan validasi otomatis clouzer" in normalized_extracted
+    unverified_count = normalized_extracted.count("not verified")
+    if summary_present and unverified_count != 3:
+        raise ValueError(
+            "Laporan MASTER FINAL harus memuat tepat tiga status NOT VERIFIED yang dibatasi pada pemeriksaan manual."
+        )
+    if not summary_present and unverified_count:
+        raise ValueError(
+            "Konten sumber tidak boleh berisi placeholder NOT VERIFIED; backend menyusun status berdasarkan hasil validasi nyata."
+        )
     if "laporan pengujian generator pdf clouzer" not in extracted.casefold():
         raise ValueError("Judul laporan MASTER FINAL tidak ditemukan pada PDF hasil.")
     for page_number, page_text in enumerate(page_texts, 1):
