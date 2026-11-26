@@ -2826,3 +2826,47 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 
 **Next audit step**
 - Continue the remaining live format matrix in §52.1–52.2, keeping native artifact correctness, local builder validation, Discord attachment confirmation, and automatic Box upload as separate acceptance gates. The XLSX schema/header and numeric-cell regression is now independently confirmed by this live artifact; do not generalize that result to other formats.
+
+
+### 52.12 Shared cross-format refusal recovery, format-aware retry, and 14-format regression — 26 November 2026
+
+**Problem confirmed**
+- The live PDF request failed before reaching the PDF builder because the model returned a refusal-style response. The entrypoint had a refusal gate that blocked all formats other than XLSX. XLSX alone had an explicit prompt-table recovery path.
+- This was a shared pipeline problem, not a PDF-renderer-only defect. Other formats also needed a consistent policy for refusal responses and malformed model output.
+- Do not treat a model refusal as document content, and do not fabricate missing source data merely to force file creation.
+
+**Audit-branch remediation**
+- Added `extract_explicit_document_source()` and `resolve_document_source()` in `audit-recovery/review-round-2/clouzer_file_creation.py`.
+- The shared resolver accepts only source content explicitly supplied by the user: one unambiguous fenced content block, a clearly labelled document-content section, or a complete pipe-delimited table. Ambiguous/multiple fenced blocks are rejected.
+- When the model refuses, the entrypoint now routes to this explicit-source resolver for all supported formats. XLSX retains its authoritative pipe-table path. If the prompt has no adequate explicit source, the process fails closed with a clear error rather than packaging refusal text or inventing content.
+- Added a shared, one-shot format-aware retry after builder validation raises `ValueError`. It gives format-specific repair instructions for all 14 formats: TXT, PDF, DOCX, XLSX, PPTX, ZIP, CSV, JSON, Markdown, HTML, XML, YAML, RTF, and ODT. The retry disables tools, preserves original request context, asks not to invent data, re-runs refusal handling, and rebuilds/revalidates the artifact.
+- Existing safety gates remain: maximum output size, native builder/validator per format, final `validate_document_file()`, and Discord attachment confirmation by checking the returned message's attachments. The stage logs remain separate: `stage=validated` and `stage=discord_attachment_confirmed`.
+- Added regression coverage for refusal-source extraction across all 14 formats, fail-closed behavior when no explicit source exists, preserving normal model output, pipe-table extraction, and actual build + validation for each of the 14 native formats.
+- The earlier XLSX schema/header recovery and numeric-cell validation remain intact; no XLSX-specific checks were removed.
+
+**Commits and current candidate state**
+- Shared helper/source fallback: `0a903070362258ae9d2e0f38a437636a19b4beb2`.
+- Entrypoint refusal routing: `1f35e4b3ffefcfb7def863583641e9c9e8d342a0`.
+- Cross-format refusal tests: `d86c5363dacc1ab133d0001c3e3fe17fe8e03aa7`.
+- Explicit-source parser hardening: `73b687379bca3d2bdfe72473d8737d5ce2411af8`, `c77102c6738f498cc2ba09d1e60ef05bec6814cb`, `9614aea14e58c5022e55f37357d090b183af8d2a`, `282ce260558e36eca9e3470d398b75361395c1b7`, and `beb90435f9747ef255571564d6db499c6764197c`. These include correction of parser newline handling and restoration of the pre-existing safe filename/worksheet-title regex character classes after an intermediate test failure.
+- Native-builder refusal regression: `415d72474e3c1e10d451a6287aa4c1018a2de015`.
+- Shared format-aware retry: `1e1e1a90740ca1ba338e2f69027431b5590f1645`.
+- Retry prompt newline correction: `9bd2e618fc29b54d70aec4ee7f3c84ee5b15e41d`.
+- Current audit branch HEAD: `9bd2e618fc29b54d70aec4ee7f3c84ee5b15e41d`.
+- Current helper blob SHA: `4b1b9eb3c71934d3f85aad8e5a925bab9f43b64f`.
+- Current candidate entrypoint blob SHA: `b02225b1525576fa368dbc5c51611806fa043abc`.
+- Current test blob SHA: `2cff1e103e8630b882b938323d8f96ed97366741`.
+
+**CI evidence — final current commit PASS**
+- GitHub Actions multi-format audit run `45828952150`: https://github.com/Cluzere/Main-py/actions/runs/45828952150 — completed successfully on current HEAD `9bd2e618fc29b54d70aec4ee7f3c84ee5b15e41d`; full candidate suite: **128 tests, passed**; candidate compilation and Bandit high-severity scan also passed.
+- Audit recovery run `45828952144`: https://github.com/Cluzere/Main-py/actions/runs/45828952144 — success on the same HEAD.
+- Candidate syntax-check run `45828952155`: https://github.com/Cluzere/Main-py/actions/runs/45828952155 — success on the same HEAD.
+- Earlier intermediate runs failed while fixing fence parsing and regex escaping; those defects were corrected. The three successful runs above are the final verification for current HEAD. Do not describe the intermediate failures as the final result.
+
+**Acceptance boundary / what remains**
+- Code and CI: **PASS** for 128 regression tests, syntax compilation, and high-severity Bandit scan.
+- Native builder fallback: tested for all 14 formats in CI with format-specific valid source fixtures.
+- Live model refusal/retry behavior, live artifact generation on Wispbyte, Discord attachment delivery, and automatic Box upload: **NOT YET VERIFIED**. CI cannot establish these runtime facts.
+- Production root `main.py`, production branch `main`, and Wispbyte deployment/restart were not modified or performed. The user must initiate the Wispbyte audit deployment restart from its panel before live testing. Verify startup logs show the exact audit branch HEAD `9bd2e618fc29b54d70aec4ee7f3c84ee5b15e41d`.
+- Run the provided 14-format Discord prompt matrix only after the audit deployment is restarted. For every live test, record requested prompt, returned artifact bytes, native structure/content validation, `[FILE-STAGE] stage=validated`, `stage=discord_attachment_confirmed`, and automatic Box upload provenance as independent evidence gates.
+- Do not promise zero future errors. The acceptance target is reproducible pass evidence and fail-closed behavior for unsupported/ambiguous source data.
