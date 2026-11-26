@@ -478,15 +478,36 @@ def _make_pdf(content: str, title: str) -> bytes:
 
     def draw_paragraph(text, size=9.5, font="helv", color=ink, gap=7):
         nonlocal y
-        lines = wrap_cell(text, font, size, content_width)
-        line_height = size * 1.45
-        needed = len(lines) * line_height + gap
+        import html
+        raw = str(text).strip()
+        marker = ""
+        bullet = re.match(r"^[-*•]\s+(.*)$", raw)
+        numbered = re.match(r"^(\d+)[.)]\s+(.*)$", raw)
+        if bullet:
+            marker, raw = "&#8226;&nbsp;&nbsp;", bullet.group(1)
+        elif numbered:
+            marker, raw = html.escape(numbered.group(1)) + ".&nbsp;&nbsp;", numbered.group(2)
+        escaped = html.escape(raw, quote=False)
+        escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+        escaped = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<em>\1</em>", escaped)
+        escaped = re.sub(chr(96) + r"([^" + chr(96) + r"]+)" + chr(96), r"<code>\1</code>", escaped)
+        plain = re.sub(r"<[^>]+>", "", escaped)
+        lines = wrap_cell(plain, font, size, content_width - (18 if marker else 0))
+        line_height = size * 1.55
+        needed = max(line_height + gap, len(lines) * line_height + gap + 2)
         if y + needed > bottom:
             new_page()
-        rect = fitz.Rect(left, y, right, min(bottom, y + needed))
-        remaining = page.insert_textbox(rect, "\n".join(lines), fontsize=size,
-                                        fontname=font, color=color, lineheight=1.35)
-        if remaining < 0:
+        x = left + (16 if marker else 0)
+        rect = fitz.Rect(x, y, right, min(bottom, y + needed + 2))
+        markup = marker + escaped
+        result = page.insert_htmlbox(
+            rect, markup,
+            css=f"body {{ font-family: Helvetica; font-size: {size}pt; line-height: 1.35; color: #212933; }} "
+                "strong { font-weight: bold; } em { font-style: italic; } code { font-family: Courier; }",
+            scale_low=1,
+        )
+        spare = result[0] if isinstance(result, tuple) else result
+        if spare < 0:
             raise ValueError("Paragraf PDF tidak muat; pembuatan dibatalkan agar teks tidak terpotong.")
         y += needed
 
@@ -615,9 +636,6 @@ def _make_pdf(content: str, title: str) -> bytes:
                 y += 5
                 draw_paragraph(label, size=size, font="hebo", color=navy, gap=5)
                 continue
-            value = re.sub(r"\*\*(.*?)\*\*", r"\1", value)
-            value = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", value)
-            value = value.replace(chr(96), "")
             draw_paragraph(value)
         return doc.tobytes(deflate=True)
     finally:
