@@ -1120,7 +1120,7 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
         rows = ["No | Produk | Deskripsi", "--- | --- | ---"]
         for i in range(1, 11):
             rows.append(
-                f"{i} | Produk {i} | Deskripsi panjang untuk menguji pembungkusan teks pada tabel dan menjaga seluruh nilai tetap berada dalam sel yang benar tanpa terpotong."
+                f"{i} | Produk {i} | " + ("Deskripsi panjang untuk menguji pembungkusan teks pada tabel dan menjaga seluruh nilai tetap berada dalam sel yang benar tanpa terpotong. " * 9)
             )
         content = "# Audit Tabel CLOUZER\n\n" + "\n".join(rows)
         data, _, _ = create_document_file("pdf", prompt, content)
