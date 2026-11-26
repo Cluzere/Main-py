@@ -1115,5 +1115,19 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
         self.assertGreater(summary["italic_spans"], 0)
 
 
+    def test_pdf_validator_counts_ten_product_rows_and_repeated_table_header(self):
+        prompt = "Buat PDF dengan tabel 10 produk dan header tabel berulang di halaman lanjutan."
+        rows = ["No | Produk | Deskripsi", "--- | --- | ---"]
+        for i in range(1, 11):
+            rows.append(
+                f"{i} | Produk {i} | Deskripsi panjang untuk menguji pembungkusan teks pada tabel dan menjaga seluruh nilai tetap berada dalam sel yang benar tanpa terpotong."
+            )
+        content = "# Audit Tabel CLOUZER\n\n" + "\n".join(rows)
+        data, _, _ = create_document_file("pdf", prompt, content)
+        summary = validate_document_file("pdf", prompt, data)
+        self.assertGreaterEqual(summary["table_row_groups"], 11)
+        self.assertGreaterEqual(summary["table_header_pages"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
