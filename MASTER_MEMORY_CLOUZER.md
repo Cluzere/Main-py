@@ -2062,3 +2062,71 @@ Do not conflate `data_rows`, `summary_rows`, and `worksheet_rows`. Validate each
 - Historical parser/validator findings above still need to be checked against the latest branch snapshot; do not describe them as unresolved current defects until revalidated.
 - Live Discord attachment delivery and Box upload remain separate acceptance checks and must be verified from actual artifacts/destinations.
 - Production `main.py` remains protected; no production modification, merge, deployment, or restart is authorized by this handoff.
+
+
+---
+
+## 43. LIVE XLSX RETEST — GitHub upload identified; binary inspection blocked (26 November 2026)
+
+### 43.1 User upload located on repository main branch
+
+The user reported uploading the latest XLSX directly to GitHub and asked for a thorough inspection. Read-only GitHub repository listing confirmed this exact file on branch `main`:
+
+- Repository: `Cluzere/Main-py`
+- Branch: `main`
+- Path: `TES_PASS_RENDER_XLSX_03 (1).xlsx`
+- GitHub blob SHA: `88de03840907078e4eb45d44d277111a6a24d29f`
+- Size reported by GitHub: 6,179 bytes
+- Browser URL: https://github.com/Cluzere/Main-py/blob/main/TES_PASS_RENDER_XLSX_03%20(1).xlsx
+- Raw URL: https://raw.githubusercontent.com/Cluzere/Main-py/main/TES_PASS_RENDER_XLSX_03%20(1).xlsx
+
+This confirms the uploaded artifact exists in the repository. It does **not** establish that its workbook contents are valid.
+
+### 43.2 Inspection attempt and current blocker
+
+- GitHub connector directory listing successfully identified the XLSX and blob SHA.
+- GitHub `fetch_file`/generic repository fetch only supports UTF-8 text; it cannot return this binary XLSX.
+- GitHub `fetch_blob` failed while decoding the binary blob as UTF-8 (`UnicodeDecodeError`).
+- GitHub's generic fetch explicitly rejected the binary blob because it only accepts UTF-8 text.
+- Attempted raw-file download through the container runtime, but network DNS resolution for github.com was unavailable (`Could not resolve host: github.com`).
+- A browser open of the raw binary URL returned a cache miss, so it did not make the file available for local parsing.
+
+**Result: workbook bytes have not yet been obtained in the analysis runtime. No openpyxl inspection has been performed. Do not claim PASS or FAIL for workbook structure, formulas, cached values, dates, totals, formatting, filters, or freeze panes.**
+
+### 43.3 Latest live XLSX failure evidence supplied in this conversation
+
+The user supplied Wispbyte console output for the candidate runtime on 26 November 2026.
+
+First attempt, branch head fetched:
+- Git fetch/reset showed commit `53eed93` (`test: assert Excel dates as loaded datetimes`).
+- Candidate launched and logged `[ONLINE] Clouzer AI Bot aktif`.
+- XLSX diagnostics: `response_type=str chars=516 nonempty_lines=4 tab_rows=1 markdown_pipe_rows=0`.
+- Failure in `clouzer_file_creation.py` at `_check_table`: `ValueError: XLSX harus memiliki header dan setidaknya satu baris data.`
+- This indicates the response parser did not obtain a valid header plus data row from that model output; it does not alone prove a generator bug.
+
+Second attempt after branch force update:
+- Git fetch/reset showed commit `852b8d9` (`fix: retry malformed XLSX model output once`).
+- Candidate launched successfully.
+- First model output diagnostics: `chars=485 nonempty_lines=2 tab_rows=0 markdown_pipe_rows=0`.
+- `[XLSX-RETRY]` logged `reason=unstructured_model_output action=retry_once`.
+- Retry output diagnostics: `retry_chars=510 retry_nonempty_lines=12 retry_tab_rows=0 retry_markdown_pipe_rows=0`.
+- Initial parse failed with `ValueError: XLSX harus memiliki header dan setidaknya satu baris data.`
+- Retry parse then failed with `ValueError: Kolom Stok Awal harus berupa angka pada baris 2.`
+- This confirms the one-time retry path ran, but the second model output still failed numeric validation. It does not prove successful XLSX creation or Discord attachment delivery.
+- The log later showed a server stop/restart sequence and `asyncio.exceptions.CancelledError` / `KeyboardInterrupt` while Discord websocket receive was cancelled. Treat this as shutdown cancellation in the supplied sequence, not automatically as an independent application defect.
+
+Earlier failure messages in this same ongoing test sequence, supplied by the user:
+- `Kolom Tanggal Update harus berisi tanggal Excel pada baris 2.`
+- `XLSX harus memiliki header dan setidaknya satu baris data.`
+- `Kolom Stok Awal harus berupa angka pada baris 2.`
+
+### 43.4 Interpretation and next actions
+
+1. Keep the exact GitHub upload untouched. It is a test artifact on `main`, not authorization to modify production code or root `main.py`.
+2. To finish the workbook audit, obtain the actual XLSX bytes via a binary-capable route (for example, the user may provide a direct downloadable artifact through a supported file transfer or a ZIP containing the XLSX if that route can be fetched as binary). Do not ask the user to repeat the upload to GitHub; it is already present.
+3. Once bytes are available, inspect every worksheet with openpyxl in both normal and `data_only=True` modes. Record formulas separately from cached results; inspect cell data types, especially actual Excel date cells; verify formulas, totals, row/column counts, styles, filters, freeze panes, and workbook readability.
+4. Compare the workbook against the exact prompt/test specification that produced it. Do not assume inventory totals or row counts from a different XLSX test apply to this artifact without verifying the prompt.
+5. Inspect current audit-branch code and tests at their latest commit before proposing a patch. The runtime log shows the deployed branch advanced from `53eed93` to `852b8d9`; do not infer that these commits include all later changes or that CI passed.
+6. Record actual Discord attachment delivery separately from workbook generation and validation.
+7. Preserve the hard boundary: do not edit or merge into production `main`, do not change root `main.py`, and do not deploy/restart Wispbyte. Any code changes must remain on the audit branch and follow user authorization and regression tests.
+
