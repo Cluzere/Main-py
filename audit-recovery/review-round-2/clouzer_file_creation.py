@@ -553,7 +553,7 @@ def _make_pdf(content: str, title: str) -> bytes:
                 blocks.append(("text", stripped))
         flush_table()
 
-        for kind, value in blocks:
+        for block_index, (kind, value) in enumerate(blocks):
             if kind == "table":
                 draw_table(value)
                 continue
@@ -562,8 +562,27 @@ def _make_pdf(content: str, title: str) -> bytes:
                 level = len(heading.group(1))
                 label = re.sub(r"\*\*(.*?)\*\*", r"\1", heading.group(2)).strip()
                 size = 14 if level == 1 else 11 if level == 2 else 10
-                if y + size * 2.2 > bottom:
+
+                # Keep a heading with the paragraph that immediately follows it.
+                # Otherwise the heading can be stranded at the foot of a page.
+                heading_height = size * 1.45 + 10
+                following_height = 0
+                if block_index + 1 < len(blocks):
+                    next_kind, next_value = blocks[block_index + 1]
+                    if next_kind == "text" and not re.match(r"^(#{1,6})\s+", next_value):
+                        next_value = re.sub(r"\*\*(.*?)\*\*", r"\1", next_value)
+                        next_value = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", next_value)
+                        next_value = next_value.replace(chr(96), "")
+                        next_lines = wrap_cell(next_value, "helv", 9.5, content_width)
+                        following_height = len(next_lines) * (9.5 * 1.45) + 7
+
+                keep_height = heading_height + following_height
+                if keep_height <= bottom - top:
+                    if y + keep_height > bottom:
+                        new_page()
+                elif y + heading_height > bottom:
                     new_page()
+
                 y += 5
                 draw_paragraph(label, size=size, font="hebo", color=navy, gap=5)
                 continue
