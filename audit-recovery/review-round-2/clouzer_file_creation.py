@@ -1370,7 +1370,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
     import pymupdf
 
     extracted = "\n".join(page_texts)
-    normalized_extracted = extracted.casefold()
+    normalized_extracted = re.sub(r"\\s+", " ", extracted.casefold())
     summary_present = "ringkasan validasi otomatis clouzer" in normalized_extracted
     unverified_count = normalized_extracted.count("not verified")
     if summary_present and unverified_count != 3:
