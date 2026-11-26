@@ -1010,17 +1010,15 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
         raise ValueError("Format file tidak didukung.")
-    try:
-        text = _validate_content(content)
-    except ValueError:
-        # A complete rectangular source table in the user's prompt is enough
-        # to create XLSX without relying on model prose or formatting.
-        if fmt != "xlsx":
-            raise
-        prompt_rows = _prompt_pipe_table(prompt)
-        if len(prompt_rows) < 2 or not prompt_rows[0]:
-            raise
+    # For XLSX, a complete table explicitly supplied by the user is the
+    # authoritative source. Use it before inspecting model output so a refusal,
+    # prose response, malformed table, or hallucinated rewrite cannot block or
+    # corrupt a workbook that can be built deterministically from the prompt.
+    prompt_rows = _prompt_pipe_table(prompt) if fmt == "xlsx" else []
+    if len(prompt_rows) >= 2 and prompt_rows[0]:
         text = "\n".join("\t".join(row) for row in prompt_rows)
+    else:
+        text = _validate_content(content)
     title = _safe_title(text, prompt)
     builders = {
         "txt": lambda: text.encode("utf-8"),
