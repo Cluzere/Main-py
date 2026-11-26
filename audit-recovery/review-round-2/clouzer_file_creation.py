@@ -334,7 +334,7 @@ def _populate_xlsx_formula_caches(data: bytes) -> bytes:
     module and writes cached values so non-calculating readers can see results.
     """
     from openpyxl import load_workbook
-    import xml.etree.ElementTree as ET
+    from defusedxml import ElementTree as ET
 
     workbook = load_workbook(io.BytesIO(data), data_only=False)
     try:
