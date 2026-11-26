@@ -822,8 +822,13 @@ def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
 
 def _unfence_format_content(content: str) -> str:
     value = str(content or "").strip()
+    fence = chr(96) * 3
+    pattern = r"(?ms)^\s*" + re.escape(fence) + r"[^\r\n]*\r?\n(.*?)^\s*" + re.escape(fence) + r"\s*$"
+    match = re.search(pattern, value)
+    if match:
+        return match.group(1).strip()
     lines = value.splitlines()
-    if len(lines) >= 3 and lines[0].lstrip().startswith(chr(96) * 3) and lines[-1].strip() == chr(96) * 3:
+    if len(lines) >= 3 and lines[0].lstrip().startswith(fence) and lines[-1].strip() == fence:
         return "\n".join(lines[1:-1]).strip()
     return value
 
@@ -836,6 +841,9 @@ def _yaml_is_valid(value: str) -> bool:
         lines = value.splitlines()
         if not any(line.strip() for line in lines):
             return False
+        bracket_stack = []
+        quote = None
+        escaped = False
         for line in lines:
             if not line.strip() or line.lstrip().startswith("#"):
                 continue
@@ -846,7 +854,25 @@ def _yaml_is_valid(value: str) -> bool:
                 item = item[2:].strip()
             if not re.match(r"^[A-Za-z0-9_.-]+\s*:", item):
                 return False
-        return True
+            for char in line:
+                if escaped:
+                    escaped = False
+                    continue
+                if char == "\\" and quote:
+                    escaped = True
+                    continue
+                if quote:
+                    if char == quote:
+                        quote = None
+                    continue
+                if char in ("'", '"'):
+                    quote = char
+                elif char in "[{":
+                    bracket_stack.append(char)
+                elif char in "]}":
+                    if not bracket_stack or (bracket_stack.pop(), char) not in [("[", "]"), ("{", "}")]:
+                        return False
+        return quote is None and not bracket_stack
     try:
         return yaml.safe_load(value) is not None
     except Exception as exc:
