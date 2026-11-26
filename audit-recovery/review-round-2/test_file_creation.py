@@ -247,20 +247,31 @@ Wajib tepat 10 baris data dan 6 kolom."""
         with self.assertRaisesRegex(ValueError, "Model mengembalikan pesan kegagalan"):
             create_document_file("xlsx", "Buat Excel tanpa tabel sumber", refusal)
 
-    def test_xlsx_rejects_non_numeric_age_and_changed_source_data(self):
+    def test_xlsx_explicit_source_table_wins_over_invalid_model_values(self):
+        from openpyxl import load_workbook
         prompt = """Buat Excel worksheet bernama Data Pegawai dengan tepat 2 baris data dan 2 kolom.
 
 A|Umur
 1|25
 2|30"""
-        with self.assertRaisesRegex(ValueError, "harus berupa angka"):
-            create_document_file("xlsx", prompt, """A|Umur
+        corrupted_model_output = """A|Umur
 1|dua puluh lima
-2|30""")
-        with self.assertRaisesRegex(ValueError, "tidak sama persis"):
-            create_document_file("xlsx", prompt, """A|Umur
-1|25
-2|31""")
+2|31"""
+        data, _, _ = create_document_file("xlsx", prompt, corrupted_model_output)
+        validate_document_file("xlsx", prompt, data)
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            ws = wb["Data Pegawai"]
+            self.assertEqual((ws["B2"].value, ws["B3"].value), (25, 30))
+        finally:
+            wb.close()
+
+        with self.assertRaisesRegex(ValueError, "harus berupa angka"):
+            create_document_file(
+                "xlsx",
+                "Buat Excel dengan kolom Umur, tanpa tabel sumber di prompt.",
+                "Nama|Umur\\nAndi|dua puluh lima",
+            )
 
     def test_xlsx_recovers_from_unstructured_partial_model_response(self):
         from openpyxl import load_workbook
