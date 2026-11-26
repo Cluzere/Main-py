@@ -1400,9 +1400,22 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
         )
     if "laporan pengujian generator pdf clouzer" not in extracted.casefold():
         raise ValueError("Judul laporan MASTER FINAL tidak ditemukan pada PDF hasil.")
+    page_body_chars = []
     for page_number, page_text in enumerate(page_texts, 1):
-        if not re.search(r"\bHalaman\s+" + str(page_number) + r"\b", page_text, re.I):
+        if not re.search(r"\\bHalaman\\s+" + str(page_number) + r"\\b", page_text, re.I):
             raise ValueError(f"Nomor halaman PDF tidak cocok pada halaman {page_number}.")
+        body_text = re.sub(r"(?i)\\bHalaman\\s+\\d+\\b", "", page_text)
+        page_body_chars.append(len(re.sub(r"\\s+", "", body_text)))
+    if any(count < 120 for count in page_body_chars):
+        sparse_page = next(index + 1 for index, count in enumerate(page_body_chars) if count < 120)
+        raise ValueError(
+            f"Halaman {sparse_page} terlalu kosong: hanya {page_body_chars[sparse_page - 1]} karakter isi terdeteksi."
+        )
+    if page_body_chars[-1] < 220:
+        raise ValueError(
+            "Halaman terakhir terlalu kosong: "
+            f"hanya {page_body_chars[-1]} karakter isi terdeteksi; tata letak perlu diseimbangkan."
+        )
 
     records = []
     table_cells_by_page = {}
@@ -1643,6 +1656,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
         "table_content_pages": table_content_pages,
         "conclusion_with_opening_paragraph": True,
         "page_numbers_correct": True,
+        "page_body_chars": page_body_chars,
+        "last_page_text_chars": page_body_chars[-1],
         "table_header_style": header_styles_ok,
         "alternating_table_rows": alternating_fills_ok,
         "table_cell_borders": cell_borders_ok,
@@ -1678,6 +1693,7 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
         ("Ukuran halaman A4", "PASS" if a4_ok else "FAIL", "Ukuran halaman diperiksa dari metadata PDF."),
         ("Jumlah halaman minimum 4", "PASS", "Berkas final hanya dikembalikan setelah lolos pemeriksaan jumlah halaman minimum."),
         ("Nomor halaman berurutan", "PASS", "Label Halaman 1 sampai halaman terakhir ditemukan."),
+        ("Kepadatan halaman dan halaman terakhir", "PASS" if summary.get("last_page_text_chars", 0) >= 220 and all(value >= 120 for value in summary.get("page_body_chars", [])) else "FAIL", f"Isi per halaman: {summary.get('page_body_chars', [])} karakter non-spasi."),
         ("Heading Kesimpulan bersama paragraf pembuka", "PASS", "Heading dan paragraf pembuka berada pada halaman yang sama."),
         ("Teks dapat diekstrak dan dicari", "PASS" if summary.get("text_layer") else "FAIL", "Lapisan teks PDF tersedia dan kata CLOUZER terdeteksi."),
         ("Bold, italic, daftar bernomor, dan bullet", "PASS" if summary.get("bold_spans", 0) and summary.get("italic_spans", 0) else "FAIL", "Font tebal/miring dan penanda daftar diperiksa dari lapisan teks."),
