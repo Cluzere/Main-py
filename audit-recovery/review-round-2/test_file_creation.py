@@ -1153,14 +1153,14 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
                 sections.extend(("1. Periksa file hasil", "- Cocokkan hasil dengan kriteria"))
             if heading == "Hasil Pengujian":
                 sections.append(
-                    "No | Nama | Produk | Kategori | Harga | Stok | Status\\n"
-                    "--- | --- | --- | --- | --- | --- | ---\\n" +
-                    "\\n".join(
+                    "No | Nama | Produk | Kategori | Harga | Stok | Status\n"
+                    "--- | --- | --- | --- | --- | --- | ---\n" +
+                    "\n".join(
                         f"{i} | Nama {i} | Produk {i} | Elektronik | Rp{i}00.000 | {i * 3} | PASS"
                         for i in range(1, 11)
                     )
                 )
-        content = "# LAPORAN PENGUJIAN GENERATOR PDF CLOUZER\\n\\n" + "\\n\\n".join(sections)
+        content = "# LAPORAN PENGUJIAN GENERATOR PDF CLOUZER\n\n" + "\n\n".join(sections)
         return prompt, content
 
     def test_master_final_pdf_enforces_report_sections_paragraphs_and_table(self):
@@ -1186,15 +1186,15 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertTrue(summary["body_text_geometry"])
         self.assertFalse(summary["body_text_overlaps"])
         with pymupdf.open(stream=data, filetype="pdf") as doc:
-            extracted = "\\n".join(page.get_text() for page in doc)
+            extracted = "\n".join(page.get_text() for page in doc)
         self.assertIn("LAPORAN PENGUJIAN GENERATOR PDF CLOUZER", extracted)
         self.assertIn("CLOUZER", extracted)
 
     def test_master_final_pdf_rejects_section_with_only_one_paragraph(self):
         prompt, content = self._master_final_pdf_fixture()
         content = content.replace(
-            "## Tujuan Pengujian\\n\\n" + content.split("## Tujuan Pengujian\\n\\n", 1)[1].split("\\n\\n", 1)[0] + "\\n\\n",
-            "## Tujuan Pengujian\\n\\n",
+            "## Tujuan Pengujian\n\n" + content.split("## Tujuan Pengujian\n\n", 1)[1].split("\n\n", 1)[0] + "\n\n",
+            "## Tujuan Pengujian\n\n",
             1,
         )
         with self.assertRaisesRegex(ValueError, "Tujuan Pengujian.*minimal dua"):
