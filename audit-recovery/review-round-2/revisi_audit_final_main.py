@@ -4595,6 +4595,7 @@ class ClouzerBot(commands.Bot):
         allow_tools: bool = True,
         allow_image_tool: bool = True,
         extra_input: list[dict] | None = None,
+        file_generation: bool = False,
     ) -> tuple[str, list[dict]]:
         """Pembungkus: batasi anggaran global, konkurensi Xingchi, dan sensor output model."""
         _diag_loop = asyncio.get_running_loop()
@@ -4622,6 +4623,7 @@ class ClouzerBot(commands.Bot):
                         messages, target_msg, mode,
                         allow_tools=allow_tools, allow_image_tool=allow_image_tool, extra_input=extra_input,
                         _diag_timing=attempt_diag,
+                        file_generation=file_generation,
                     )
                     diag.update(attempt_diag)
                     break
