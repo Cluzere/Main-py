@@ -2921,3 +2921,39 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - This is an audit-branch code/CI remediation only. It does not prove live Xingchi model retry behavior, live PDF creation on Wispbyte, Discord attachment delivery, or Box upload.
 - Before the next live test, the user must initiate the audit deployment restart from Wispbyte and verify its startup log matches the latest audit branch HEAD. Do not claim the bot is running this fix before that verification.
 - Production branch `main` remained at `eab43c16c9bc2e6d8838762b6084c8773d0614d3`; root production `main.py`, production deployment, and Wispbyte process were not modified or restarted.
+
+
+### 52.16 Local document-generation routing — 26 November 2026
+
+**Root cause clarified from the current candidate source**
+- The Responses API tool catalog in `_run_responses_ai_impl()` contains `web_search` and, when enabled, `generate_image`. It does not contain a PDF/file-creation or Discord-attachment tool.
+- Document creation is a local Python pipeline: the model returns document content; `create_document_file()` builds and validates the native artifact; the Discord pipeline sends and confirms the attachment.
+- Previously, file requests were sent with `allow_tools=True`, which exposed unrelated tools but no file tool. The user prompt also asked the model to “create and send” the file without a sufficiently explicit system-level explanation that these actions are performed by the local backend. This made model refusal text about unavailable file tools a recurring failure mode.
+- The prior one-shot retry could repeat the same misunderstanding because it relied on the same model task framing.
+
+**Audit-branch remediation**
+- Added `build_file_generation_system_instruction(format_name)` to `clouzer_file_creation.py`. For all 14 supported formats, it explicitly explains that the model must only produce document content and that the local Python backend creates, validates, and sends the file. It instructs the model not to claim file tools are unavailable and not to claim delivery before it happens.
+- For requested file formats, the candidate now appends this instruction to the system instructions and calls the model with unrelated Responses tools disabled. This is intentional: file generation is local, not a model-callable tool. Normal non-file requests retain their existing tool behavior.
+- Added `[FILE-PIPELINE]` diagnostics for model-content request and response character/function-call counts, so future logs distinguish the model content stage from local generation, validation, and Discord attachment delivery.
+- Expanded `format_labels` to cover all 14 supported formats. Previously, six supported formats (MD, HTML, XML, YAML, RTF, ODT) were missing from this mapping and could raise `KeyError` before the model request.
+- Added regression test `test_file_generation_system_instruction_uses_local_backend_for_all_formats`.
+
+**Commits**
+- Helper instruction: `7ae48541675052d9dd29721313940f1adf73810a`.
+- Entrypoint routing, tool isolation, and format-label completion: final code commit `58bb083e45a9ede52982989a740fe09dbee7faae`.
+- Test addition: `1687707e061abb66a47bd75e99d01ffd9f33f26d`.
+- Branch: `audit-recovery-gpt-2026-11-23`.
+- Final candidate entrypoint blob SHA: `a150ad1ea815886950a511daf4fe74024761565c`.
+- Final helper blob SHA: `c8acc968fa956c985e246fe64c0ae77718299d40`.
+- Final test blob SHA: `dcb09ddc1444fa0b24f1c51eb266b80412ade813`.
+
+**CI evidence — exact final code SHA PASS**
+- Multi-format audit run `45845600956`: https://github.com/Cluzere/Main-py/actions/runs/45845600956 — success; full file-creation suite **131 tests, OK**.
+- Audit recovery run `45845601089`: https://github.com/Cluzere/Main-py/actions/runs/45845601089 — success; full file-creation suite **131 tests, OK**.
+- Candidate syntax/security run `45845601081`: https://github.com/Cluzere/Main-py/actions/runs/45845601081 — success; compile, dependency/security checks, and file-creation tests passed.
+- All three workflows tested exact code commit `58bb083e45a9ede52982989a740fe09dbee7faae`.
+
+**Acceptance boundary**
+- Code/CI: **PASS**. Live model behavior, Wispbyte runtime generation, PDF artifact quality, and Discord attachment delivery after this patch remain **NOT YET VERIFIED**.
+- The next live test requires the user to restart the Wispbyte audit deployment and verify startup HEAD equals the current branch tip (or a docs-only descendant containing this code). Then run the previously failing `TES_PDF_MASTER_FINAL.pdf` prompt and inspect `[FILE-PIPELINE]`, `[FILE-STAGE] stage=validated`, and `stage=discord_attachment_confirmed`.
+- This patch changes only the audit candidate/helper/tests and Master Memory. Production branch `main`, root production `main.py`, and Wispbyte deployment were not changed or restarted by the assistant.
