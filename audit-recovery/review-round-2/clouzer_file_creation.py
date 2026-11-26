@@ -584,6 +584,8 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
             elif row_index > 0 and column_index < len(headers) and _NUMERIC_XLSX_HEADER_RE.search(headers[column_index]):
                 if _is_xlsx_total_row(row) and not value.strip():
                     value = None
+                elif _is_xlsx_total_row(row) and column_index == 0 and value.strip().casefold() in {"total", "jumlah"}:
+                    value = value.strip()
                 else:
                     try:
                         value = _xlsx_number_value(value)
