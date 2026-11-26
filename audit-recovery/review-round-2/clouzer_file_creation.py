@@ -1208,9 +1208,14 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
     elif fmt == "pdf":
         import pymupdf
         with pymupdf.open(stream=data, filetype="pdf") as doc:
-            if doc.page_count < 1 or not "".join(page.get_text() for page in doc).strip():
+            extracted = "\n".join(page.get_text() for page in doc)
+            if doc.page_count < 1 or not extracted.strip():
                 raise ValueError("PDF tidak memiliki halaman atau teks.")
             result["pages"] = doc.page_count
+            result["text_chars"] = len(extracted.strip())
+            result["vector_drawings"] = sum(len(page.get_drawings()) for page in doc)
+            if re.search(r"\\b(?:tabel|table)\\b", prompt, re.I) and result["vector_drawings"] < 6:
+                raise ValueError("PDF diminta memiliki tabel, tetapi struktur tabel visual tidak ditemukan.")
     elif fmt == "docx":
         from docx import Document
         doc = Document(io.BytesIO(data))
