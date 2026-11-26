@@ -2107,7 +2107,7 @@ def _build_master_final_pdf_source(model_content: str) -> str:
         "Hasil Pengujian", "Kesimpulan",
     )
     value = str(model_content or "").strip()
-    headings = list(re.finditer(r"(?m)^#{1,3}\\s+(.+?)\\s*$", value))
+    headings = list(re.finditer(r"(?m)^#{1,3}\s+(.+?)\s*$", value))
     extracted = {}
     for index, match in enumerate(headings):
         heading = re.sub(r"[*_]", "", match.group(1)).strip().casefold()
@@ -2117,17 +2117,17 @@ def _build_master_final_pdf_source(model_content: str) -> str:
         end = headings[index + 1].start() if index + 1 < len(headings) else len(value)
         body = value[match.end():end]
         blocks = []
-        for block in re.split(r"\\n\\s*\\n", body):
+        for block in re.split(r"\n\s*\n", body):
             block = block.strip()
             if not block:
                 continue
             if block.startswith("|") or block.startswith("```"):
                 continue
-            if re.match(r"^(?:[-*•]\\s+|\\d+[.)]\\s+)", block):
+            if re.match(r"^(?:[-*•]\s+|\d+[.)]\s+)", block):
                 continue
-            if re.fullmatch(r"[:|\\-\\s]+", block):
+            if re.fullmatch(r"[:|\-\s]+", block):
                 continue
-            blocks.append(re.sub(r"\\s+", " ", block))
+            blocks.append(re.sub(r"\s+", " ", block))
         extracted[canonical] = blocks
 
     missing = [name for name in required_sections if len(extracted.get(name, [])) < 2]
@@ -2167,7 +2167,7 @@ def _build_master_final_pdf_source(model_content: str) -> str:
                 "--- | --- | --- | --- | --- | --- | ---",
             ])
             output.extend(" | ".join(row) for row in rows)
-    return "\\n".join(output).strip()
+    return "\n".join(output).strip()
 
 
 def resolve_document_source(format_name: str, prompt: str, model_content: str, model_refused: bool = False) -> str:
