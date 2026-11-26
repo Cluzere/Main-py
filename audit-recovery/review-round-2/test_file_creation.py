@@ -679,6 +679,9 @@ Intan|26|=1+1"""
             "Nama worksheet harus bernama Data Pegawai",
             "Sheet: Data Pegawai",
             "Buat worksheet bernama `Data Pegawai` dengan data berikut",
+            "Nama worksheet wajib persis: `Data Pegawai`",
+            "Nama worksheet harus persis `Data Pegawai`",
+            "Nama worksheet wajib: `Data Pegawai`",
         )
         for prompt in prompts:
             with self.subTest(prompt=prompt):
