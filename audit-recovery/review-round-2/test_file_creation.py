@@ -270,7 +270,8 @@ A|Umur
             create_document_file(
                 "xlsx",
                 "Buat Excel dengan kolom Umur, tanpa tabel sumber di prompt.",
-                "Nama|Umur\\nAndi|dua puluh lima",
+                """Nama|Umur
+Andi|dua puluh lima""",
             )
 
     def test_xlsx_recovers_from_unstructured_partial_model_response(self):
