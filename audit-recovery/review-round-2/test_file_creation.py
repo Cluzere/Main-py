@@ -1275,9 +1275,9 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
     def test_master_final_validation_summary_is_appended_after_conclusion(self):
         from clouzer_file_creation import _append_master_final_validation_summary
         content = (
-            "# Laporan CLOUZER\\n\\n"
-            "## Kesimpulan\\n\\n"
-            "Paragraf kesimpulan pertama yang menjelaskan hasil pengujian secara lengkap.\\n\\n"
+            "# Laporan CLOUZER\n\n"
+            "## Kesimpulan\n\n"
+            "Paragraf kesimpulan pertama yang menjelaskan hasil pengujian secara lengkap.\n\n"
             "Paragraf kesimpulan kedua yang menjelaskan batasan hasil pengujian secara lengkap."
         )
         summary = {
