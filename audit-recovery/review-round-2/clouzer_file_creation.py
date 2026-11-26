@@ -1556,6 +1556,21 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
         raise ValueError("Nomor produk pada tabel harus berurutan dari 1 sampai 10.")
     if any(len(row) != 7 or any(not str(value).strip() for value in row) for row in data_rows):
         raise ValueError("Setiap baris produk harus memiliki tujuh sel terisi.")
+    placeholder_values = {
+        "?", "??", "???", "-", "--", "---", "tbd", "todo", "n/a",
+        "belum diisi", "data belum tersedia", "isi di sini", "placeholder",
+    }
+    for row_number, row in enumerate(data_rows, 1):
+        for column_number, value in enumerate(row, 1):
+            normalized_value = normalized(value)
+            if (
+                normalized_value in placeholder_values
+                or re.fullmatch(r"\\[[^\\]]*(?:isi|data|nama|produk|harga|stok)[^\\]]*\\]", normalized_value, re.I)
+            ):
+                raise ValueError(
+                    "Tabel MASTER FINAL mengandung placeholder pada "
+                    f"baris produk {row_number}, kolom {column_number}; isi dengan data nyata yang lengkap."
+                )
     header_styles_ok = bool(header_style_checks) and all(header_style_checks)
     alternating_fills_ok = len(data_row_fills) == 10 and all(
         close_color(data_row_fills[i], (1, 1, 1) if i % 2 == 0 else stripe)
@@ -1626,16 +1641,9 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
     marker = "### Ringkasan Validasi Otomatis CLOUZER"
     value = str(content or "")
     if marker in value:
-        summary_start = value.index(marker)
-        tail = value[summary_start:]
-        conclusion_after_summary = re.search(r"(?m)^#{1,6}\s+Kesimpulan\s*$", tail, re.I)
-        if not conclusion_after_summary:
-            raise ValueError("Bagian Kesimpulan hilang setelah ringkasan validasi otomatis.")
-        value = (
-            value[:summary_start].rstrip()
-            + "\n\n"
-            + tail[conclusion_after_summary.start():]
-        )
+        # Remove any backend-owned summary before rebuilding it; never let a
+        # previous summary duplicate or displace the user's conclusion.
+        value = value[:value.index(marker)].rstrip()
 
     page_sizes = summary.get("page_sizes") or []
     a4_ok = bool(page_sizes) and all(
@@ -1678,7 +1686,10 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
     conclusion = re.search(r"(?m)^(#{1,6})\s+Kesimpulan\s*$", value, re.I)
     if not conclusion:
         raise ValueError("Bagian Kesimpulan diperlukan untuk menyisipkan ringkasan validasi otomatis.")
-    return value[:conclusion.start()].rstrip() + "\n\n" + section + "\n\n" + value[conclusion.start():]
+    # Keep the user's conclusion in the report body. The long backend
+    # validation matrix belongs after it, so it cannot strand the conclusion
+    # on a mostly empty final page.
+    return value.rstrip() + "\n\n" + section + "\n"
 
 
 
