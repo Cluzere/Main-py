@@ -551,5 +551,47 @@ Data sudah disusun sesuai ketentuan.
             wb.close()
 
 
+    def test_xlsx_explicit_prompt_table_overrides_corrupted_model_output(self):
+        from openpyxl import load_workbook
+        prompt = """Buat XLSX bernama SOURCE.xlsx, sheet Data, tepat 2 baris data dan 2 kolom.
+Nama|Harga
+Laptop|1500000
+Mouse|150000"""
+        model_output = "Nama|Harga\nLaptop|bukan angka\nProduk karangan|999999999"
+        data, _, _ = create_document_file("xlsx", prompt, model_output)
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"], summary["sheet_name"]), (2, 2, "Data"))
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            ws = wb["Data"]
+            self.assertEqual(ws["A2"].value, "Laptop")
+            self.assertEqual(ws["B2"].value, 1500000)
+            self.assertEqual(ws["A3"].value, "Mouse")
+            self.assertEqual(ws["B3"].value, 150000)
+        finally:
+            wb.close()
+
+    def test_xlsx_empty_model_response_uses_complete_prompt_table(self):
+        prompt = "Buat XLSX dengan tabel berikut, tepat 1 baris data dan 2 kolom.\nKode|Stok\nA01|12"
+        data, _, _ = create_document_file("xlsx", prompt, "")
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"]), (1, 2))
+
+    def test_xlsx_parses_indonesian_currency_and_thousands_separators(self):
+        from openpyxl import load_workbook
+        prompt = "Buat XLSX berisi daftar produk dengan kolom Harga dan Stok."
+        content = "Nama|Harga|Stok\nLaptop|Rp 1.500.000|1.250\nMouse|Rp150.000|25"
+        data, _, _ = create_document_file("xlsx", prompt, content)
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            ws = wb.active
+            self.assertEqual(ws["B2"].value, 1500000)
+            self.assertEqual(ws["C2"].value, 1250)
+            self.assertEqual(ws["B3"].value, 150000)
+            self.assertEqual(ws["C3"].value, 25)
+        finally:
+            wb.close()
+
+
 if __name__ == "__main__":
     unittest.main()
