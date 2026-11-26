@@ -2892,3 +2892,32 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - Box metadata identifies the user as the file creator/uploader. Box text extraction confirms the PDF contains the expected title, summary, seven-row test table, and conclusion. This proves the PDF exists in Box and its text is extractable; it does not prove the visual table styling, repeated table header, selectable text at the visual/layout level, Discord attachment delivery correctness, or any automatic Box integration.
 - Record the delivery and storage stages separately in future audits: (1) CLOUZER generates and validates the PDF, (2) CLOUZER sends it as a Discord attachment, (3) the user downloads it from Discord, (4) the user manually uploads it to Box. Only mark each stage verified when its own evidence exists. Never describe stage (4) as an automatic CLOUZER → Box upload.
 - This is a workflow/tooling limitation, not a failure of the PDF generator. Keep the manual upload path as the confirmed current procedure until a supported, authorized Discord-to-Box integration is actually implemented and tested.
+
+
+### 52.15 Shared file-generation recovery gap after model refusal — 26 November 2026
+
+**Live symptom and root cause**
+- During the PDF multi-page test, CLOUZER returned a refusal stating that the session did not provide tools to create a PDF or send a Discord attachment. The requested file was not generated, validated, or delivered.
+- The audit candidate already contained the native PDF builder, final format validator, and Discord attachment delivery/confirmation path. The failure occurred earlier in the shared model-response/source-resolution path, not because the PDF builder was absent.
+- The entrypoint correctly detected common refusal phrases (including “tidak menyediakan alat”), then called `resolve_document_source()`. If the user prompt contained no complete explicit source block/table, the resolver raised `RuntimeError`.
+- The one-shot format-aware retry only caught `ValueError` raised by the builder, and the resolver call sat outside that retry's `try` block. Consequently, a refusal without explicit source bypassed the retry and went directly to the outer failure handler. This affects all supported document formats, not PDF alone.
+
+**Audit-branch fix**
+- Updated `clouzer_file_creation.py`: refusal without explicit source now raises `ValueError` as an invalid source suitable for recovery handling. The fail-closed message remains: if retry still refuses and there is no explicit source, do not invent or package content.
+- Updated `revisi_audit_final_main.py`: moved `resolve_document_source()` inside the existing one-shot format-aware retry block and made that block catch both `ValueError` and `RuntimeError`. A refusal/source-resolution failure now receives one internal format-aware retry. If the retry still refuses, the resolver fails closed and the outer handler reports failure while retaining retry context.
+- Explicit user-source fallback, XLSX authoritative prompt-table handling, native builders, final validation, and Discord attachment confirmation remain in place.
+- Updated the refusal regression test to assert that missing explicit source is a retryable invalid-source error while still failing closed at the resolver boundary.
+
+**Commit and CI**
+- Commit: `0e197eb3898f6215c4d4885bba18ed10f9a103aa`.
+- Branch: `audit-recovery-gpt-2026-11-23`.
+- Changed files: `audit-recovery/review-round-2/revisi_audit_final_main.py`, `audit-recovery/review-round-2/clouzer_file_creation.py`, and `audit-recovery/review-round-2/test_file_creation.py`.
+- Multi-format audit run `45838261305`: https://github.com/Cluzere/Main-py/actions/runs/45838261305 — completed success; full candidate regression suite **129 tests, OK**.
+- Audit recovery run `45838261611`: https://github.com/Cluzere/Main-py/actions/runs/45838261611 — completed success; focused regression suite and high-severity Bandit scan passed.
+- Candidate syntax-check run `45838261364`: https://github.com/Cluzere/Main-py/actions/runs/45838261364 — completed success; dependency consistency, compile, dependency vulnerability scan, medium/high security scan, document file tests, ZIP fixture verification, archive regression, and audit regression all passed.
+- All three runs tested the exact commit SHA `0e197eb3898f6215c4d4885bba18ed10f9a103aa`.
+
+**Evidence boundary and safety**
+- This is an audit-branch code/CI remediation only. It does not prove live Xingchi model retry behavior, live PDF creation on Wispbyte, Discord attachment delivery, or Box upload.
+- Before the next live test, the user must initiate the audit deployment restart from Wispbyte and verify its startup log matches the latest audit branch HEAD. Do not claim the bot is running this fix before that verification.
+- Production branch `main` remained at `eab43c16c9bc2e6d8838762b6084c8773d0614d3`; root production `main.py`, production deployment, and Wispbyte process were not modified or restarted.
