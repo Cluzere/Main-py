@@ -451,6 +451,19 @@ TOTAL||||||212||189575000|"""
         finally:
             wb.close()
 
+        # Non-calculating readers must also receive cached formula results.
+        cached_wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            cached_ws = cached_wb["Audit Stok"]
+            self.assertEqual(cached_ws["G2"].value, 12)
+            self.assertEqual(cached_ws["I2"].value, 90000000)
+            self.assertEqual(cached_ws["G10"].value, 0)
+            self.assertEqual(cached_ws["I10"].value, 0)
+            self.assertEqual(cached_ws["G12"].value, 212)
+            self.assertEqual(cached_ws["I12"].value, 189575000)
+        finally:
+            cached_wb.close()
+
     def test_xlsx_ignores_explanatory_prose_around_pipe_table(self):
         prompt = "Buat XLSX tepat 2 baris data dan 2 kolom.\nA|B\n1|x\n2|y"
         content = "Berikut tabel yang diminta:\nA|B\n1|x\n2|y\nSelesai dibuat."
