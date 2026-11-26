@@ -1203,7 +1203,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertEqual(summary["required_sections"], [
             "Pendahuluan", "Tujuan Pengujian", "Metode Pengujian", "Hasil Pengujian", "Kesimpulan"
         ])
-        self.assertTrue(all(count >= 2 for count in summary["paragraphs_per_section"].values()))
+        self.assertTrue(all(count >= 4 for count in summary["paragraphs_per_section"].values()))
         self.assertTrue(summary["conclusion_with_opening_paragraph"])
         self.assertTrue(summary["page_numbers_correct"])
         self.assertTrue(summary["table_header_style"])
@@ -1235,7 +1235,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
             "Setiap temuan harus dapat ditelusuri melalui artefak, pengukuran otomatis, atau pemeriksaan manual "
             "yang dinyatakan secara jujur sesuai batas bukti yang tersedia. "
         ) * 4
-        model_content = "\\n\\n".join(
+        model_content = "\n\n".join(
             part
             for section in ("Pendahuluan", "Tujuan Pengujian", "Metode Pengujian", "Hasil Pengujian", "Kesimpulan")
             for part in ("## " + section, paragraph_a, paragraph_b)
@@ -1248,7 +1248,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertTrue(summary["master_final_report"])
         self.assertEqual(summary["product_rows"], 10)
         self.assertEqual(summary["table_columns"], 7)
-        self.assertTrue(all(count >= 2 for count in summary["paragraphs_per_section"].values()))
+        self.assertTrue(all(count >= 4 for count in summary["paragraphs_per_section"].values()))
         import pymupdf
         with pymupdf.open(stream=data, filetype="pdf") as doc:
             extracted = "\\n".join(page.get_text() for page in doc)
