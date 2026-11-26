@@ -514,7 +514,7 @@ def _make_pdf(content: str, title: str) -> bytes:
             if not stripped:
                 flush_table()
                 continue
-            if stripped.startswith("|") and stripped.endswith("|"):
+            if "|" in stripped and len(stripped.split("|")) >= 2:
                 cells = [cell.strip() for cell in stripped.strip("|").split("|")]
                 if cells and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
                     continue
