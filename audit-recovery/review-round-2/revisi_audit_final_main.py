@@ -36,6 +36,7 @@ from clouzer_file_creation import (
     is_retry_command,
     normalize_pending_retry_task,
     validate_document_file,
+    build_file_generation_system_instruction,
 )
 from clouzer_box_oauth import start_box_oauth_server, box_api_request
 
@@ -5068,7 +5069,14 @@ class ClouzerBot(commands.Bot):
                     "format": requested_file_format,
                     "prompt": clean_content[:10_000],
                 }
-                format_labels = {"txt": "teks biasa", "pdf": "dokumen PDF", "docx": "dokumen Word", "xlsx": "spreadsheet Excel", "pptx": "presentasi PowerPoint", "zip": "arsip ZIP", "csv": "tabel CSV", "json": "data JSON"}
+                format_labels = {
+                    "txt": "teks biasa", "pdf": "dokumen PDF", "docx": "dokumen Word",
+                    "xlsx": "spreadsheet Excel", "pptx": "presentasi PowerPoint",
+                    "zip": "arsip ZIP", "csv": "tabel CSV", "json": "data JSON",
+                    "md": "dokumen Markdown", "html": "dokumen HTML",
+                    "xml": "dokumen XML", "yaml": "dokumen YAML",
+                    "rtf": "dokumen RTF", "odt": "dokumen OpenDocument",
+                }
                 full_user_prompt += (
                     "\n\n[INSTRUKSI PEMBUATAN FILE " + requested_file_format.upper() + "]\n"
                     + "Susun isi lengkap untuk " + format_labels[requested_file_format] + " berdasarkan permintaan pengguna. "
@@ -5112,6 +5120,17 @@ class ClouzerBot(commands.Bot):
             )
 
             if requested_file_format:
+                # The document builder and Discord attachment sender are local Python
+                # operations, not model-callable Responses tools. Tell the model to
+                # return document content only and do not expose unrelated tools.
+                payload_messages[0]["content"] += "\\n\\n" + build_file_generation_system_instruction(
+                    requested_file_format
+                )
+                logging.info(
+                    "[FILE-PIPELINE] scope=%s format=%s stage=model_content_request "
+                    "backend=local_generator tools=disabled",
+                    scope_key, requested_file_format,
+                )
                 status_badge = "📄 *Sedang menyusun file " + requested_file_format.upper() + "...*"
             elif additional_file_text or current_turn_images:
                 status_badge = "🔍 *Sedang membaca dan menganalisis file...*"
@@ -5132,7 +5151,7 @@ class ClouzerBot(commands.Bot):
                         payload_messages,
                         status_msg,
                         mode=mode,
-                        allow_tools=not (retrying_pending_task and bool(requested_file_format)),
+                        allow_tools=not bool(requested_file_format) and not retrying_pending_task,
                         allow_image_tool=allow_img_tool,
                     )
                 except ResponsesStreamInterrupted as stream_exc:
