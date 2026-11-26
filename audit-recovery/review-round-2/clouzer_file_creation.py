@@ -432,7 +432,10 @@ def _make_pdf(content: str, title: str) -> bytes:
         page = doc.new_page(width=page_width, height=page_height)
         page_number += 1
         page.draw_rect(fitz.Rect(0, 0, page_width, 66), color=None, fill=(0.97, 0.98, 0.99))
-        page.insert_text((left, 39), title[:100], fontsize=15, fontname="hebo", color=navy)
+        header_title = str(title or "Dokumen CLOUZER")[:100]
+        while header_title and fitz.get_text_length(header_title, fontname="hebo", fontsize=15) > content_width:
+            header_title = header_title[:-1]
+        page.insert_text((left, 39), header_title, fontsize=15, fontname="hebo", color=navy)
         page.draw_line((left, 55), (right, 55), color=navy, width=1.1)
         page.draw_line((left, 810), (right, 810), color=(0.82, 0.84, 0.87), width=0.5)
         page.insert_text((right - 75, 826), f"Halaman {page_number}", fontsize=8, fontname="helv", color=muted)
