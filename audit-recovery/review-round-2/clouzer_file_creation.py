@@ -1626,7 +1626,16 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
     marker = "### Ringkasan Validasi Otomatis CLOUZER"
     value = str(content or "")
     if marker in value:
-        value = value.split(marker, 1)[0].rstrip()
+        summary_start = value.index(marker)
+        tail = value[summary_start:]
+        conclusion_after_summary = re.search(r"(?m)^#{1,6}\\s+Kesimpulan\\s*$", tail, re.I)
+        if not conclusion_after_summary:
+            raise ValueError("Bagian Kesimpulan hilang setelah ringkasan validasi otomatis.")
+        value = (
+            value[:summary_start].rstrip()
+            + "\\n\\n"
+            + tail[conclusion_after_summary.start():]
+        )
 
     page_sizes = summary.get("page_sizes") or []
     a4_ok = bool(page_sizes) and all(
