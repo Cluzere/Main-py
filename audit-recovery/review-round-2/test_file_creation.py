@@ -605,5 +605,44 @@ Mouse|150000"""
             wb.close()
 
 
+    def test_xlsx_total_row_label_in_second_column_allows_blank_numeric_no(self):
+        from openpyxl import load_workbook
+
+        prompt = """Buat XLSX bernama TES_TOTAL_ROW_LABEL.xlsx dengan worksheet Inventaris.
+Buat tepat 10 baris data dan 3 kolom.
+Kolom: No | Nama Barang | Stok
+Tambahkan baris TOTAL di akhir. Kolom No pada baris TOTAL boleh kosong.
+No dan Stok untuk setiap baris barang wajib angka Excel.
+Aktifkan autofilter dan freeze panes A2."""
+        content = """No|Nama Barang|Stok
+1|Laptop|10
+2|Mouse|20
+3|Keyboard|30
+4|Monitor|40
+5|Printer|50
+6|Webcam|60
+7|Headset|70
+8|SSD|80
+9|RAM|90
+10|Flashdisk|100
+|TOTAL|550"""
+        data, filename, _ = create_document_file("xlsx", prompt, content)
+        self.assertEqual(filename, "TES_TOTAL_ROW_LABEL.xlsx")
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"], summary["sheet_name"]), (10, 3, "Inventaris"))
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            ws = wb["Inventaris"]
+            self.assertEqual(ws.max_row, 12)
+            self.assertIsNone(ws["A12"].value)
+            self.assertEqual(ws["B12"].value, "TOTAL")
+            self.assertEqual(ws["C12"].value, 550)
+            for row in range(2, 12):
+                self.assertIsInstance(ws.cell(row, 1).value, (int, float))
+                self.assertIsInstance(ws.cell(row, 3).value, (int, float))
+        finally:
+            wb.close()
+
+
 if __name__ == "__main__":
     unittest.main()
