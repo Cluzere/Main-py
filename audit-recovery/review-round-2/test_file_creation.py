@@ -1196,7 +1196,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertIn("Inspeksi visual manual seluruh halaman", extracted)
         self.assertIn("NOT VERIFIED", extracted)
         self.assertIn("Pengiriman attachment Discord", extracted)
-        page_match = re.search(r"Jumlah halaman pada hasil validasi awal:\\s*(\\d+)", extracted)
+        page_match = re.search(r"Jumlah halaman pada hasil validasi awal:\s*(\d+)", extracted)
         self.assertIsNotNone(page_match)
         self.assertEqual(int(page_match.group(1)), summary["pages"])
 
