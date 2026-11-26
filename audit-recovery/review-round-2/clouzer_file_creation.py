@@ -95,7 +95,7 @@ def _safe_title(content: str, prompt: str) -> str:
 
 
 def _requested_sheet_title(prompt: str) -> str | None:
-    value = re.sub(r"[*_]{1,2}([^*_]+)[*_]{1,2}", r"\1", str(prompt or ""))
+    value = re.sub(r"\*\*(.*?)\*\*|__(.*?)__", lambda match: match.group(1) or match.group(2), str(prompt or ""))
     pattern = r"\b(?:worksheet|work\s*sheet|sheet|lembar\s+kerja)\b"
     quoted = re.search(pattern + r"\s*(?:bernama|dengan\s+nama|name|:)?\s*[\x60\"']([^\x60\"']{1,80})[\x60\"']", value, re.I)
     match = quoted or re.search(
