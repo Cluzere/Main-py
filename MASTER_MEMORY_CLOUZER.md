@@ -2200,3 +2200,89 @@ Priority tests for the next code audit (read-only inspection first; candidate br
 - No claim is made that Discord attachment delivery succeeded for this test.
 - Production `main.py` and production `main` branch must remain untouched. Do not merge, deploy, or restart Wispbyte without explicit user authorization.
 - This section is a handoff of the next intended tests, not a claim that those tests have already run.
+
+
+---
+
+## 45. BOX ARTIFACT RETRIEVAL AND XLSX BINARY AUDIT (26 November 2026)
+
+### 45.1 Folder located and contents
+
+The user clarified that the two photos were in the Box folder named `clouzer buangan`. Box folder search located:
+
+- Folder name: `CLOUZER_BUANGAN_UPLOAD`
+- Box folder ID: `441173757082`
+- Contents: 6 files total — 2 JPG screenshots and 4 XLSX workbooks.
+- The two screenshots were retrieved and visually inspected:
+  - `Screenshot_20261126-095433.jpg` (394,541 bytes; Box file ID `2615727002223`)
+  - `Screenshot_20261126-095441.jpg` (455,729 bytes; Box file ID `2615735538880`)
+- The screenshots show the `Audit Stok` worksheet with 10 inventory records, formula result columns, and a TOTAL row. They are screenshots of the same table; screenshots alone do not establish that formulas are stored as formulas.
+
+### 45.2 Binary retrieval succeeded
+
+Unlike the earlier GitHub-only attempt, Box `download_file_for_chatgpt` successfully delivered all four XLSX binaries into the analysis runtime. They were inspected with openpyxl in both formula mode (`data_only=False`) and cached-value mode (`data_only=True`). The exact local filenames are:
+
+1. `/mnt/data/TES_AUDIT_CLOUZER_ULANG (2).xlsx` — 5,420 bytes
+2. `/mnt/data/TES_AUDIT_CLOUZER_ULANG.xlsx` — 5,420 bytes
+3. `/mnt/data/TES_INVENTARIS_GUDANG_02.xlsx` — 5,810 bytes
+4. `/mnt/data/TES_PASS_RENDER_XLSX_03 (1).xlsx` — 6,179 bytes
+
+### 45.3 Strong positive result — TES_PASS_RENDER_XLSX_03 (1).xlsx
+
+This workbook was fully opened and checked:
+
+- Worksheet: `Audit Stok`
+- Dimensions: 12 rows × 10 columns.
+- Freeze panes: `A2`.
+- Autofilter: `A1:J12`.
+- Rows 2–11 contain 10 inventory records; row 12 is the TOTAL summary row.
+- `G2:G11` contain actual Excel formulas `=Drow+Erow-Frow` (e.g. G2 `=D2+E2-F2`).
+- `I2:I11` contain actual Excel formulas `=Grow*Hrow` (e.g. I2 `=G2*H2`).
+- `G12` contains `=SUM(G2:G11)`; cached result is 212.
+- `I12` contains `=SUM(I2:I11)`; cached result is 189,575,000.
+- All 10 row-level cached formula results were independently recalculated from source numeric cells in Python and matched exactly:
+  - Stok Akhir = Stok Awal + Barang Masuk − Barang Keluar.
+  - Total Nilai Stok = Stok Akhir × Harga Satuan.
+- The independent sums also matched: 212 units and 189,575,000 total stock value.
+- `J2:J11` are actual datetime cells, not text; number format is `yyyy-mm-dd`. Dates range from 20–26 November 2026.
+- Zero values are preserved (e.g. Stok Awal 0 and a calculated zero stock balance/value).
+- This artifact therefore PASSES the inspected structural, formula-presence, cached-result, date-type, total, freeze-pane, and autofilter checks.
+- The workbook's source prompt/specification was not present in the retrieved folder; therefore this inspection does not independently prove that every source row/value exactly matches the original prompt. It does prove the formulas and arithmetic are internally correct for the values stored in the workbook.
+- The file is the same filename/size as the previously identified GitHub main-branch artifact (6,179 bytes); byte-for-byte identity was not established by comparing SHA-256 hashes in this session. Do not assert identical binary content solely from matching name and size.
+
+### 45.4 Other workbook findings
+
+**A. `TES_AUDIT_CLOUZER_ULANG (2).xlsx`**
+- Worksheet name: `Data`.
+- Dimensions: 11 × 6; header + 10 records.
+- Numeric cells in columns `No`, `Umur`, and `Harga` are stored as numeric values.
+- No formulas, freeze panes, or autofilter.
+- The workbook opens and its visible table is structurally consistent with 1 header + 10 rows.
+- Exact source-prompt matching was not assessed because the source prompt was not available in the folder.
+
+**B. `TES_AUDIT_CLOUZER_ULANG.xlsx`**
+- Worksheet name: `kosong tambahan` (literal sheet name).
+- Dimensions: 11 × 6; header + 10 records.
+- Numeric cells in `No`, `Umur`, and `Harga` are numeric.
+- No formulas or freeze panes; autofilter is `A1:F11`.
+- Data differs from the other similarly named audit workbook (e.g. Citra's age/status, and multiple names/cities/prices differ). Without the original prompt, it is not possible to determine which is correct.
+- If the expected worksheet name was `Data Pegawai`, this artifact does NOT meet that criterion because its sheet is named `kosong tambahan`. Do not assume the expected sheet name without checking the test prompt.
+
+**C. `TES_INVENTARIS_GUDANG_02.xlsx`**
+- Worksheet name: `Inventaris`.
+- Dimensions: 9 × 10; header + 8 inventory records.
+- Autofilter: `A1:J9`; no freeze panes.
+- `G2:G9` contain formula strings `=Drow+Erow-Frow`.
+- However, loading the workbook with `data_only=True` returned `None` for every cached formula result in G2:G9. This means cached formula results are absent/unavailable in the saved workbook; a viewer that recalculates formulas may display results, but a parser reading cached values cannot rely on them.
+- No total row and no Total Nilai Stok formula column.
+- Date column I cells are actual Excel datetime values.
+- The formula expressions are present, but the missing cached values are a material interoperability/validation weakness. Do not call this workbook a complete PASS for formula execution/cached values.
+
+### 45.5 Overall conclusion and next step
+
+- The two screenshots are now corroborated by the actual `TES_PASS_RENDER_XLSX_03 (1).xlsx` binary: its formulas are real, its cached values are present, and the arithmetic checks out.
+- One other inventory workbook has formulas but no cached formula values, so workbook-generation quality is not uniform across all artifacts.
+- The two employee-data XLSX files have different worksheet names/data; exact acceptance must be judged against their original test prompts, which were not found in this Box folder.
+- The previously blocked binary inspection is no longer blocked for these Box artifacts. The old Section 43/44 GitHub artifact note remains historically accurate for the route used then, but Section 45 records the later successful Box retrieval and inspection.
+- No code was changed, no production branch/file was edited, and no Wispbyte restart/deployment was performed.
+- Next audit step: compare each workbook with its exact originating prompt/log, then inspect the latest candidate helper to determine why one XLSX has fully populated formula caches while another does not. Keep generated-workbook validity, cached formula availability, Discord attachment delivery, and Box upload as separate acceptance gates.
