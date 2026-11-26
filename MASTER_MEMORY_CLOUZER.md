@@ -2957,3 +2957,30 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - Code/CI: **PASS**. Live model behavior, Wispbyte runtime generation, PDF artifact quality, and Discord attachment delivery after this patch remain **NOT YET VERIFIED**.
 - The next live test requires the user to restart the Wispbyte audit deployment and verify startup HEAD equals the current branch tip (or a docs-only descendant containing this code). Then run the previously failing `TES_PDF_MASTER_FINAL.pdf` prompt and inspect `[FILE-PIPELINE]`, `[FILE-STAGE] stage=validated`, and `stage=discord_attachment_confirmed`.
 - This patch changes only the audit candidate/helper/tests and Master Memory. Production branch `main`, root production `main.py`, and Wispbyte deployment were not changed or restarted by the assistant.
+
+## 52.17 File-request detection regression: capability wording inside specifications — 26 November 2026
+
+### Live failure and root cause
+- After Wispbyte fetched candidate commit `fa43f2f1a634caaf6b7a2b553c5b43cba3b39f30`, the user's real prompt for `TES_PDF_MASTER_FINAL.pdf` still received a model refusal claiming that PDF-generation and Discord-attachment tools were unavailable.
+- Inspection of `detect_requested_file_format()` in `audit-recovery/review-round-2/clouzer_file_creation.py` identified the actual routing bug. The detector rejected any prompt containing isolated capability words such as `bisa`, `dapat`, or `mampu`, unless it also matched a narrow explicit-action phrase.
+- The user's imperative prompt began with `Buat PDF sungguhan...` but later included `teks dapat diseleksi`. The word `dapat` incorrectly caused detection to return `None`, so the request bypassed the local file-generation pipeline entirely. This explains why the prior local-backend system instruction and `[FILE-PIPELINE]` logging were never activated for that prompt.
+
+### Fix
+- Updated `detect_requested_file_format()` to classify question forms by sentence structure rather than by capability words appearing anywhere in a long specification.
+- It now rejects interrogative starts (`apakah`, `bisakah`, `dapatkah`, `mampukah`, `sudahkah`, `udahkah`) and capability questions ending in a question mark, while allowing imperative file requests whose specifications contain words such as `dapat`.
+- Added regression tests:
+  - `test_detect_pdf_request_even_when_spec_mentions_selectable_text`
+  - `test_detect_capability_question_as_non_file_request`
+- Candidate code commit: `90218e73a148b735a80463fd665237d2efa57630` (helper update).
+- Candidate branch HEAD after regression tests: `a3399a347a77c290175b7375d04a12f6e1a5002f`.
+- Helper blob SHA: `c8acc968fa956c985e246fe64c0ae77718299d40` was replaced by the new blob in commit `90218e73...`; test file update committed as `a3399a347a77c290175b7375d04a12f6e1a5002f`.
+
+### CI verification
+- `CLOUZER multi-format file audit`: PASS, run `45846878383`, exact tested SHA `a3399a347a77c290175b7375d04a12f6e1a5002f`. Regression suite: 133 tests, OK. https://github.com/Cluzere/Main-py/actions/runs/45846878383
+- `Audit recovery candidate`: PASS, run `45846878377`, exact tested SHA `a3399a347a77c290175b7375d04a12f6e1a5002f`. Regression suite: 133 tests, OK. https://github.com/Cluzere/Main-py/actions/runs/45846878377
+
+### Acceptance boundary and next action
+- This fix proves the exact prompt wording is now routed to the file pipeline in unit tests; it does not yet prove a live PDF was generated or attached in Discord.
+- Production root `main.py`, production branch `main`, and production deployment remain untouched.
+- After the audit Wispbyte service fetches this new branch HEAD (or a later descendant), rerun the exact `TES_PDF_MASTER_FINAL.pdf` prompt and inspect logs for `[FILE-PIPELINE] stage=model_content_request`, `stage=model_content_received`, `[FILE-STAGE] stage=validated`, and `stage=discord_attachment_confirmed`. Do not claim success until the actual PDF attachment is visible and confirmed.
+
