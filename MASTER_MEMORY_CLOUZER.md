@@ -498,7 +498,6 @@ Status: **NOT CONFIRMED CREATED / NOT CONFIRMED ATTACHED**.
 ### 14.4 CSV — wrong output type (image instead of CSV)
 
 User's explicit report: CSV request produced an image using Lucid Origin, not an actual CSV file. Status: **FAILED AS REQUESTED / WRONG OUTPUT TYPE REPORTED**. Do not count the image as CSV success.
-
 Requested filename: `clouzer_test.csv`.
 Expected CSV schema: 6 columns, 30 data rows:
 ```csv
@@ -998,7 +997,6 @@ Sudah selesai:
 3. Folder `Test file` dibagikan ke akun Developer sebagai Editor dan kolaborasi accepted.
 4. Akses API Box ke folder tersebut berhasil diuji dari Termux dengan HTTP 200.
 5. Kandidat GitHub diperiksa read-only dan dipastikan belum memiliki callback server Box OAuth pada file yang diperiksa.
-
 Belum selesai:
 1. Menentukan alokasi port yang tepat untuk callback. Jangan mengasumsikan port `15497` kosong atau aman dipakai bersama bot sebelum memeriksa pemakaian port dan konfigurasi Wispbyte. Panel menampilkan alokasi `1/2`; jangan membuat atau mengubah alokasi port tanpa persetujuan.
 2. Menambahkan endpoint OAuth callback `/callback` pada aplikasi yang berjalan di Wispbyte, dengan bind eksternal yang sesuai. Implementasi harus kompatibel dengan event loop bot dan tidak mematikan atau mengganggu Discord bot.
@@ -1497,8 +1495,7 @@ Ruang lingkup audit ini khusus jalur pembuatan file di kandidat CLOUZER, mencaku
 
 ### 31.1 Source yang diperbarui
 - Branch: `audit-recovery-gpt-2026-11-23`.
-- `audit-recovery/review-round-2/clouzer_file_creation.py` — blob SHA `af82968e2441245cedafc2a123080a107c8e503b`.
-- `audit-recovery/review-round-2/test_file_creation.py` — blob SHA `d2368d6ab2cde7b317a8f12279eedf69cfe40f0c`.
+- `audit-recovery/review-round-2/clouzer_file_creation.py` — blob SHA `af82968e2441245cedafc2a123080a107c8e503b`.- `audit-recovery/review-round-2/test_file_creation.py` — blob SHA `d2368d6ab2cde7b317a8f12279eedf69cfe40f0c`.
 - `audit-recovery/review-round-2/revisi_audit_final_main.py` — blob SHA `b4aa9d0faca62b60356ecd312e95950968ecfbfe`.
 
 ### 31.2 Temuan yang diperbaiki
@@ -1997,7 +1994,6 @@ All changes above are limited to the audit branch. Production root `main.py` mus
 ## 42. XLSX ROW/COLUMN PARSER AUDIT HANDOFF (26 November 2026)
 
 ### 42.1 User intent and scope
-
 - User explicitly asked to continue the XLSX diagnosis and preserve the findings/next-step plan in this GitHub master memory so another conversation can resume without repeating the investigation.
 - Scope remains the audit/recovery branch only. Do not touch production root `main.py`, merge to `main`, deploy, or restart Wispbyte without the user's explicit authorization.
 - Do not run repeated Discord XLSX retries while the parser/validator behavior is not understood. Use deterministic local regression tests first, then one controlled live retest after approval.
@@ -2497,8 +2493,7 @@ Candidate commit:
 - The commit belongs to the audit candidate branch, not production `main`.
 
 GitHub Actions verification (queried directly after completion):
-1. [Audit recovery candidate](https://github.com/Cluzere/Main-py/actions/runs/45802335315)
-   - Run ID: `45802335315`
+1. [Audit recovery candidate](https://github.com/Cluzere/Main-py/actions/runs/45802335315)   - Run ID: `45802335315`
    - Status: completed
    - Conclusion: **success**
    - Job: `final-candidate-syntax-regressions-and-attachment-audit`
@@ -2799,3 +2794,35 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - Before another live test, the user must restart the Wispbyte audit deployment from its panel so its startup script fetches the latest audit branch. Verify the startup log HEAD matches the current audit branch tip and that its tree includes candidate code commit 55f3f6fa73dec5ed459d4fda3f14404ad9db0cec.
 - Re-run the employee XLSX test and inspect the actual artifact bytes plus [FILE-STAGE] stage=validated and stage=discord_attachment_confirmed.
 - After XLSX live acceptance, continue the remaining format matrix from §52.1–52.2: PDF rendering, YAML extension, Markdown native .md, ODT native package/table, HTML, XML, and RTF; then re-test ZIP and CSV tool/delivery paths. Keep artifact structure, local builder validation, Discord delivery, and automatic Box upload as separate acceptance gates.
+
+### 52.11 Live XLSX retest after schema/header remediation — 26 November 2026
+
+**Artifact located and retrieved from Box**
+- User asked the assistant to check the newly uploaded file directly in Box.
+- Exact file found: `TES_LIVE_CLOUZER_GAJI_FIX_2.xlsx`.
+- Box file ID: `2616702237471`.
+- Box URL: https://account.box.com/file/2616702237471
+- Parent folder: `Tes 10 file`, folder ID `441388593378`.
+- Metadata: 5,398 bytes; created and modified `2026-11-26T13:06:50Z`; SHA-1 `7e4f7fc5448eefe679cc1cec674206493f0ff14d`.
+- The file was retrieved using the Box binary-download connector into the analysis runtime and inspected as an actual XLSX workbook, not only via Box text extraction.
+
+**Binary and workbook validation — PASS**
+- Genuine XLSX workbook opened successfully.
+- Exactly one worksheet: `Data Pegawai`.
+- Dimensions: 6 rows × 4 columns (one header row plus five employee records).
+- Exact header order: `Nama`, `Umur`, `Jabatan`, `Gaji`.
+- Five employee data rows are present.
+- All five `Umur` values are native numeric Excel cells.
+- All five `Gaji` values are native numeric Excel cells (not strings): 5,500,000; 12,000,000; 7,500,000; 9,000,000; 5,000,000.
+- Header cells are bold; column widths are configured.
+- Workbook structure, requested sheet name, exact headers/order, row count, and numeric cell-type requirements all pass for this test.
+
+**Evidence boundaries**
+- Box artifact retrieval and binary inspection are confirmed.
+- Box metadata identifies the connected Box user account as creator/modifier; it does not establish which process created or uploaded the workbook. Do not claim automatic CLOUZER-to-Box upload based on this metadata.
+- The artifact's presence in Box does not independently prove Discord attachment delivery. No corresponding `[FILE-STAGE] stage=validated`, `stage=discord_attachment_confirmed`, or direct Discord message attachment evidence was supplied/verified for this exact request.
+- Therefore record this as **artifact validation PASS**, while Discord delivery and automatic Box upload provenance remain **NOT VERIFIED**.
+- No code was changed, no CI run was triggered, and no Wispbyte deployment/restart was performed as part of this inspection. Production root `main.py` and production branch `main` remain untouched.
+
+**Next audit step**
+- Continue the remaining live format matrix in §52.1–52.2, keeping native artifact correctness, local builder validation, Discord attachment confirmation, and automatic Box upload as separate acceptance gates. The XLSX schema/header and numeric-cell regression is now independently confirmed by this live artifact; do not generalize that result to other formats.
