@@ -1039,5 +1039,59 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
                 self.assertTrue(validate_document_file(fmt, prompt, data)["valid"])
 
 
+    def test_pdf_renders_markdown_bold_italic_and_real_list_markers(self):
+        import pymupdf
+        content = (
+            "# Laporan CLOUZER\n\n"
+            "Teks **tebal** dan *miring* harus memiliki gaya font yang benar.\n\n"
+            "1. Langkah pertama\n"
+            "2. Langkah kedua\n"
+            "- Butir pertama\n"
+            "- Butir kedua\n"
+        )
+        data, _, _ = create_document_file("pdf", "Buat PDF", content)
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            spans = [
+                span
+                for page in doc
+                for block in page.get_text("dict")["blocks"]
+                if "lines" in block
+                for line in block["lines"]
+                for span in line["spans"]
+            ]
+            extracted = "\n".join(page.get_text() for page in doc)
+            self.assertIn("tebal", extracted)
+            self.assertIn("miring", extracted)
+            self.assertTrue(any("tebal" in span["text"] and span["flags"] & 16 for span in spans))
+            self.assertTrue(any("miring" in span["text"] and span["flags"] & 2 for span in spans))
+            for item in ("Langkah pertama", "Langkah kedua", "Butir pertama", "Butir kedua"):
+                self.assertIn(item, extracted)
+            self.assertNotIn("**", extracted)
+            self.assertNotIn("*miring*", extracted)
+
+    def test_pdf_text_geometry_stays_inside_page_bounds(self):
+        import pymupdf
+        content = "# Audit CLOUZER\n\n" + "\n\n".join(
+            "Paragraf pengujian nomor %d dengan teks yang cukup panjang untuk menguji pembungkusan dan batas halaman." % i
+            for i in range(1, 100)
+        )
+        data, _, _ = create_document_file("pdf", "Buat PDF", content)
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            self.assertGreaterEqual(doc.page_count, 2)
+            for page in doc:
+                self.assertAlmostEqual(page.rect.width, 595, delta=1)
+                self.assertAlmostEqual(page.rect.height, 842, delta=1)
+                for block in page.get_text("dict")["blocks"]:
+                    if "lines" not in block:
+                        continue
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            x0, y0, x1, y1 = span["bbox"]
+                            self.assertGreaterEqual(x0, 35)
+                            self.assertGreaterEqual(y0, 15)
+                            self.assertLessEqual(x1, 560)
+                            self.assertLessEqual(y1, 835)
+
+
 if __name__ == "__main__":
     unittest.main()
