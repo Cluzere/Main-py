@@ -818,5 +818,46 @@ Dokumen OpenDocument CLOUZER.
         self.assertIn("CLOUZER", extracted)
 
 
+    def test_xlsx_gaji_column_is_native_numeric_and_validator_rejects_text(self):
+        from openpyxl import load_workbook
+
+        prompt = """Buat XLSX bernama TES_LIVE_CLOUZER.xlsx dengan worksheet Data Pegawai.
+Buat tepat 5 baris data dan 4 kolom.
+Nama|Umur|Jabatan|Gaji
+Andi Pratama|28|Staf Administrasi|5500000
+Siti Rahmawati|32|Manajer Keuangan|12000000
+Budi Santoso|26|Staf Teknologi Informasi|7500000
+Dewi Lestari|30|Supervisor Pemasaran|9000000
+Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
+        data, filename, _ = create_document_file("xlsx", prompt, "")
+        self.assertEqual(filename, "TES_LIVE_CLOUZER.xlsx")
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"], summary["sheet_name"]), (5, 4, "Data Pegawai"))
+
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            ws = wb["Data Pegawai"]
+            self.assertEqual([ws.cell(row, 4).value for row in range(2, 7)],
+                             [5500000, 12000000, 7500000, 9000000, 5000000])
+            for row in range(2, 7):
+                self.assertIsInstance(ws.cell(row, 4).value, (int, float))
+                self.assertNotIsInstance(ws.cell(row, 4).value, bool)
+            self.assertTrue(ws["A1"].font.bold)
+            self.assertTrue(all(ws.column_dimensions[col].width >= 12 for col in ("A", "B", "C", "D")))
+        finally:
+            wb.close()
+
+        broken = load_workbook(io.BytesIO(data), data_only=False)
+        try:
+            broken["Data Pegawai"]["D2"] = "5500000"
+            output = io.BytesIO()
+            broken.save(output)
+        finally:
+            broken.close()
+        with self.assertRaisesRegex(ValueError, "Kolom Gaji harus berisi angka"):
+            validate_document_file("xlsx", prompt, output.getvalue())
+
+
+
 if __name__ == "__main__":
     unittest.main()
