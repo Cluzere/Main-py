@@ -2746,3 +2746,26 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - Candidate code remains `132d28841ee352319d83667f845ebec690e51d54`; the CI trigger commit does not alter its tree. The successful CI validates this candidate tree in GitHub Actions only.
 - This does **not** prove runtime behavior on Wispbyte, real Discord attachment delivery, or automatic Box upload. No production deployment/restart was performed; production `main.py` and branch `main` were not changed.
 - GitHub Actions emitted deprecation warnings for Node.js 20-targeting actions and Python dependency warning output; these did not fail the run. The regression test that deliberately logs a memory-save error passed as expected.
+
+### 52.9 Live XLSX artifact review and Gaji numeric fix (2026-11-26)
+
+**Box artifact inspected**
+- User asked the assistant to locate the uploaded workbook directly in the connected Box account. Box search found TES_LIVE_CLOUZER.xlsx, Box file ID 2616650319663, URL https://account.box.com/file/2616650319663.
+- Metadata: 5,397 bytes; created 2026-11-26T12:41:55Z; createdBy and modifiedBy are the connected Box user account; parent folder Tes 10 file under CLOUZER_BUANGAN_UPLOAD.
+- The assistant downloaded and inspected the actual XLSX bytes. Workbook is a genuine XLSX with worksheet Data Pegawai, 6 rows x 4 columns (header plus five data rows), headers Nama, Umur, Jabatan, Gaji; header cells bold; widths set. All five Umur values are native numeric cells. All five Gaji values (5500000, 12000000, 7500000, 9000000, 5000000) are stored as strings, not numeric cells. Artifact result: PARTIAL.
+- Box creator metadata identifies the connected user account, not the uploading process. It does not prove CLOUZER created or uploaded this file. The file timestamp also does not by itself establish process provenance.
+- Wispbyte logs supplied for request 1575491523267657861 show first response function_calls=0, unstructured XLSX output, then one retry with allow_tools=False, also no TSV/table rows. These logs show model output was unstructured; the excerpt alone does not show the final [FILE-STAGE] logs or prove successful Discord attachment delivery.
+
+**Correction to diagnostic interpretation**
+- The assistant previously incorrectly implied function_calls=0 proves the XLSX generator tool was not invoked. Correct architecture: document creation is performed by local Python function create_document_file() in clouzer_file_creation.py, then validated and attached through the Discord delivery pipeline. function_calls tracks Responses API function calls (not this local file-builder path); zero function calls is not, by itself, a file-generation failure.
+- Relevant runtime proof should be [FILE-STAGE] ... stage=validated, then stage=discord_attachment_confirmed with the exact filename, plus a real Discord attachment. Automatic Box upload is a separate claim and needs its own upload-stage evidence.
+
+**Code fix committed to audit branch only**
+- Root cause: _NUMERIC_XLSX_HEADER_RE did not include gaji or common salary/payroll synonyms, so XLSX builder and validator did not treat the Gaji column as numeric.
+- Updated audit-recovery/review-round-2/clouzer_file_creation.py to recognize gaji|salary|salaries|upah|pendapatan|income|kompensasi|tunjangan as numeric column headers.
+- Added regression test test_xlsx_gaji_column_is_native_numeric_and_validator_rejects_text to audit-recovery/review-round-2/test_file_creation.py. It checks all five Gaji cells are numeric, confirms workbook layout, and verifies validator rejects a workbook where Gaji is stored as text.
+- Helper change commit: d59802cfe773e34f319f247c565582ff78a9df5a.
+- Test change / current audit branch tip: 9249cf64364fd7e8e0780becf209af284b9f7601.
+- GitHub Actions workflow run #7: 45822917501, https://github.com/Cluzere/Main-py/actions/runs/45822917501 — completed, conclusion success. The candidate syntax/security/test workflow completed successfully after adding the regression test. Workflow run #6 for the helper change, 45822905955, also completed successfully.
+- This verifies the audit branch in GitHub Actions only. It does not deploy to Wispbyte, modify production main.py, restart the bot, prove live runtime generation, Discord attachment delivery, or automatic Box upload.
+- Latest candidate source entrypoint remains the previously fetched branch version (no change in this fix); latest audit branch tip is 9249cf64364fd7e8e0780becf209af284b9f7601. Before any Wispbyte deployment, fetch this exact branch tip and verify the startup log HEAD. Production branch main and root main.py remain untouched.
