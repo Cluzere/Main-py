@@ -4678,6 +4678,7 @@ class ClouzerBot(commands.Bot):
         allow_image_tool: bool = True,
         extra_input: list[dict] | None = None,
         _diag_timing: dict | None = None,
+        file_generation: bool = False,
     ) -> tuple[str, list[dict]]:
         url = f"{XINGCHI_BASE_URL}/responses"
         headers = {
@@ -4688,7 +4689,12 @@ class ClouzerBot(commands.Bot):
         }
         effort = "high" if mode == "full" else "low"
         max_tokens = 8192 if mode == "full" else 4096
-        timeout = aiohttp.ClientTimeout(total=300, sock_read=180) if mode == "full" else aiohttp.ClientTimeout(total=180, sock_read=120)
+        # File content generation can legitimately take longer than a normal chat turn.
+        # Keep a bounded overall deadline, but allow longer gaps between SSE chunks.
+        if file_generation:
+            timeout = aiohttp.ClientTimeout(total=900, connect=20, sock_connect=20, sock_read=300)
+        else:
+            timeout = aiohttp.ClientTimeout(total=300, sock_read=180) if mode == "full" else aiohttp.ClientTimeout(total=180, sock_read=120)
 
         instructions, input_items = self.to_responses_input(messages)
         tools: list[dict] = [{"type": "web_search"}]
@@ -5153,6 +5159,7 @@ class ClouzerBot(commands.Bot):
                         mode=mode,
                         allow_tools=not bool(requested_file_format),
                         allow_image_tool=allow_img_tool,
+                        file_generation=bool(requested_file_format),
                     )
                     if requested_file_format:
                         logging.info(
@@ -5306,6 +5313,7 @@ class ClouzerBot(commands.Bot):
                             })
                             retry_reply, retry_function_calls = await self.run_responses_ai(
                                 retry_messages, status_msg, mode=mode, allow_tools=False, allow_image_tool=False,
+                                file_generation=True,
                             )
                             if retry_function_calls:
                                 logging.warning(
