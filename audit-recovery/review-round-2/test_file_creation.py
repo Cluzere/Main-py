@@ -425,5 +425,48 @@ TOTAL||||||212||189575000|"""
         result = validate_document_file("xlsx", prompt, data)
         self.assertEqual((result["rows"], result["columns"]), (2, 2))
 
+
+    def test_xlsx_selects_matching_table_block_instead_of_concatenating_tables(self):
+        prompt = """Buat XLSX tepat 2 baris data dan 2 kolom.
+Nama|Status
+Andi|Aktif
+Budi|Nonaktif"""
+        content = """Ringkasan tambahan:
+Topik\tJumlah
+A\t1
+B\t2
+C\t3
+D\t4
+E\t5
+
+Data yang diminta:
+Nama|Status
+Andi|Aktif
+Budi|Nonaktif"""
+        data, _, _ = create_document_file("xlsx", prompt, content)
+        result = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((result["rows"], result["columns"]), (2, 2))
+
+    def test_xlsx_tsv_chooses_block_matching_requested_dimensions(self):
+        prompt = "Buat XLSX tepat 2 baris data dan 2 kolom."
+        content = """Judul\tJumlah
+Satu\t1
+Dua\t2
+
+Data Utama\tNilai
+A\t10
+B\t20"""
+        data, _, _ = create_document_file("xlsx", prompt, content)
+        result = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((result["rows"], result["columns"]), (2, 2))
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            ws = wb.active
+            self.assertEqual(ws["A1"].value, "Judul")
+            self.assertEqual(ws["A3"].value, "Dua")
+        finally:
+            wb.close()
+
 if __name__ == "__main__":
     unittest.main()
