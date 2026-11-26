@@ -1926,3 +1926,67 @@ The new XLSX fallback regression test is explicitly shown as PASS in run 4571914
 - The successful CI proves the candidate implementation and regression tests only. It does not prove the live CLOUZER process has fetched/restarted onto this commit or that Discord/Box delivery works.
 - Live retest for `TES_AUDIT_CLOUZER_ULANG.xlsx` is still pending. Acceptance requires inspection of the real Discord attachment and separate confirmation of Box upload.
 - Production `main.py` remains untouched. No merge to `main`, production deployment, or Wispbyte restart was performed by the assistant.
+
+
+---
+
+## 41. XLSX INVENTORY VALIDATION FIX + BOX FOLDER ROUTING NOTES (26 November 2026)
+
+### 41.1 Operational folder destinations — user-confirmed
+
+- **Folder `Folder otomatis`**: use this as the Box destination/reference location for files CLOUZER generates when the normal tool workflow is not functioning and the user is checking generated artifacts.
+- **Folder `buangan`**: this is the designated folder for tests specifically about the upload tool/workflow, distinct from ordinary file-generation checks.
+- Keep generation checks and upload checks separate. A file appearing in `Folder otomatis` does not prove the dedicated upload workflow works.
+- User previously reported the connected Box account did not have permission to access/use `buangan`; in that attempt the file was found/routed to `Folder otomatis`. Do not claim upload to `buangan` succeeded unless the actual Box destination is independently verified.
+- Existing known Box folder `Folder otomatis`: folder ID `441172297609`, URL https://app.box.com/folder/441172297609. Do not invent a `buangan` folder URL or ID; obtain it from an actual Box listing when access is available.
+
+### 41.2 New XLSX defects found and corrected in audit candidate
+
+Latest candidate commit: `0fbd0a4e22a9a37226697829dd12ef11ea6762a4` on branch `audit-recovery-gpt-2026-11-23`.
+
+Files changed in this final correction series:
+- `audit-recovery/review-round-2/clouzer_file_creation.py`
+- `audit-recovery/review-round-2/test_file_creation.py`
+
+Concrete defects found from the user's live Wispbyte logs and regression testing:
+1. **Zero values were normalized as blank during source-table comparison.** The expression `value or ""` incorrectly turns numeric `0` into an empty string. Corrected to preserve zero and only map `None` to blank.
+2. **Inventory movement columns were not reliably recognized as numeric columns.** Added `masuk` and `keluar` to numeric-column recognition so `Barang Masuk` and `Barang Keluar` are validated as numeric values.
+3. **Bold-marked worksheet names in prompts were not parsed correctly in the affected case.** Updated Markdown bold parsing so names such as `**Inventaris**` are extracted correctly.
+4. **Source-table mismatch diagnostics were too generic.** Validation now reports the first differing row and column, including actual and expected values, to make the next live failure diagnosable.
+5. **A new end-to-end generator regression test** uses `TES_INVENTARIS_GUDANG_02.xlsx`: worksheet `Inventaris`, exactly 8 data rows × 10 columns, stock formula `Stok Awal + Barang Masuk - Barang Keluar`, actual Excel date cells, numeric inventory fields (including legitimate zero values), bold header, and table filter. It validates exact source data and the resulting workbook structure.
+
+### 41.3 Verified CI result for latest candidate
+
+- Latest candidate commit: `0fbd0a4e22a9a37226697829dd12ef11ea6762a4`.
+- GitHub Actions run [45726016226](https://github.com/Cluzere/Main-py/actions/runs/45726016226): **SUCCESS**.
+- Job `final-candidate-syntax-regressions-and-attachment-audit`: SUCCESS.
+- Candidate compile: SUCCESS.
+- High-severity Bandit scan: SUCCESS.
+- Runtime dependency installation: SUCCESS.
+- Focused regression tests: **23/23 PASS**.
+- The test file currently contains 23 test methods.
+- This confirms candidate CI/generator behavior only. It does **not** prove live Discord attachment delivery, Box upload, or the tool orchestration path is working. Retest those separately and verify the actual file/destination.
+
+### 41.4 Wispbyte evidence and diagnostic interpretation
+
+The user's latest supplied Wispbyte logs (26 November 2026) include:
+- `01:47:51`: model response had `allow_tools=True`, `function_calls=0`; output diagnostics show 6 Markdown table rows. The subsequent XLSX creation failed because the prompt required exactly 10 data rows.
+- `01:53:23`: XLSX validation failed with `Data XLSX berbeda dari tabel sumber pada prompt.`
+- `01:53:41`: a replayed prompt returned content with a non-numeric value in `Stok Akhir`; generator rejected it.
+- `01:54:01`: source-table validation again failed.
+- `01:54:24`: refusal fallback was detected (`[XLSX-FALLBACK]`) but the resulting content still failed exact source-table validation.
+- Multiple Responses diagnostics report `function_calls=0`, including requests where `allow_tools=True`. This is evidence that those particular model requests did not invoke a function/tool; it is not proof that all tool paths are broken.
+- Error at `clouzer_file_creation.py:512` before the latest patch showed a generic source mismatch; the new validator reports exact first differing cell to make future errors actionable.
+
+### 41.5 Strict acceptance and safety boundaries
+
+Keep these states separate:
+1. model returned text;
+2. generator created a workbook;
+3. workbook passed structural/source validation;
+4. Discord attachment was actually delivered and clickable;
+5. Box upload succeeded to the intended folder.
+
+A success at one stage does not prove the next stage. CI PASS is not a live delivery PASS.
+
+All changes above are limited to the audit branch. Production root `main.py` must remain untouched; no merge, deployment, or restart is authorized by this memory update. User controls any Wispbyte restart and live retest.
