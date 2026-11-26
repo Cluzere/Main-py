@@ -2796,6 +2796,6 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 
 **Operational status and next steps**
 - This is a code/CI PASS only. It does not prove the new helper is running on Wispbyte, that CLOUZER generated the workbook live, that Discord confirmed the attachment, or that Box received an automatic upload.
-- Before another live test, the user must restart the Wispbyte audit deployment from its panel so its startup script fetches the latest audit branch. Verify the startup log HEAD is 55f3f6fa73dec5ed459d4fda3f14404ad9db0cec.
+- Before another live test, the user must restart the Wispbyte audit deployment from its panel so its startup script fetches the latest audit branch. Verify the startup log HEAD matches the current audit branch tip and that its tree includes candidate code commit 55f3f6fa73dec5ed459d4fda3f14404ad9db0cec.
 - Re-run the employee XLSX test and inspect the actual artifact bytes plus [FILE-STAGE] stage=validated and stage=discord_attachment_confirmed.
 - After XLSX live acceptance, continue the remaining format matrix from §52.1–52.2: PDF rendering, YAML extension, Markdown native .md, ODT native package/table, HTML, XML, and RTF; then re-test ZIP and CSV tool/delivery paths. Keep artifact structure, local builder validation, Discord delivery, and automatic Box upload as separate acceptance gates.
