@@ -684,7 +684,7 @@ def _make_pdf(content: str, title: str) -> bytes:
                         next_line_height = 9.5 * 1.55
                         following_height = max(
                             next_line_height + 7,
-                            len(next_lines) * next_line_height + 7 + 2,
+                            len(next_lines) * next_line_height * 1.6 + 20,
                         )
 
                 keep_height = 5 + heading_height + following_height + 8
