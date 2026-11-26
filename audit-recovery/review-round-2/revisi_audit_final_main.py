@@ -4689,8 +4689,11 @@ class ClouzerBot(commands.Bot):
             "User-Agent": "opencode/1.0.0",
             "X-Client-Name": "OpenCode",
         }
-        effort = "high" if mode == "full" else "low"
-        max_tokens = 8192 if mode == "full" else 4096
+        # File generation is a structured production task, not a deep-chat turn.
+        # Keep reasoning effort low for latency, while retaining the larger output
+        # budget needed by long documents.
+        effort = "low" if file_generation else ("high" if mode == "full" else "low")
+        max_tokens = 8192 if (mode == "full" or file_generation) else 4096
         # File content generation can legitimately take longer than a normal chat turn.
         # Keep a bounded overall deadline, but allow longer gaps between SSE chunks.
         if file_generation:
@@ -4860,7 +4863,10 @@ class ClouzerBot(commands.Bot):
                             raw_full_text = append_bounded_response_text(raw_full_text, delta)
                             cleaned_live = clean_response_text(raw_full_text)
                             now = asyncio.get_event_loop().time()
-                            if now - last_edit >= 0.8 and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT:
+                            # Do not stream raw document source into Discord. It adds
+                            # message edits/rate-limit pressure and exposes a partial
+                            # draft that users can mistake for the finished deliverable.
+                            if not file_generation and now - last_edit >= 0.8 and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT:
                                 try:
                                     if target_msg is not None:
                                         await target_msg.edit(content=cleaned_live + " ▌")
@@ -5331,8 +5337,10 @@ class ClouzerBot(commands.Bot):
                             generated_bytes, generated_name, generated_mime = create_document_file(
                                 requested_file_format, clean_content, retry_source_content,
                             )
-                        validation_summary = validate_document_file(requested_file_format, clean_content, generated_bytes)
-                        logging.info("[FILE-STAGE] scope=%s format=%s stage=validated details=%s", scope_key, requested_file_format, json.dumps(validation_summary, ensure_ascii=False))
+                        # create_document_file performs final format-specific validation
+                        # before returning. Re-running the same full validation here is
+                        # redundant (especially for multi-page PDFs).
+                        logging.info("[FILE-STAGE] scope=%s format=%s stage=validated validation=builder_final_check", scope_key, requested_file_format)
                         generated_file = discord.File(fp=io.BytesIO(generated_bytes), filename=generated_name)
                         caption = (
                             "📎 **File " + requested_file_format.upper() + " berhasil dibuat.**\n"
@@ -5352,7 +5360,8 @@ class ClouzerBot(commands.Bot):
                         history_msgs.append({
                             "role": "assistant",
                             "content": "[File dibuat: " + generated_name + " | " + generated_mime + " | "
-                                + str(len(generated_bytes)) + " byte]\n" + (reply_text or "")[:5000],
+                                + str(len(generated_bytes)) + " byte]"
+                                + ("" if requested_file_format else "\n" + (reply_text or "")[:5000]),
                         })
                         guild_state["turn_count"] = guild_state.get("turn_count", 0) + 1
                         try:
