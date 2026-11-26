@@ -1565,7 +1565,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
             normalized_value = normalized(value)
             if (
                 normalized_value in placeholder_values
-                or re.fullmatch(r"\\[[^\\]]*(?:isi|data|nama|produk|harga|stok)[^\\]]*\\]", normalized_value, re.I)
+                or re.fullmatch(r"\[[^\]]*(?:isi|data|nama|produk|harga|stok)[^\]]*\]", normalized_value, re.I)
             ):
                 raise ValueError(
                     "Tabel MASTER FINAL mengandung placeholder pada "
