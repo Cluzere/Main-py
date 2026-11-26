@@ -1353,16 +1353,24 @@ _MASTER_FINAL_SECTIONS = ("Pendahuluan", "Tujuan Pengujian", "Metode Pengujian",
 _MASTER_FINAL_COLUMNS = ("No", "Nama", "Produk", "Kategori", "Harga", "Stok", "Status")
 
 
+def _mentions_ten_products(prompt: str) -> bool:
+    """Recognize the requested product count across natural Indonesian wording."""
+    return bool(re.search(
+        r"\b(?:10|sepuluh)\s+(?:(?:data|baris)\s+)?produk\b",
+        str(prompt or ""),
+        re.I,
+    ))
+
+
 def _is_master_final_pdf_prompt(prompt: str) -> bool:
     """Identify the specific MASTER FINAL report contract without affecting ordinary PDFs."""
     value = str(prompt or "").casefold()
     required = (
         "laporan pengujian generator pdf clouzer",
-        "10 produk",
         *_MASTER_FINAL_SECTIONS,
         *_MASTER_FINAL_COLUMNS,
     )
-    return all(item.casefold() in value for item in required)
+    return _mentions_ten_products(prompt) and all(item.casefold() in value for item in required)
 
 
 def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -> dict:
