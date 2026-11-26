@@ -1195,6 +1195,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertIn("Ringkasan Validasi Otomatis CLOUZER", extracted)
         self.assertIn("Inspeksi visual manual seluruh halaman", extracted)
         self.assertIn("NOT VERIFIED", extracted)
+        self.assertEqual(re.sub(r"\\s+", " ", extracted).casefold().count("not verified"), 3)
         self.assertIn("Pengiriman attachment Discord", extracted)
         page_match = re.search(r"Jumlah halaman pada hasil validasi awal:\s*(\d+)", extracted)
         self.assertIsNotNone(page_match)
@@ -1208,6 +1209,12 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
             1,
         )
         with self.assertRaisesRegex(ValueError, "(?i)header|kolom|MASTER FINAL"):
+            create_document_file("pdf", prompt, content)
+
+    def test_master_final_pdf_rejects_unverified_placeholders_in_model_source(self):
+        prompt, content = self._master_final_pdf_fixture()
+        content = content.replace("Hasil utama", "Hasil utama NOT VERIFIED", 1)
+        with self.assertRaisesRegex(ValueError, "placeholder NOT VERIFIED"):
             create_document_file("pdf", prompt, content)
 
     def test_master_final_pdf_rejects_section_with_only_one_paragraph(self):
