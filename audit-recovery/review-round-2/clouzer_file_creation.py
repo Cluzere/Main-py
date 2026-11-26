@@ -334,11 +334,14 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
             elif row_index > 0 and column_index < len(headers) and re.search(r"(?:tanggal|date)", headers[column_index]):
                 value = _xlsx_date_value(value)
             elif row_index > 0 and column_index < len(headers) and _NUMERIC_XLSX_HEADER_RE.search(headers[column_index]):
-                candidate = value.strip()
-                if re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", candidate):
-                    value = float(candidate) if "." in candidate else int(candidate)
+                if _is_xlsx_total_row(row) and not value.strip():
+                    value = None
                 else:
-                    raise ValueError(f"Kolom {rows[0][column_index]} harus berupa angka pada baris {row_index + 1}.")
+                    candidate = value.strip()
+                    if re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", candidate):
+                        value = float(candidate) if "." in candidate else int(candidate)
+                    else:
+                        raise ValueError(f"Kolom {rows[0][column_index]} harus berupa angka pada baris {row_index + 1}.")
             values.append(value)
         sheet.append(values)
         if row_index > 0:
@@ -608,10 +611,16 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                             if value.replace("$", "").replace(" ", "").casefold() != expected_formula.casefold():
                                 raise ValueError(f"Rumus pada {ws.cell(row_number, index + 1).coordinate} tidak sesuai.")
                             source_values = [ws.cell(row_number, source_index + 1).value for source_index in source_indexes]
+                            if isinstance(source_values[0], str) and source_values[0].startswith("="):
+                                balance_col = source_indexes[0]
+                                balance_spec = formula_specs.get(balance_col)
+                                if not balance_spec or balance_spec[0] != "stock_balance":
+                                    raise ValueError("Rumus Total Nilai Stok memiliki referensi Stok Akhir yang tidak didukung.")
+                                a0, b0, c0 = balance_spec[1]
+                                balance = ws.cell(row_number, a0 + 1).value + ws.cell(row_number, b0 + 1).value - ws.cell(row_number, c0 + 1).value
+                                source_values[0] = balance
                             if any(not isinstance(item, (int, float)) or isinstance(item, bool) for item in source_values):
                                 raise ValueError(f"Sumber rumus nilai stok harus berupa angka pada baris {row_number}.")
-                            if isinstance(source_values[0], str) and source_values[0].startswith("="):
-                                raise ValueError("Referensi stok akhir rumus tidak boleh berupa teks.")
                             calculated = source_values[0] * source_values[1]
                         if expected_rows and row_number - 1 < len(expected_rows):
                             expected_value = expected_rows[row_number - 1][index].strip()
@@ -639,11 +648,15 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
             for index, header in enumerate(headers):
                 if _NUMERIC_XLSX_HEADER_RE.search(header) and index not in formula_specs:
                     for row_number, row in enumerate(ws.iter_rows(min_row=2, values_only=False), 2):
+                        if _is_xlsx_total_row([str(c.value or "") for c in ws[row_number]]):
+                            continue
                         value = row[index].value if index < len(row) else None
                         if not isinstance(value, (int, float)) or isinstance(value, bool):
                             raise ValueError(f"Kolom {ws.cell(1, index + 1).value} harus berisi angka pada baris {row_number}.")
                 if re.search(r"(?:tanggal|date)", header):
                     for row_number, row in enumerate(ws.iter_rows(min_row=2, values_only=False), 2):
+                        if _is_xlsx_total_row([str(c.value or "") for c in ws[row_number]]):
+                            continue
                         value = row[index].value if index < len(row) else None
                         if not isinstance(value, (_datetime.date, _datetime.datetime)):
                             raise ValueError(f"Kolom {ws.cell(1, index + 1).value} harus berisi tanggal Excel pada baris {row_number}.")
