@@ -2130,3 +2130,73 @@ Earlier failure messages in this same ongoing test sequence, supplied by the use
 6. Record actual Discord attachment delivery separately from workbook generation and validation.
 7. Preserve the hard boundary: do not edit or merge into production `main`, do not change root `main.py`, and do not deploy/restart Wispbyte. Any code changes must remain on the audit branch and follow user authorization and regression tests.
 
+
+
+---
+
+## 44. NEXT TEST PLAN — resume XLSX investigation in a fresh chat (26 November 2026)
+
+### Immediate objective
+Continue the unfinished audit of the user-uploaded workbook `TES_PASS_RENDER_XLSX_03 (1).xlsx` and the live XLSX generation failure. The next session should start here rather than repeat the previous investigation.
+
+### Test target A — inspect the actual uploaded workbook
+- Existing artifact: `TES_PASS_RENDER_XLSX_03 (1).xlsx`
+- Repository: `Cluzere/Main-py`
+- Location: branch `main`, repository root
+- Blob SHA: `88de03840907078e4eb45d44d277111a6a24d29f`
+- Size: 6,179 bytes
+- Existing browser link: https://github.com/Cluzere/Main-py/blob/main/TES_PASS_RENDER_XLSX_03%20(1).xlsx
+- The binary has not yet been read. Do not report any workbook property as verified.
+
+First obtain the exact binary bytes through a supported file route. The prior GitHub text connector cannot decode XLSX binary, and the analysis container could not resolve GitHub. Practical route if the user can upload a text sidecar to the repository: create Base64 text from the existing workbook, preferably with portable Python:
+```sh
+python -c "import base64; p='TES_PASS_RENDER_XLSX_03 (1).xlsx'; open('workbook_base64.txt','w').write(base64.b64encode(open(p,'rb').read()).decode())"
+```
+Then fetch `workbook_base64.txt` as UTF-8 text, decode it in Python, and inspect the recovered workbook with openpyxl. Do not overwrite or alter the original XLSX. If a different supported binary upload path becomes available, use that instead.
+
+When bytes are available, inspect:
+- workbook opens successfully;
+- every worksheet name, dimensions, and hidden state;
+- exact header and data values, blank/extra rows and columns;
+- cell data types, especially numeric cells and true Excel date cells;
+- formulas in formula mode and cached values in `data_only=True` mode;
+- formula correctness and totals against the actual source prompt;
+- styles, number/date formats, filters, freeze panes, merged cells;
+- whether the workbook is readable and usable, not merely present.
+Do not infer the expected data specification from a different XLSX test. Recover the exact prompt/specification for this artifact first.
+
+### Test target B — reproduce and isolate live XLSX parser failures
+Latest user-supplied live errors:
+- `Kolom Tanggal Update harus berisi tanggal Excel pada baris 2.`
+- `XLSX harus memiliki header dan setidaknya satu baris data.`
+- `Kolom Stok Awal harus berupa angka pada baris 2.`
+
+Observed retry behavior at candidate commit `852b8d9`:
+- Initial model response had no parseable table rows.
+- One retry was triggered.
+- Retry response still had no TAB or Markdown pipe table rows.
+- Retry then failed numeric validation for `Stok Awal`.
+Thus retry-once is not sufficient evidence of recovery; it merely retries and then validation rejects the malformed result.
+
+Priority tests for the next code audit (read-only inspection first; candidate branch only):
+1. Fetch current audit branch head and inspect current helper, tests, and candidate main file. Do not rely on stale commit IDs or old line numbers.
+2. Trace prompt → model response → parser → normalized rows → type/date conversion → workbook creation → validation → Discord attachment send.
+3. Create deterministic regression fixtures for:
+   - model prose/refusal instead of a table;
+   - malformed or incomplete Markdown/TSV table;
+   - numeric columns returning prose, currency strings, blanks, or numbers-as-text;
+   - date columns returning ISO strings, locale-formatted strings, Excel serials, and actual datetime values;
+   - headers with whitespace/case/Markdown formatting;
+   - retries returning a different schema or inconsistent row count;
+   - a valid retry after invalid first output;
+   - retry still invalid, ensuring clear failure and retained retry context.
+4. Verify that parser errors identify the exact offending row/column and never silently coerce invalid source values into plausible but wrong data.
+5. Ensure validation compares generated workbook values to the exact source table/specification, not merely that the workbook opens.
+6. Only after deterministic tests and CI pass, ask for approval for one controlled live Discord retest. Verify actual attachment separately from workbook generation and validation.
+
+### Current test status / boundaries
+- The uploaded workbook is identified but NOT inspected.
+- Live XLSX generation is NOT PASS; the most recent supplied retry still failed validation.
+- No claim is made that Discord attachment delivery succeeded for this test.
+- Production `main.py` and production `main` branch must remain untouched. Do not merge, deploy, or restart Wispbyte without explicit user authorization.
+- This section is a handoff of the next intended tests, not a claim that those tests have already run.
