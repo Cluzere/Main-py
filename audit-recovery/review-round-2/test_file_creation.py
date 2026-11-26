@@ -1142,12 +1142,12 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         long_a = (
             "Pengujian ini dilakukan dengan prosedur yang terukur untuk memastikan setiap tahap berjalan sesuai tujuan. "
             "Data diperiksa dari sisi kelengkapan, konsistensi, keterbacaan, dan kesesuaian terhadap spesifikasi yang ditetapkan. "
-            "Hasil utama **harus dapat ditelusuri** dan dijelaskan dengan *konsistensi* tanpa mengarang bukti yang tidak tersedia. " * 18
+            "Hasil utama **harus dapat ditelusuri** dan dijelaskan dengan *konsistensi* tanpa mengarang bukti yang tidak tersedia. " * 8
         )
         long_b = (
             "Catatan evaluasi menjelaskan hasil yang benar-benar diamati, batas pemeriksaan, dan alasan setiap status diberikan. "
             "Setiap kesimpulan harus didukung oleh keluaran yang dapat diperiksa ulang serta tidak boleh menyamakan pengujian otomatis "
-            "dengan pemeriksaan visual atau pengujian runtime. " * 18
+            "dengan pemeriksaan visual atau pengujian runtime. " * 8
         )
         sections = []
         for heading in ("Pendahuluan", "Tujuan Pengujian", "Metode Pengujian", "Hasil Pengujian", "Kesimpulan"):
@@ -1229,6 +1229,27 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
 
 
 
+
+    def test_pdf_splits_oversized_paragraph_without_orphaning_following_heading(self):
+        import pymupdf
+        from clouzer_file_creation import _make_pdf
+        long_paragraph = (
+            "Paragraf panjang ini memeriksa aliran teks lintas halaman dengan kalimat yang tetap utuh. "
+            "Tata letak harus mempertahankan judul bagian bersama awal paragraf berikutnya. " * 18
+        )
+        content = (
+            "# Uji Layout PDF\n\n## Pendahuluan\n\nParagraf pembuka singkat.\n\n"
+            "## Kesimpulan\n\n" + long_paragraph
+        )
+        data = _make_pdf(content, "Uji Layout PDF")
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            conclusion_page = next(
+                index for index, page in enumerate(doc)
+                if "Kesimpulan" in page.get_text()
+            )
+            page_text = doc[conclusion_page].get_text()
+        self.assertIn("Kesimpulan", page_text)
+        self.assertIn("Paragraf panjang ini memeriksa", page_text)
 
     def test_pdf_conditional_repeated_header_is_not_required_when_table_fits_one_page(self):
         prompt = "Buat PDF dengan tabel 10 produk. Ulangi header jika tabel berlanjut ke halaman berikutnya."
