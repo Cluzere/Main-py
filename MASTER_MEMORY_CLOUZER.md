@@ -2980,7 +2980,47 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - `Audit recovery candidate`: PASS, run `45846878377`, exact tested SHA `a3399a347a77c290175b7375d04a12f6e1a5002f`. Regression suite: 133 tests, OK. https://github.com/Cluzere/Main-py/actions/runs/45846878377
 
 ### Acceptance boundary and next action
-- This fix proves the exact prompt wording is now routed to the file pipeline in unit tests; it does not yet prove a live PDF was generated or attached in Discord.
+- **LIVE RESULT UPDATE — USER CONFIRMED SUCCESS:** After deploying the detector fix and retrying the exact prompt, the user reported that the PDF was successfully created. This is a user-reported live success; do not invent additional details such as page count, attachment delivery evidence, or independent artifact inspection unless separately verified.
 - Production root `main.py`, production branch `main`, and production deployment remain untouched.
 - After the audit Wispbyte service fetches this new branch HEAD (or a later descendant), rerun the exact `TES_PDF_MASTER_FINAL.pdf` prompt and inspect logs for `[FILE-PIPELINE] stage=model_content_request`, `stage=model_content_received`, `[FILE-STAGE] stage=validated`, and `stage=discord_attachment_confirmed`. Do not claim success until the actual PDF attachment is visible and confirmed.
+
+## 52.18 **MANDATORY CROSS-BOT LESSON: NEVER CLASSIFY INTENT FROM ISOLATED KEYWORDS — PARSE THE WHOLE COMMAND** — 26 November 2026
+
+> **HIGH-PRIORITY RULE FOR EVERY BOT / AGENT THAT ROUTES NATURAL-LANGUAGE REQUESTS:** A capability word appearing anywhere in a user's message is NOT proof that the user is asking a capability question. Never reject, downgrade, or bypass an explicit action request merely because its specification contains words such as `bisa`, `dapat`, `mampu`, `can`, `could`, `able`, `support`, or similar terms.
+
+### General failure pattern
+- A user can issue a direct imperative command and then describe acceptance criteria using capability language. Example: `Buat PDF ... Pastikan teks dapat diseleksi dan dicari.`
+- The intent is to CREATE a PDF. The phrase `teks dapat diseleksi` is a document requirement, not a question asking whether the bot can create PDFs.
+- A brittle keyword filter that searches the entire message for `dapat` and treats it as a capability question will misclassify the command, return no action/format, and silently route the request into ordinary chat. The model may then hallucinate that tools or capabilities are unavailable even though the local backend supports the operation.
+- The same class of bug can affect file creation, image generation, code execution, uploads, bookings, search, automation, and any other command router that distinguishes questions from actions.
+
+### **MANDATORY INTENT-CLASSIFICATION RULES**
+1. **Read the whole utterance and its structure.** Determine the primary speech act: explicit command/action, capability question, informational question, or mixed request. Do not infer intent from a single word found anywhere in the specification.
+2. **Give explicit action verbs priority.** If the message clearly starts with or contains a direct action such as `buat`, `bikin`, `create`, `generate`, `export`, `kirim`, `upload`, `run`, or `execute`, preserve that action intent unless the sentence structure clearly makes it hypothetical or negated.
+3. **Detect questions grammatically, not lexically.** Terms like `bisa` / `dapat` / `mampu` (and English equivalents) are interrogative evidence only when used in an actual question construction, such as `Apakah kamu bisa membuat PDF?`, `Bisakah kamu...`, or a capability question ending in `?`. Their presence inside a requirement, explanation, quoted text, or acceptance criterion must not cancel an imperative command.
+4. **Do not use broad negative keyword gates.** Avoid rules equivalent to `if any capability_word in prompt: return None`. They create false negatives in long, detailed prompts.
+5. **Separate intent detection from execution availability.** First identify what the user asked for; then check whether the relevant backend/tool exists. Never claim a capability is unavailable merely because a request classifier returned `None`. Trace the route and identify the exact stage that did not execute.
+6. **Log routing decisions.** For actionable requests, log detected intent, selected format/action, routing decision, and reason for rejection. A missing downstream tool call must be investigated from the first routing stage, not assumed to be a provider/tool limitation.
+7. **Test both sides of the boundary.** Every intent-detector fix must include positive tests for imperative commands containing capability words in their specifications and negative tests for genuine capability questions. Include long realistic prompts, not only short toy examples.
+8. **Fail visibly, not silently.** If intent remains ambiguous, ask one concise clarification or report the precise unsupported step. Do not silently fall back to generic chat for an explicit action request.
+
+### Regression examples every bot should understand
+- **Action — must route to file generation:** `Buat PDF. Pastikan teks dapat diseleksi, disalin, dan dicari.`
+- **Action — must route to file generation:** `Create a report and ensure users can search the text.`
+- **Question — must remain a capability question:** `Apakah kamu bisa membuat PDF?`
+- **Question — must remain a capability question:** `Can you generate and send a PDF?`
+- **Mixed long specification:** An explicit command followed by requirements containing `bisa`, `dapat`, `mampu`, `can`, or `able` must retain the command intent unless the overall grammar clearly negates or makes the action hypothetical.
+
+### CLOUZER implementation and proof
+- The concrete regression was in `detect_requested_file_format()` in `audit-recovery/review-round-2/clouzer_file_creation.py`.
+- Fixed by checking interrogative sentence structure instead of rejecting any prompt containing isolated capability words.
+- Added positive test `test_detect_pdf_request_even_when_spec_mentions_selectable_text` and negative test `test_detect_capability_question_as_non_file_request`.
+- Both relevant CI workflows passed on exact tested branch SHA `a3399a347a77c290175b7375d04a12f6e1a5002f`; full regression suite: 133 tests, OK.
+- User subsequently reported that the exact PDF prompt succeeded after deploying the fix. Record this as user-confirmed live success, distinct from independently verified CI evidence.
+
+### Reuse instruction for future bots and maintainers
+- **When another bot exhibits a similar symptom — ignores a command, says a tool/function is unavailable, or unexpectedly falls back to plain chat — inspect the intent detector and routing predicates FIRST.** Search for broad keyword checks, negative gates, precedence mistakes, and format/action detection returning `None` before changing tool catalogs, provider settings, prompts, or backend integrations.
+- Reproduce the user's exact full prompt. Do not simplify away the wording that may trigger the bug.
+- Add paired regression tests (imperative-with-capability-wording vs genuine capability question), run the complete relevant CI suite, and confirm the actual downstream action.
+- This is a cross-project engineering rule, not merely a CLOUZER-specific workaround. Apply it to every bot/agent project maintained from this Master Memory.
 
