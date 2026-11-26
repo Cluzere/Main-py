@@ -619,6 +619,45 @@ def _make_pdf(content: str, title: str) -> bytes:
                 blocks.append(("text", stripped))
         flush_table()
 
+        # Split oversized prose paragraphs at sentence boundaries before layout.
+        # This keeps the first portion with its heading while allowing very long
+        # content to flow over pages without stranding the heading.
+        paginated_blocks = []
+        for kind, value in blocks:
+            if (
+                kind != "text"
+                or len(value) < 1200
+                or chr(96) * 3 in value
+                or re.match(r"^(?:[-*•]\s+|\d+[.)]\s+)", value)
+            ):
+                paginated_blocks.append((kind, value))
+                continue
+            plain_value = re.sub(r"\*\*(.*?)\*\*", r"\1", value)
+            plain_value = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", plain_value)
+            plain_value = plain_value.replace(chr(96), "")
+            if len(wrap_cell(plain_value, "helv", 9.5, content_width)) <= 28:
+                paginated_blocks.append((kind, value))
+                continue
+            sentences = re.split(r"(?<=[.!?])\s+", value)
+            if len(sentences) < 2:
+                paginated_blocks.append((kind, value))
+                continue
+            chunk = ""
+            for sentence in sentences:
+                candidate = sentence if not chunk else chunk + " " + sentence
+                plain_candidate = re.sub(r"\*\*(.*?)\*\*", r"\1", candidate)
+                plain_candidate = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", plain_candidate)
+                plain_candidate = plain_candidate.replace(chr(96), "")
+                candidate_lines = wrap_cell(plain_candidate, "helv", 9.5, content_width)
+                if chunk and len(candidate_lines) > 24:
+                    paginated_blocks.append(("text", chunk))
+                    chunk = sentence
+                else:
+                    chunk = candidate
+            if chunk:
+                paginated_blocks.append(("text", chunk))
+        blocks = paginated_blocks
+
         for block_index, (kind, value) in enumerate(blocks):
             if kind == "table":
                 draw_table(value)
