@@ -1402,10 +1402,10 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
         raise ValueError("Judul laporan MASTER FINAL tidak ditemukan pada PDF hasil.")
     page_body_chars = []
     for page_number, page_text in enumerate(page_texts, 1):
-        if not re.search(r"\\bHalaman\\s+" + str(page_number) + r"\\b", page_text, re.I):
+        if not re.search(r"\bHalaman\s+" + str(page_number) + r"\b", page_text, re.I):
             raise ValueError(f"Nomor halaman PDF tidak cocok pada halaman {page_number}.")
-        body_text = re.sub(r"(?i)\\bHalaman\\s+\\d+\\b", "", page_text)
-        page_body_chars.append(len(re.sub(r"\\s+", "", body_text)))
+        body_text = re.sub(r"(?i)\bHalaman\s+\d+\b", "", page_text)
+        page_body_chars.append(len(re.sub(r"\s+", "", body_text)))
     if any(count < 120 for count in page_body_chars):
         sparse_page = next(index + 1 for index, count in enumerate(page_body_chars) if count < 120)
         raise ValueError(
