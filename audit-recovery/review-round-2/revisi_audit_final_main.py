@@ -5215,10 +5215,6 @@ class ClouzerBot(commands.Bot):
                                 "source=explicit_user_content_only",
                                 scope_key, requested_file_format,
                             )
-                        file_source_content = resolve_document_source(
-                            requested_file_format, clean_content, reply_text or "",
-                            model_refused=model_refused_file_content,
-                        )
                         if requested_file_format == "xlsx":
                             _xlsx_diag_text = reply_text or ""
                             _xlsx_diag_lines = [line for line in _xlsx_diag_text.splitlines() if line.strip()]
@@ -5238,10 +5234,17 @@ class ClouzerBot(commands.Bot):
                                 _xlsx_diag_md_rows,
                             )
                         try:
+                            # Source-resolution failures caused by a model refusal must enter
+                            # the same one-shot format-aware retry as malformed builder output.
+                            # Keep explicit-source fallback fail-closed after that retry.
+                            file_source_content = resolve_document_source(
+                                requested_file_format, clean_content, reply_text or "",
+                                model_refused=model_refused_file_content,
+                            )
                             generated_bytes, generated_name, generated_mime = create_document_file(
                                 requested_file_format, clean_content, file_source_content
                             )
-                        except ValueError as build_exc:
+                        except (ValueError, RuntimeError) as build_exc:
                             # Shared one-shot recovery for malformed model output across all formats.
                             logging.warning(
                                 "[FILE-RETRY] scope=%s format=%s reason=%s action=retry_once",

@@ -944,8 +944,10 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
                 source = resolve_document_source(fmt, prompt, "Saya tidak bisa membuat file.", model_refused=True)
                 self.assertEqual(source, expected)
 
-    def test_refusal_fails_closed_without_explicit_source(self):
-        with self.assertRaisesRegex(RuntimeError, "tidak akan mengarang"):
+    def test_refusal_without_explicit_source_is_retryable_and_fails_closed(self):
+        # The entrypoint catches this invalid-source error to make one format-aware
+        # retry; if that retry is also refused, the operation still fails closed.
+        with self.assertRaisesRegex(ValueError, "tidak akan mengarang"):
             resolve_document_source("pdf", "Buat file PDF tentang CLOUZER.", "Saya tidak bisa membuat file.", model_refused=True)
 
     def test_non_refusal_keeps_model_content(self):

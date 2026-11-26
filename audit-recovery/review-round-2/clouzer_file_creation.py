@@ -1528,9 +1528,9 @@ def resolve_document_source(format_name: str, prompt: str, model_content: str, m
     explicit_source = extract_explicit_document_source(prompt)
     if explicit_source:
         return _validate_content(explicit_source)
-    raise RuntimeError(
+    raise ValueError(
         "Model menolak tugas pembuatan file dan prompt tidak berisi sumber dokumen eksplisit yang lengkap. "
-        "Tambahkan isi dokumen atau tabel secara langsung; CLOUZER tidak akan mengarang konten."
+        "Pemanggil dapat mencoba satu kali pemulihan format-aware; jika tetap ditolak, CLOUZER tidak akan mengarang konten."
     )
 
 def create_document_file(format_name: str, prompt: str, content: str) -> tuple[bytes, str, str]:
