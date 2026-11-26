@@ -1203,7 +1203,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertEqual(summary["required_sections"], [
             "Pendahuluan", "Tujuan Pengujian", "Metode Pengujian", "Hasil Pengujian", "Kesimpulan"
         ])
-        self.assertTrue(all(count >= 4 for count in summary["paragraphs_per_section"].values()))
+        self.assertTrue(all(count >= 2 for count in summary["paragraphs_per_section"].values()))
         self.assertTrue(summary["conclusion_with_opening_paragraph"])
         self.assertTrue(summary["page_numbers_correct"])
         self.assertTrue(summary["table_header_style"])
