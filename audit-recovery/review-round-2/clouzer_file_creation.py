@@ -287,7 +287,7 @@ def _requested_xlsx_headers(prompt: str) -> list[str]:
     if _prompt_pipe_table(value):
         return []
     match = re.search(
-        r"\b\d{1,3}\s*(?:kolom|columns?)\s*[:：]\s*([^\n.!?]+)",
+        r"\b\d{1,3}\s*(?:kolom|columns?)\s*[:：]?\s*([^\n.!?]+)",
         value, re.I,
     )
     if not match:
