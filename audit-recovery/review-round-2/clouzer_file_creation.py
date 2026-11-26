@@ -95,18 +95,31 @@ def _safe_title(content: str, prompt: str) -> str:
 
 
 def _requested_sheet_title(prompt: str) -> str | None:
+    """Extract an explicitly requested worksheet name without capturing instruction words."""
     value = re.sub(r"\*\*(.*?)\*\*|__(.*?)__", lambda match: match.group(1) or match.group(2), str(prompt or ""))
-    pattern = r"\b(?:worksheet|work\s*sheet|sheet|lembar\s+kerja)\b"
-    quoted = re.search(pattern + r"\s*(?:bernama|dengan\s+nama|name|:)?\s*[\x60\"']([^\x60\"']{1,80})[\x60\"']", value, re.I)
-    match = quoted or re.search(
-        pattern + r"\s*(?:bernama|dengan\s+nama|name|:)?\s*([A-Za-z0-9 _-]{1,80})",
+    label = r"(?:nama\s+)?(?:worksheet|work\s*sheet|sheet|lembar\s+kerja)"
+    connector = r"(?:wajib\s+|harus\s+)?(?:bernama|dengan\s+nama|name|:)"
+    quoted = re.search(
+        label + r"\s*" + connector + r"\s*[\x60\"']([^\x60\"']{1,80})[\x60\"']",
         value, re.I,
     )
-    if not match:
-        return None
-    title = match.group(1).strip(" _-")
-    title = re.split(r"\s+(?:dengan|berisi|untuk|yang|sebanyak)\b", title, maxsplit=1, flags=re.I)[0]
-    title = re.sub(r"[\[\]:*?/\\]", " ", title).strip()[:31]
+    if quoted:
+        title = quoted.group(1).strip()
+    else:
+        match = re.search(
+            label + r"\s*" + connector + r"\s*([A-Za-z0-9 _-]{1,80})",
+            value, re.I,
+        )
+        if not match:
+            match = re.search(label + r"\s*[\x60\"']([^\x60\"']{1,80})[\x60\"']", value, re.I)
+        if not match:
+            return None
+        title = match.group(1).strip()
+    title = re.split(
+        r"\s+(?:dengan|berisi|untuk|yang|sebanyak|dan|gunakan|berikut)\b",
+        title, maxsplit=1, flags=re.I,
+    )[0]
+    title = re.sub(r"[\[\]:*?/\\]", " ", title).strip(" _-")[:31]
     return title or None
 
 
