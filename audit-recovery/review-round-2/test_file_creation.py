@@ -1195,7 +1195,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertIn("Ringkasan Validasi Otomatis CLOUZER", extracted)
         self.assertIn("Inspeksi visual manual seluruh halaman", extracted)
         self.assertIn("NOT VERIFIED", extracted)
-        self.assertEqual(re.sub(r"\\s+", " ", extracted).casefold().count("not verified"), 3)
+        self.assertEqual(re.sub(r"\s+", " ", extracted).casefold().count("not verified"), 3)
         self.assertIn("Pengiriman attachment Discord", extracted)
         page_match = re.search(r"Jumlah halaman pada hasil validasi awal:\s*(\d+)", extracted)
         self.assertIsNotNone(page_match)
