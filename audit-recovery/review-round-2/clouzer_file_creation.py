@@ -1317,12 +1317,11 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
 
     records = []
     table_cells_by_page = {}
-    table_rows_by_page = {}
     header_pages = 0
     data_rows = []
-    header_styles_ok = False
-    alternating_fills_ok = False
-    cell_borders_ok = False
+    data_row_fills = []
+    header_style_checks = []
+    all_table_cells = []
     navy = (0.21, 0.37, 0.57)
     stripe = (0.96, 0.97, 0.98)
 
@@ -1358,8 +1357,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
             cells.sort(key=lambda cell: cell["rect"].x0)
             if len(cells) == 7:
                 page_rows.append((y, cells))
-        table_rows_by_page[page_index] = page_rows
         table_cells_by_page[page_index] = [cell["rect"] for _, cells in page_rows for cell in cells]
+        all_table_cells.extend(cell for _, cells in page_rows for cell in cells)
 
         header_index = None
         for row_index, (_, cells) in enumerate(page_rows):
@@ -1373,22 +1372,21 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
             if tuple(values) == tuple(item.casefold() for item in _MASTER_FINAL_COLUMNS):
                 header_index = row_index
                 header_pages += 1
-                header_styles_ok = all(close_color(cell["fill"], navy) for cell in cells)
-                cell_borders_ok = all(cell["stroke"] is not None and cell["width"] > 0 for cell in cells)
-                white_spans = 0
+                header_fill_ok = all(close_color(cell["fill"], navy) for cell in cells)
+                white_bold_spans = 0
                 for block in page.get_text("dict")["blocks"]:
                     if "lines" not in block:
                         continue
                     for line in block["lines"]:
                         for span in line["spans"]:
-                            if span.get("color") == 0xFFFFFF and any(
+                            if span.get("color") == 0xFFFFFF and span.get("flags", 0) & 16 and any(
                                 cell["rect"].contains(pymupdf.Point(
                                     (span["bbox"][0] + span["bbox"][2]) / 2,
                                     (span["bbox"][1] + span["bbox"][3]) / 2,
                                 )) for cell in cells
                             ):
-                                white_spans += 1
-                header_styles_ok = header_styles_ok and white_spans >= 7
+                                white_bold_spans += 1
+                header_style_checks.append(header_fill_ok and white_bold_spans >= 7)
                 break
         if header_index is not None:
             page_data = []
@@ -1403,12 +1401,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
                 if values and re.fullmatch(r"\d{1,2}", values[0]):
                     page_data.append((values, cells))
             data_rows.extend(values for values, _ in page_data)
-            fills = [cells[0]["fill"] for _, cells in page_data]
-            if len(fills) >= 2:
-                alternating_fills_ok = all(
-                    close_color(fills[i], (1, 1, 1) if i % 2 == 0 else stripe)
-                    for i in range(len(fills))
-                )
+            data_row_fills.extend(cells[0]["fill"] for _, cells in page_data)
 
     records.sort(key=lambda item: (item["page"], item["rect"].y0, item["rect"].x0))
     heading_indexes = {}
@@ -1431,8 +1424,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
         )
         return any(
             rect.contains(center)
-            for rects in table_cells_by_page.values()
-            for rect in rects
+            for rect in table_cells_by_page.get(record["page"], [])
         )
 
     paragraph_counts = {}
@@ -1473,6 +1465,14 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
         raise ValueError("Nomor produk pada tabel harus berurutan dari 1 sampai 10.")
     if any(len(row) != 7 or any(not str(value).strip() for value in row) for row in data_rows):
         raise ValueError("Setiap baris produk harus memiliki tujuh sel terisi.")
+    header_styles_ok = bool(header_style_checks) and all(header_style_checks)
+    alternating_fills_ok = len(data_row_fills) == 10 and all(
+        close_color(data_row_fills[i], (1, 1, 1) if i % 2 == 0 else stripe)
+        for i in range(len(data_row_fills))
+    )
+    cell_borders_ok = len(all_table_cells) >= 77 and all(
+        cell["stroke"] is not None and cell["width"] > 0 for cell in all_table_cells
+    )
     if not header_styles_ok:
         raise ValueError("Header tabel harus berwarna biru tua dengan teks putih tebal.")
     if not alternating_fills_ok:
