@@ -5123,7 +5123,7 @@ class ClouzerBot(commands.Bot):
                 # The document builder and Discord attachment sender are local Python
                 # operations, not model-callable Responses tools. Tell the model to
                 # return document content only and do not expose unrelated tools.
-                payload_messages[0]["content"] += "\\n\\n" + build_file_generation_system_instruction(
+                payload_messages[0]["content"] += "\n\n" + build_file_generation_system_instruction(
                     requested_file_format
                 )
                 logging.info(
@@ -5151,9 +5151,14 @@ class ClouzerBot(commands.Bot):
                         payload_messages,
                         status_msg,
                         mode=mode,
-                        allow_tools=not bool(requested_file_format) and not retrying_pending_task,
+                        allow_tools=not bool(requested_file_format),
                         allow_image_tool=allow_img_tool,
                     )
+                    if requested_file_format:
+                        logging.info(
+                            "[FILE-PIPELINE] scope=%s format=%s stage=model_content_received chars=%d function_calls=%d",
+                            scope_key, requested_file_format, len(reply_text or ""), len(function_calls or []),
+                        )
                 except ResponsesStreamInterrupted as stream_exc:
                     if not requested_file_format:
                         raise
