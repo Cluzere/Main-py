@@ -1729,7 +1729,11 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 raise ValueError("PDF tidak memiliki halaman atau teks.")
             result["pages"] = doc.page_count
             result["text_chars"] = len(extracted.strip())
-            result["vector_drawings"] = sum(len(page.get_drawings()) for page in doc)
+
+            # Cache each expensive PyMuPDF inspection once per page.
+            page_dicts = [page.get_text("dict") for page in doc]
+            page_drawings = [page.get_drawings() for page in doc]
+            result["vector_drawings"] = sum(len(items) for items in page_drawings)
             if re.search(r"\b(?:tabel|table)\b", prompt, re.I) and result["vector_drawings"] < 6:
                 raise ValueError("PDF diminta memiliki tabel, tetapi struktur tabel visual tidak ditemukan.")
             page_sizes = [(round(page.rect.width), round(page.rect.height)) for page in doc]
@@ -1743,17 +1747,18 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 raise ValueError(
                     f"PDF hanya memiliki {doc.page_count} halaman; prompt meminta minimal {page_count_match.group(1)}."
                 )
-            spans = [
-                span for page in doc for block in page.get_text("dict")["blocks"] if "lines" in block
-                for line in block["lines"] for span in line["spans"] if span.get("text", "").strip()
-            ]
-            for page_index, page in enumerate(doc, 1):
+
+            spans = []
+            for page_index, (page, page_dict) in enumerate(zip(doc, page_dicts), 1):
                 page_rect = page.rect
-                for block in page.get_text("dict")["blocks"]:
+                for block in page_dict["blocks"]:
                     if "lines" not in block:
                         continue
                     for line in block["lines"]:
                         for span in line["spans"]:
+                            if not span.get("text", "").strip():
+                                continue
+                            spans.append(span)
                             x0, y0, x1, y1 = span["bbox"]
                             if x0 < -0.5 or y0 < -0.5 or x1 > page_rect.width + 0.5 or y1 > page_rect.height + 0.5:
                                 raise ValueError(
@@ -1783,10 +1788,10 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
             table_groups = []
             repeated_header_pages = 0
             table_content_pages = 0
-            for page in doc:
+            for page_drawings_for_page in page_drawings:
                 row_cells = {}
                 navy_cells = {}
-                for drawing in page.get_drawings():
+                for drawing in page_drawings_for_page:
                     rect = drawing.get("rect")
                     if rect is None:
                         continue
@@ -2248,10 +2253,13 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         # embed its measured results into the report, then rebuild and validate
         # the final artifact. Repeat until the page count reported in the PDF
         # matches the final rendered page count.
+        final_summary = None
         for _ in range(4):
-            first_summary = validate_document_file(fmt, prompt, data)
+            # Reuse validation evidence for the current bytes at the next pass.
+            first_summary = final_summary or validate_document_file(fmt, prompt, data)
             updated_text = _append_master_final_validation_summary(text, first_summary)
             if updated_text == text:
+                final_summary = first_summary
                 break
             text = updated_text
             data = builders[fmt]()
@@ -2265,5 +2273,10 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         else:
             raise RuntimeError("Jumlah halaman PDF MASTER FINAL tidak stabil setelah penyisipan ringkasan validasi.")
 
-    validate_document_file(fmt, prompt, data)
+        # The summary above validates the exact final bytes; avoid duplicate work.
+        if not final_summary or not final_summary.get("valid"):
+            raise RuntimeError("Validasi akhir PDF MASTER FINAL tidak menghasilkan status valid.")
+    else:
+        validate_document_file(fmt, prompt, data)
+
     return data, _safe_filename(prompt, fmt), mime_types[fmt]
