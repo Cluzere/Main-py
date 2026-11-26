@@ -506,7 +506,11 @@ def _make_pdf(content: str, title: str) -> bytes:
         plain = re.sub(r"<[^>]+>", "", escaped)
         lines = wrap_cell(plain, font, size, content_width - (18 if marker else 0))
         line_height = size * 1.55
-        needed = max(line_height + gap, len(lines) * line_height + gap + 2)
+        # Reserve extra vertical slack for MuPDF's HTML layout metrics. The
+        # estimated wrapped-line height is intentionally conservative so
+        # ordinary Indonesian paragraphs do not fail on a small font-metric
+        # discrepancy.
+        needed = max(line_height + gap + 8, len(lines) * line_height + gap + 12)
         if y + needed > bottom:
             new_page()
         x = left + (16 if marker else 0)
@@ -514,9 +518,12 @@ def _make_pdf(content: str, title: str) -> bytes:
         markup = marker + escaped
         result = page.insert_htmlbox(
             rect, markup,
-            css=f"body {{ font-family: Helvetica; font-size: {size}pt; line-height: 1.35; color: #212933; }} "
-                "strong { font-weight: bold; } em { font-style: italic; } code { font-family: Courier; }",
-            scale_low=1,
+            css=f"body {{ margin: 0; padding: 0; font-family: Helvetica; font-size: {size}pt; line-height: 1.2; color: #212933; }} "
+                "p { margin: 0; padding: 0; } strong { font-weight: bold; } em { font-style: italic; } code { font-family: Courier; }",
+            # Permit only a small typographic downscale as a safety margin;
+            # do not abort an otherwise valid report because HTML layout
+            # metrics exceed the estimated box by a fraction of a point.
+            scale_low=0.90,
         )
         spare = result[0] if isinstance(result, tuple) else result
         if spare < 0:
