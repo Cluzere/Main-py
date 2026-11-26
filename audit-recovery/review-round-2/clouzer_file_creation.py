@@ -1669,7 +1669,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
 
 
 def _append_master_final_validation_summary(content: str, summary: dict) -> str:
-    """Embed evidence from the first PDF build into the report before its conclusion."""
+    """Append measured validation evidence after the complete report body."""
     marker = "### Ringkasan Validasi Otomatis CLOUZER"
     value = str(content or "")
     if marker in value:
