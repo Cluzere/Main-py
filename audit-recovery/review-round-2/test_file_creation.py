@@ -583,6 +583,37 @@ Mouse|150000"""
         finally:
             wb.close()
 
+    def test_xlsx_refusal_response_uses_explicit_prompt_table_authoritatively(self):
+        from openpyxl import load_workbook
+
+        prompt = """Buat file Excel (.xlsx).
+Nama worksheet wajib persis: `Data Pegawai`
+| No | Nama | Umur | Catatan |
+|---|---|---:|---|
+| 1 | Andi | 25 | =1+1 |
+| 2 | Budi | 30 | +SUM(1,1) |
+| 3 | Citra | 28 | @SUM(1,1) |"""
+        refusal = (
+            "Maaf, saya tidak dapat membuat file Excel secara langsung. "
+            "Saya hanya dapat memberikan panduan dan contoh tabel dalam teks."
+        )
+
+        data, filename, _ = create_document_file("xlsx", prompt, refusal)
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"], summary["sheet_name"]), (3, 4, "Data Pegawai"))
+
+        wb = load_workbook(io.BytesIO(data), data_only=False)
+        try:
+            ws = wb["Data Pegawai"]
+            self.assertEqual(ws.max_row, 4)
+            self.assertEqual(ws.max_column, 4)
+            self.assertEqual([ws.cell(row, 2).value for row in range(2, 5)], ["Andi", "Budi", "Citra"])
+            for row, expected in enumerate(("=1+1", "+SUM(1,1)", "@SUM(1,1)"), start=2):
+                self.assertEqual(ws.cell(row, 4).value, expected)
+                self.assertEqual(ws.cell(row, 4).data_type, "s")
+        finally:
+            wb.close()
+
     def test_xlsx_empty_model_response_uses_complete_prompt_table(self):
         prompt = "Buat XLSX dengan tabel berikut, tepat 1 baris data dan 2 kolom.\nKode|Stok\nA01|12"
         data, _, _ = create_document_file("xlsx", prompt, "")
