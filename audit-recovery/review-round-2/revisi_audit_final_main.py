@@ -6413,6 +6413,149 @@ async def on_message(message: discord.Message):
         )
 
 
+
+# Lightweight hosting resource tracker. Reads Linux procfs/cgroup files only; no extra dependency.
+class _HostResourceTracker:
+    def __init__(self):
+        self.interval = max(2.0, min(15.0, _env_float("RESOURCE_TRACK_INTERVAL_SECONDS", 5.0, 2.0)))
+        self.log_path = os.path.join(BASE_DIR, "resource_trace.csv")
+        self._stop = threading.Event()
+        self._thread = None
+        self._last_proc = None
+        self._last_sys = None
+        self._last_cgroup = None
+        self._started_at = time.monotonic()
+        self._last_report = self._started_at
+
+    @staticmethod
+    def _read_text(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        except (OSError, UnicodeError):
+            return ""
+
+    def _proc_stats(self):
+        raw = self._read_text("/proc/self/stat")
+        if not raw:
+            return None
+        try:
+            tail = raw[raw.rfind(")") + 2:].split()
+            cpu_ticks = int(tail[11]) + int(tail[12])  # utime + stime
+            rss_pages = int(tail[21])
+            page_size = os.sysconf("SC_PAGE_SIZE")
+            return cpu_ticks, rss_pages * page_size
+        except (ValueError, IndexError, OSError):
+            return None
+
+    def _system_ticks(self):
+        raw = self._read_text("/proc/stat")
+        if not raw:
+            return None
+        try:
+            fields = raw.splitlines()[0].split()[1:]
+            values = [int(x) for x in fields]
+            idle = values[3] + (values[4] if len(values) > 4 else 0)
+            return sum(values), idle
+        except (ValueError, IndexError):
+            return None
+
+    def _cgroup_stats(self):
+        cpu = self._read_text("/sys/fs/cgroup/cpu.stat")
+        mem = self._read_text("/sys/fs/cgroup/memory.current")
+        mem_max = self._read_text("/sys/fs/cgroup/memory.max")
+        cpu_max = self._read_text("/sys/fs/cgroup/cpu.max")
+        values = {}
+        for line in cpu.splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[1].isdigit():
+                values[parts[0]] = int(parts[1])
+        return {
+            "usage_usec": values.get("usage_usec"),
+            "throttled_usec": values.get("throttled_usec"),
+            "nr_throttled": values.get("nr_throttled"),
+            "memory_bytes": int(mem) if mem.isdigit() else None,
+            "memory_limit": int(mem_max) if mem_max.isdigit() else None,
+            "cpu_quota": cpu_max,
+        }
+
+    def _sample(self):
+        now = time.monotonic()
+        proc = self._proc_stats()
+        system = self._system_ticks()
+        cg = self._cgroup_stats()
+        cpu_process = None
+        cpu_host = None
+        cpu_cgroup = None
+        throttle_delta = None
+        if proc and system and self._last_proc and self._last_sys:
+            dticks = max(0, proc[0] - self._last_proc[0])
+            dsys = max(1, system[0] - self._last_sys[0])
+            hz = float(os.sysconf("SC_CLK_TCK"))
+            elapsed = max(0.001, now - self._last_report_sample)
+            cpu_process = round((dticks / hz) / elapsed * 100.0, 1)
+            cpu_host = round((dticks / dsys) * (os.cpu_count() or 1) * 100.0, 1)
+        if cg.get("usage_usec") is not None and self._last_cgroup:
+            du = max(0, cg["usage_usec"] - (self._last_cgroup.get("usage_usec") or 0))
+            elapsed = max(0.001, now - self._last_report_sample)
+            cpu_cgroup = round(du / (elapsed * 10000.0), 1)
+            if cg.get("nr_throttled") is not None:
+                throttle_delta = max(0, cg["nr_throttled"] - (self._last_cgroup.get("nr_throttled") or 0))
+        row = {
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+            "uptime_s": round(now - self._started_at, 1),
+            "process_cpu_one_core_pct": cpu_process,
+            "process_cpu_host_pct": cpu_host,
+            "cgroup_cpu_pct": cpu_cgroup,
+            "rss_mb": round(proc[1] / 1048576, 1) if proc else None,
+            "cgroup_memory_mb": round(cg["memory_bytes"] / 1048576, 1) if cg.get("memory_bytes") is not None else None,
+            "cgroup_memory_limit_mb": round(cg["memory_limit"] / 1048576, 1) if cg.get("memory_limit") is not None else None,
+            "cpu_throttled_usec_total": cg.get("throttled_usec"),
+            "cpu_throttle_events_delta": throttle_delta,
+            "cpu_quota": cg.get("cpu_quota"),
+        }
+        self._last_proc, self._last_sys, self._last_cgroup = proc, system, cg
+        self._last_report_sample = now
+        return row
+
+    def _run(self):
+        try:
+            os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
+            with open(self.log_path, "a", encoding="utf-8", buffering=1) as f:
+                if f.tell() == 0:
+                    f.write("timestamp,uptime_s,process_cpu_one_core_pct,process_cpu_host_pct,cgroup_cpu_pct,rss_mb,cgroup_memory_mb,cgroup_memory_limit_mb,cpu_throttled_usec_total,cpu_throttle_events_delta,cpu_quota\\n")
+                while not self._stop.wait(self.interval):
+                    row = self._sample()
+                    f.write(",".join("" if row[k] is None else str(row[k]) for k in (
+                        "timestamp", "uptime_s", "process_cpu_one_core_pct", "process_cpu_host_pct",
+                        "cgroup_cpu_pct", "rss_mb", "cgroup_memory_mb", "cgroup_memory_limit_mb",
+                        "cpu_throttled_usec_total", "cpu_throttle_events_delta", "cpu_quota"
+                    )) + "\\n")
+                    if time.monotonic() - self._last_report >= 30:
+                        logging.warning(
+                            "[RESOURCE] proc_cpu=%s%% one-core | cgroup_cpu=%s%% | RSS=%s MB | cgroup_mem=%s/%s MB | throttle_events+%s",
+                            row["process_cpu_one_core_pct"], row["cgroup_cpu_pct"], row["rss_mb"],
+                            row["cgroup_memory_mb"], row["cgroup_memory_limit_mb"], row["cpu_throttle_events_delta"]
+                        )
+                        self._last_report = time.monotonic()
+        except Exception:
+            logging.exception("[RESOURCE] Resource tracker stopped unexpectedly.")
+
+    def start(self):
+        self._last_report_sample = time.monotonic()
+        self._sample()  # establish baseline before sampling deltas
+        self._thread = threading.Thread(target=self._run, name="resource-tracker", daemon=True)
+        self._thread.start()
+        logging.warning("[RESOURCE] Tracker active; interval=%ss; CSV=%s", self.interval, self.log_path)
+
+    def stop(self):
+        self._stop.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=2.0)
+
+
+
+
 async def main():
     # Log hanya WARNING+ secara default (sama seperti sebelumnya); ubah lewat LOG_LEVEL.
     logging.basicConfig(
@@ -6422,6 +6565,8 @@ async def main():
     install_log_redaction()  # token/API key tidak boleh bocor ke konsol hosting
     if not DISCORD_TOKEN or not XINGCHI_API_KEY:
         raise RuntimeError("Token belum lengkap di .env!")
+    resource_tracker = _HostResourceTracker()
+    resource_tracker.start()
     for config_warning in check_runtime_config():
         logging.warning(config_warning)
     async with bot:
@@ -6434,6 +6579,7 @@ async def main():
         try:
             await bot.start(DISCORD_TOKEN)
         finally:
+            resource_tracker.stop()
             if oauth_runner is not None:
                 await oauth_runner.cleanup()
 
