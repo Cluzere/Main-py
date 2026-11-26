@@ -19,8 +19,9 @@ class FileCreationTests(unittest.TestCase):
                 self.assertIn("TIDAK perlu", instruction)
                 self.assertIn("jangan pernah menjawab", instruction.lower())
         pdf_instruction = build_file_generation_system_instruction("pdf")
-        self.assertIn("backend akan mengukur dan menyisipkan matriks hasil validasi otomatis", pdf_instruction)
-        self.assertIn("Jangan mengklaim inspeksi visual manual", pdf_instruction)
+        self.assertIn("backend memakai template deterministik", pdf_instruction)
+        self.assertIn("tepat dua paragraf naratif", pdf_instruction)
+        self.assertIn("Jangan mengklaim pemeriksaan visual manual", pdf_instruction)
         with self.assertRaises(ValueError):
             build_file_generation_system_instruction("exe")
 
@@ -1175,6 +1176,18 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertFalse(_is_master_final_pdf_prompt(
             prompt.replace("10 data produk", "10 data barang", 1)
         ))
+
+    def test_master_final_source_uses_backend_template_for_title_table_and_lists(self):
+        prompt, model_content = self._master_final_pdf_fixture()
+        source = resolve_document_source("pdf", prompt, model_content)
+        self.assertIn("# LAPORAN PENGUJIAN GENERATOR PDF CLOUZER", source)
+        self.assertIn("No | Nama | Produk | Kategori | Harga | Stok | Status", source)
+        self.assertIn("1 | Laptop | Laptop bisnis 14 inci", source)
+        self.assertIn("10 | Headset | Headset USB", source)
+        self.assertIn("1. **Periksa**", source)
+        self.assertIn("*hasil terukur*", source)
+        self.assertNotIn("Nama 1 | Produk 1", source)
+        self.assertEqual(len(re.findall(r"(?m)^## ", source)), 5)
 
     def test_master_final_pdf_enforces_report_sections_paragraphs_and_table(self):
         import pymupdf
