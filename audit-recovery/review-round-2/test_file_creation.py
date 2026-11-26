@@ -18,6 +18,37 @@ class FileCreationTests(unittest.TestCase):
         for prompt, expected in prompts.items():
             self.assertEqual(detect_requested_file_format(prompt), expected)
 
+    def test_pdf_renders_real_styled_table_and_selectable_text(self):
+        prompt = "Buat laporan PDF dengan tabel status pengujian"
+        content = (
+            "# Laporan Tes PDF CLOUZER\n\n"
+            "## Ringkasan\n\n"
+            "Dokumen ini merangkum hasil pengujian pembuatan file.\n\n"
+            "| No. | Komponen | Status |\n"
+            "|---|---|---|\n"
+            "| 1 | Penerimaan perintah | LULUS |\n"
+            "| 2 | Pembuatan isi dokumen | LULUS |\n"
+            "| 3 | Pembuatan file PDF | WAJIB DIUJI |\n"
+            "| 4 | Validasi file PDF | WAJIB DIUJI |\n"
+            "| 5 | Pengiriman lampiran Discord | WAJIB DIUJI |\n\n"
+            "## Kesimpulan\n\n"
+            "Validasi lanjutan masih diperlukan."
+        )
+        data, filename, mime = create_document_file("pdf", prompt, content)
+        import pymupdf
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            extracted = "\\n".join(page.get_text() for page in doc)
+            drawings = sum(len(page.get_drawings()) for page in doc)
+            self.assertGreaterEqual(doc.page_count, 1)
+            self.assertIn("Penerimaan perintah", extracted)
+            self.assertIn("WAJIB DIUJI", extracted)
+            self.assertIn("Kesimpulan", extracted)
+            self.assertGreaterEqual(drawings, 6)
+        summary = validate_document_file("pdf", prompt, data)
+        self.assertTrue(filename.endswith(".pdf"))
+        self.assertIn("application/pdf", mime)
+        self.assertGreater(summary["text_chars"], 80)
+
     def test_csv_creation_and_dimensions(self):
         prompt = "Buat CSV dengan 3 baris data dan 3 kolom"
         data, filename, mime = create_document_file("csv", prompt, "id,nama,status\n1,A,OK\n2,B,OK\n3,C,OK")
