@@ -3064,3 +3064,60 @@ The multi-format workflow log explicitly confirms:
 
 ### Acceptance boundary — do not overclaim
 These results establish automated regression coverage and CI PASS for the audit candidate. They do NOT establish that the latest code is deployed to Wispbyte, that the MASTER FINAL prompt has been rerun live, that the resulting PDF has been independently visually inspected page-by-page, or that Discord attachment delivery succeeded. The next acceptance step is a live run using the exact MASTER FINAL prompt, followed by inspection of the actual PDF artifact and all page renders. Any visual defects found must be fixed and retested before calling the result fully accepted.
+
+
+## 52.20 MASTER FINAL PDF validator hardening — 26 November 2026
+
+### Scope and authorization
+This work continues the MASTER FINAL PDF remediation from §52.19. User explicitly authorized direct correction. Changes were made only on audit-recovery-gpt-2026-11-23. Production branch main, root production main.py, Wispbyte runtime, and the existing Box PDF were not modified.
+
+### Findings addressed in the audit candidate
+The previous validator did not enforce the actual report contract strongly enough:
+- It did not check that all five required report sections existed in the correct order.
+- It did not check the minimum two substantive paragraphs in each section.
+- It counted vector row groups but did not validate the exact seven-column schema, ten sequential product rows, or populated cells.
+- It did not validate the requested dark-blue/white-bold header, alternating row fills, or borders across all table cells.
+- It did not validate page-number sequence or ensure the conclusion heading was followed by its opening paragraph on the same page.
+- Its repeated-header check could reject a one-page table even when the user only required repeating the header if the table continued.
+
+### Candidate changes
+File: audit-recovery/review-round-2/clouzer_file_creation.py
+- Added MASTER FINAL prompt recognition tied to the exact report title, five section names, 10-product requirement, and seven requested column names.
+- Added a MASTER FINAL PDF artifact validator that checks:
+  1. exact report title in the PDF text layer;
+  2. all five required section headings in the required order;
+  3. at least two substantive paragraph blocks per section;
+  4. correct Halaman N page numbering;
+  5. the exact seven-column header No, Nama, Produk, Kategori, Harga, Stok, Status;
+  6. exactly ten product rows numbered 1–10, with all seven cells populated;
+  7. dark-blue header fill and white bold header text;
+  8. alternating white and pale blue-gray product-row fills;
+  9. vector borders for all detected table cells;
+  10. conclusion heading with a substantive opening paragraph on the same page;
+  11. body text within the printable horizontal area and no detected text-block overlap.
+- Made table-cell exclusion page-local so a table on one page cannot accidentally suppress paragraph checks at matching coordinates on another page.
+- Reworked table-style checks to validate all product-row fills and all table-cell borders, including the header on each table page.
+- Updated conditional repeated-header logic: a continuation header is required only when the table actually occupies multiple pages; a one-page table is not falsely rejected.
+
+File: audit-recovery/review-round-2/test_file_creation.py
+- Added a MASTER FINAL fixture and acceptance test covering the report title, five sections, two paragraphs per section, 10×7 table, A4/minimum four-page output, page numbers, conclusion placement, header styling, alternating fills, borders, text geometry, and selectable text.
+- Added a negative test proving that a section with only one paragraph is rejected.
+- Added a regression test proving a conditional repeated-header requirement does not reject a table that fits on one page.
+
+### Git state and CI evidence boundary
+- Branch: audit-recovery-gpt-2026-11-23.
+- Latest candidate code commit at this record: 4d7cbb045f7d0933f1c673a0f8a01a47dc1c3f24.
+- Helper blob: 431103931dc90f72ab088a746c8864d25188a0e1.
+- Test blob: a534bc8f8ddbc8bfddfa7b12feab57c8b1d869a2.
+- Draft PR opened for CI/review visibility: https://github.com/Cluzere/Main-py/pull/6. It remains unmerged and in draft state.
+- fetch_commit_workflow_runs for the latest candidate SHA returned an empty workflow-run list; combined commit status returned no statuses. Therefore the new tests and code have NOT YET BEEN EXECUTED/CI-VERIFIED. Do not report PASS based on the existence of test code.
+- No live Wispbyte run, PDF regeneration, Discord attachment delivery, or Box replacement was performed in this work.
+
+### Remaining acceptance work
+1. Obtain an actual CI run for the latest candidate SHA and repair any failures until all relevant workflows reach a terminal successful state.
+2. Deploy only to the separately authorized staging/audit environment after the user initiates it; do not touch production.
+3. Rerun the exact MASTER FINAL prompt with filename Tes_PDF_Final.pdf.
+4. Inspect every page visually, including the last page and conclusion placement. Automated geometry checks are not a substitute for visual inspection.
+5. Verify the actual PDF attachment in Discord and the resulting Box artifact independently. Keep file creation, validation, Discord delivery, Box upload, and user download as separate evidence states.
+
+**Current status:** validator and regression tests have been added to the audit branch; automated execution, live PDF generation, visual inspection, Discord delivery, and Box replacement remain unverified. Production remains untouched.
