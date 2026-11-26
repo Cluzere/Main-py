@@ -927,6 +927,37 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
         self.assertIn("Andi", source)
         self.assertIn("Budi", source)
 
+    def test_refusal_fallback_builds_and_validates_each_native_format(self):
+        fixtures = {
+            "txt": ("Buat file TXT", "Isi TXT CLOUZER yang dipertahankan."),
+            "pdf": ("Buat file PDF", "# Laporan PDF\n\nIsi PDF CLOUZER yang dipertahankan."),
+            "docx": ("Buat file DOCX", "# Laporan DOCX\n\nIsi DOCX CLOUZER yang dipertahankan."),
+            "xlsx": ("Buat Excel tepat 2 baris data dan 2 kolom:\nNama|Umur\nAndi|25\nBudi|30", ""),
+            "pptx": ("Buat PowerPoint 2 slide", "Pengenalan\nCLOUZER adalah bot Discord.\n--- SLIDE ---\nPengujian\nPembuatan file berhasil divalidasi."),
+            "zip": ("Buat ZIP berisi README.txt dan data.json", "=== FILE: README.txt ===\nDokumen CLOUZER.\n=== FILE: data.json ===\n{\"status\":\"lulus\"}"),
+            "csv": ("Buat CSV dengan 2 baris data dan 2 kolom", "Nama,Umur\nAndi,25\nBudi,30"),
+            "json": ("Buat JSON", "{\"project\":\"CLOUZER\",\"status\":\"lulus\"}"),
+            "md": ("Buat Markdown", "# CLOUZER\n\nDokumen Markdown."),
+            "html": ("Buat HTML", "<!DOCTYPE html><html lang=\"id\"><head><title>CLOUZER</title></head><body><h1>Audit</h1></body></html>"),
+            "xml": ("Buat XML", "<?xml version=\"1.0\"?><audit><status>lulus</status></audit>"),
+            "yaml": ("Buat YAML", "project: CLOUZER\nstatus: lulus\n"),
+            "rtf": ("Buat RTF", r"{\rtf1\ansi CLOUZER audit passed\par}"),
+            "odt": ("Buat ODT", "Dokumen OpenDocument CLOUZER dengan isi yang valid."),
+        }
+        for fmt, (instruction, explicit_content) in fixtures.items():
+            with self.subTest(fmt=fmt):
+                if fmt == "xlsx":
+                    prompt = instruction
+                    source = resolve_document_source(fmt, prompt, "Saya tidak bisa membuat file.", model_refused=True)
+                else:
+                    prompt = instruction + "\nIsi dokumen sumber:\n```text\n" + explicit_content + "\n```\nGunakan isi sumber tanpa mengarang data."
+                    source = resolve_document_source(fmt, prompt, "Saya tidak bisa membuat file.", model_refused=True)
+                data, filename, mime = create_document_file(fmt, prompt, source)
+                self.assertTrue(data)
+                self.assertTrue(filename.endswith("." + fmt))
+                self.assertTrue(mime)
+                self.assertTrue(validate_document_file(fmt, prompt, data)["valid"])
+
 
 if __name__ == "__main__":
     unittest.main()
