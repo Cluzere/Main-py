@@ -119,8 +119,8 @@ def build_file_generation_system_instruction(format_name: str) -> str:
             "judul, struktur bagian, jumlah paragraf, tabel produk, gaya header, lapisan teks, atau nomor halaman "
             "belum diverifikasi: backend akan mengukur dan menyisipkan matriks hasil validasi otomatis setelah render. "
             "Jangan membuat matriks validasi otomatis sendiri. Jangan mengklaim inspeksi visual manual, seleksi/salin "
-            "di aplikasi pembaca, atau pengiriman Discord telah berhasil; backend akan menandainya NOT VERIFIED "
-            "sampai pemeriksaan terpisah benar-benar dilakukan."
+            "di aplikasi pembaca, atau pengiriman Discord telah berhasil. Jangan menulis kata NOT VERIFIED, status validasi, matriks pemeriksaan, atau ringkasan validasi apa pun di konten sumber. "
+            "Akhiri dokumen pada bagian Kesimpulan; backend akan menambahkan ringkasan validasi setelah dokumen dirender dan diperiksa."
             if fmt == "pdf" else ""
         )
     )
