@@ -587,6 +587,14 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 canonical_rows.append(canonical)
             _check_table(canonical_rows, prompt, "XLSX")
             if expected_rows and canonical_rows != expected_rows:
+                for row_index, (actual_row, expected_row) in enumerate(zip(canonical_rows, expected_rows), 1):
+                    if actual_row != expected_row:
+                        for column_index, (actual_value, expected_value) in enumerate(zip(actual_row, expected_row), 1):
+                            if actual_value != expected_value:
+                                raise ValueError(
+                                    f"Data XLSX berbeda dari tabel sumber pada baris {row_index}, kolom {column_index}: "
+                                    f"hasil={actual_value!r}, sumber={expected_value!r}."
+                                )
                 raise ValueError("Data XLSX berbeda dari tabel sumber pada prompt.")
             for index, header in enumerate(headers):
                 if _NUMERIC_XLSX_HEADER_RE.search(header) and index not in formula_specs:
