@@ -2286,3 +2286,41 @@ This workbook was fully opened and checked:
 - The previously blocked binary inspection is no longer blocked for these Box artifacts. The old Section 43/44 GitHub artifact note remains historically accurate for the route used then, but Section 45 records the later successful Box retrieval and inspection.
 - No code was changed, no production branch/file was edited, and no Wispbyte restart/deployment was performed.
 - Next audit step: compare each workbook with its exact originating prompt/log, then inspect the latest candidate helper to determine why one XLSX has fully populated formula caches while another does not. Keep generated-workbook validity, cached formula availability, Discord attachment delivery, and Box upload as separate acceptance gates.
+
+
+---
+
+## 46. PROMPT-RESILIENT XLSX GENERATOR PATCH — candidate-only implementation and CI (26 November 2026)
+
+### 46.1 User request and scope
+The user authorized immediate implementation to reduce XLSX generation failures when prompts/model output formatting changes. Work was performed only on branch `audit-recovery-gpt-2026-11-23` in:
+- `audit-recovery/review-round-2/clouzer_file_creation.py`
+- `audit-recovery/review-round-2/test_file_creation.py`
+
+No changes were made to production root `main.py`, production branch `main`, or the deployed Wispbyte runtime. No deployment or restart was performed.
+
+### 46.2 Implemented behavior
+1. **Explicit source-table priority:** when the user's original prompt contains a complete rectangular pipe-delimited table, that table is now the authoritative data source for XLSX generation. Model-produced table output is not allowed to replace, rewrite, truncate, or corrupt those source records. This addresses cases where the model returns malformed values (e.g. prose in a numeric cell) or changed records even though the prompt already contains the actual data.
+2. **Model-response fallback:** if XLSX model content is empty, rejected as a refusal/failure message, or otherwise fails content validation, the generator attempts deterministic XLSX construction from a complete rectangular table embedded in the original prompt. It does not invent rows. If the prompt contains no usable source table and the model cannot provide content, the request still fails honestly.
+3. **Numeric normalization:** numeric-header cells can accept plain numeric strings and common Indonesian currency/thousands formats such as `Rp 1.500.000`, `1.500`, and `1,25`. Unclear/ambiguous number formats are rejected rather than guessed. Resulting cells are stored as numeric Excel values.
+4. **Refusal detection:** expanded Indonesian model refusal phrases to reduce the chance that a refusal is treated as document content.
+5. **Tests:** added regressions for model output corruption versus explicit prompt source data, empty model response fallback, and localized Indonesian currency/thousands parsing. Updated an older test whose expectation conflicted with the new source-of-truth behavior.
+
+### 46.3 CI evidence
+The first patch attempt exposed an escaping bug in the numeric parser; CI caught it. That attempt was corrected before final validation. A subsequent test expectation also needed updating because source-table priority intentionally means model-corrupted values are ignored when the prompt contains authoritative source data.
+
+Final candidate head at the time of this record:
+- Commit: `d1f4ec3737149216ad4d77a9d9a0c0c89e91fb3b`
+- Two GitHub Actions workflow runs completed successfully:
+  - Run `45788530557` — 109 tests, result `OK`.
+  - Run `45788653128` — 109 tests, result `OK`.
+- Workflow run URL: https://github.com/Cluzere/Main-py/actions/runs/45788653128
+- The candidate archive/security regression workflow also completed successfully at run `45788653128` (109 tests, `OK`); the parallel full candidate test workflow `45788530557` likewise passed 109 tests.
+- An earlier intermediate run failed before the numeric regex escaping correction and is not the final candidate result.
+
+### 46.4 Limits and next controlled test
+- The patch improves prompt resilience but cannot create truthful data from nothing. If the prompt has no source table and the model/provider returns a refusal or empty response, the system must report failure rather than fabricate a workbook.
+- Prompt-source table extraction currently supports pipe-delimited tables; other source formats such as embedded TSV/CSV/JSON in the prompt may need dedicated extraction and tests before being treated as authoritative source data.
+- For prompts without source tables, successful generation still depends on the model returning a parseable table; numeric normalization handles common local formatting but does not solve provider outages or arbitrary model refusal.
+- These changes have passed candidate CI, but live Discord XLSX generation and attachment delivery have NOT yet been verified after the patch.
+- Next step: after reviewing the candidate diff, ask for/obtain explicit permission for one controlled live Discord test on the candidate runtime only. Keep production `main.py` and production `main` unchanged. Verify workbook contents, formula caches, dates, and Discord attachment separately.
