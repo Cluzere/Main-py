@@ -134,14 +134,26 @@ def _is_xlsx_total_row(row: list[str]) -> bool:
 
 
 def _xlsx_date_value(value: str):
-    """Parse ISO-8601 calendar dates into native Excel date cells."""
+    """Parse common ISO and localized calendar date strings into native Excel dates."""
     candidate = str(value or "").strip()
-    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", candidate):
+    if not candidate:
+        return value
+    formats = (
+        "%Y-%m-%d", "%Y/%m/%d",
+        "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",
+        "%m/%d/%Y", "%m-%d-%Y",
+        "%d/%m/%y", "%d-%m-%y",
+    )
+    for date_format in formats:
         try:
-            return _datetime.date.fromisoformat(candidate)
-        except ValueError as exc:
-            raise ValueError("Tanggal XLSX tidak valid: " + candidate) from exc
-    return value
+            return _datetime.datetime.strptime(candidate, date_format).date()
+        except ValueError:
+            continue
+    try:
+        # Accept ISO timestamps but store only the calendar date in Excel.
+        return _datetime.datetime.fromisoformat(candidate.replace("Z", "+00:00")).date()
+    except ValueError:
+        raise ValueError("Tanggal XLSX tidak valid: " + candidate)
 
 
 _NUMERIC_XLSX_HEADER_RE = re.compile(
