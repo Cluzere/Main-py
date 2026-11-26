@@ -325,6 +325,112 @@ def _make_docx(content: str, title: str) -> bytes:
     return output.getvalue()
 
 
+
+def _populate_xlsx_formula_caches(data: bytes) -> bytes:
+    """Store calculated numeric results beside generated formulas in XLSX XML.
+
+    openpyxl writes formulas but deliberately does not calculate them. This
+    evaluator handles the small, explicit formula grammar emitted by this
+    module and writes cached values so non-calculating readers can see results.
+    """
+    from openpyxl import load_workbook
+    import xml.etree.ElementTree as ET
+
+    workbook = load_workbook(io.BytesIO(data), data_only=False)
+    try:
+        ws = workbook.active
+        cache = {}
+        active = set()
+
+        def value_at(coordinate):
+            if coordinate in cache:
+                return cache[coordinate]
+            if coordinate in active:
+                raise ValueError("Siklus formula XLSX tidak diizinkan.")
+            active.add(coordinate)
+            try:
+                value = ws[coordinate].value
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    result = value
+                elif isinstance(value, str) and value.startswith("="):
+                    expression = value[1:].replace("$", "").replace(" ", "")
+                    match = re.fullmatch(r"([A-Z]{1,3}[0-9]+)\\+([A-Z]{1,3}[0-9]+)-([A-Z]{1,3}[0-9]+)", expression, re.I)
+                    if match:
+                        a, b, c = (value_at(ref.upper()) for ref in match.groups())
+                        result = a + b - c
+                    else:
+                        match = re.fullmatch(r"([A-Z]{1,3}[0-9]+)\\*([A-Z]{1,3}[0-9]+)", expression, re.I)
+                        if match:
+                            a, b = (value_at(ref.upper()) for ref in match.groups())
+                            result = a * b
+                        else:
+                            match = re.fullmatch(r"SUM\\(([A-Z]{1,3}[0-9]+):([A-Z]{1,3}[0-9]+)\\)", expression, re.I)
+                            if not match:
+                                raise ValueError("Formula XLSX tidak didukung untuk cache: " + value)
+                            from openpyxl.utils.cell import range_boundaries
+                            min_col, min_row, max_col, max_row = range_boundaries(":".join(match.groups()))
+                            result = 0
+                            for row in range(min_row, max_row + 1):
+                                for col in range(min_col, max_col + 1):
+                                    item = ws.cell(row, col).value
+                                    if isinstance(item, str) and item.startswith("="):
+                                        item = value_at(ws.cell(row, col).coordinate)
+                                    if item is not None:
+                                        if not isinstance(item, (int, float)) or isinstance(item, bool):
+                                            raise ValueError("SUM XLSX hanya boleh menjumlahkan angka.")
+                                        result += item
+                else:
+                    raise ValueError("Formula XLSX merujuk nilai non-numerik: " + coordinate)
+                if not isinstance(result, (int, float)) or isinstance(result, bool):
+                    raise ValueError("Hasil formula XLSX bukan angka: " + coordinate)
+                cache[coordinate] = result
+                return result
+            finally:
+                active.remove(coordinate)
+
+        for row in ws.iter_rows():
+            for cell in row:
+                if isinstance(cell.value, str) and cell.value.startswith("="):
+                    value_at(cell.coordinate)
+
+        ns_main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        ns_rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+        ns_pkg = "http://schemas.openxmlformats.org/package/2006/relationships"
+        with zipfile.ZipFile(io.BytesIO(data), "r") as source:
+            files = {name: source.read(name) for name in source.namelist()}
+        workbook_xml = ET.fromstring(files["xl/workbook.xml"])
+        rels_xml = ET.fromstring(files["xl/_rels/workbook.xml.rels"])
+        rel_targets = {item.attrib["Id"]: item.attrib["Target"] for item in rels_xml.findall(f"{{{ns_pkg}}}Relationship")}
+        sheet_node = workbook_xml.find(f".//{{{ns_main}}}sheet")
+        if sheet_node is None:
+            raise ValueError("XLSX tidak memiliki worksheet untuk cache formula.")
+        rel_id = sheet_node.attrib.get(f"{{{ns_rel}}}id")
+        target = rel_targets.get(rel_id)
+        if not target:
+            raise ValueError("Relasi worksheet XLSX tidak ditemukan.")
+        sheet_path = target.lstrip("/") if target.startswith("/") else "xl/" + target
+        sheet_path = str(__import__("posixpath").normpath(sheet_path))
+        if sheet_path not in files:
+            raise ValueError("XML worksheet XLSX tidak ditemukan.")
+        root = ET.fromstring(files[sheet_path])
+        for cell_node in root.findall(f".//{{{ns_main}}}c"):
+            coordinate = cell_node.attrib.get("r")
+            if coordinate not in cache:
+                continue
+            value_node = cell_node.find(f"{{{ns_main}}}v")
+            if value_node is None:
+                value_node = ET.SubElement(cell_node, f"{{{ns_main}}}v")
+            value_node.text = str(cache[coordinate])
+            cell_node.attrib.pop("t", None)
+        files[sheet_path] = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as target_zip:
+            for name, payload in files.items():
+                target_zip.writestr(name, payload)
+        return output.getvalue()
+    finally:
+        workbook.close()
+
 def _make_xlsx(content: str, prompt: str) -> bytes:
     try:
         from openpyxl import Workbook
@@ -454,7 +560,7 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
     workbook.calculation.forceFullCalc = True
     output = io.BytesIO()
     workbook.save(output)
-    return output.getvalue()
+    return _populate_xlsx_formula_caches(output.getvalue())
 
 def _make_pptx(content: str, title: str) -> bytes:
     try:
