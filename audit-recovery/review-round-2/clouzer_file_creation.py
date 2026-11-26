@@ -1382,10 +1382,12 @@ def _is_master_final_pdf_prompt(prompt: str) -> bool:
     return _mentions_ten_products(prompt) and all(item.casefold() in value for item in required)
 
 
-def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -> dict:
-    """Validate semantic structure and table fidelity for the MASTER FINAL PDF contract."""
+def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], page_dicts=None, page_drawings=None) -> dict:
+    """Validate semantic structure and table fidelity using cached page inspections."""
     import pymupdf
 
+    page_dicts = page_dicts or [page.get_text("dict") for page in doc]
+    page_drawings = page_drawings or [page.get_drawings() for page in doc]
     extracted = "\n".join(page_texts)
     normalized_extracted = re.sub(r"\s+", " ", extracted.casefold())
     summary_present = "ringkasan validasi otomatis clouzer" in normalized_extracted
@@ -1434,15 +1436,21 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
         return bool(actual and len(actual) >= 3 and all(abs(actual[i] - expected[i]) <= tolerance for i in range(3)))
 
     for page_index, page in enumerate(doc):
-        for block in page.get_text("blocks"):
-            if len(block) >= 5 and str(block[4]).strip():
+        for block in page_dicts[page_index]["blocks"]:
+            if "lines" not in block:
+                continue
+            block_text = "\n".join(
+                "".join(str(span.get("text", "")) for span in line["spans"])
+                for line in block["lines"]
+            ).strip()
+            if block_text:
                 records.append({
                     "page": page_index,
-                    "rect": pymupdf.Rect(block[:4]),
-                    "text": str(block[4]).strip(),
+                    "rect": pymupdf.Rect(block["bbox"]),
+                    "text": block_text,
                 })
         grouped = {}
-        for drawing in page.get_drawings():
+        for drawing in page_drawings[page_index]:
             rect = drawing.get("rect")
             if rect is None or rect.x0 < 40 or rect.x1 > 555 or rect.y0 < 75 or rect.y1 > 795:
                 continue
@@ -1476,7 +1484,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
                 header_pages += 1
                 header_fill_ok = all(close_color(cell["fill"], navy) for cell in cells)
                 white_bold_spans = 0
-                for block in page.get_text("dict")["blocks"]:
+                for block in page_dicts[page_index]["blocks"]:
                     if "lines" not in block:
                         continue
                     for line in block["lines"]:
@@ -1553,7 +1561,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
     conclusion_page = doc[conclusion_heading["page"]]
     heading_rect = conclusion_heading["rect"]
     following_spans = []
-    for block in conclusion_page.get_text("dict")["blocks"]:
+    for block in page_dicts[conclusion_heading["page"]]["blocks"]:
         if "lines" not in block:
             continue
         for line in block["lines"]:
@@ -1843,7 +1851,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
             if repeat_requested and table_content_pages > 1 and repeated_header_pages < table_content_pages:
                 raise ValueError("Header tabel tidak terulang pada setiap halaman lanjutan tabel.")
             if _is_master_final_pdf_prompt(prompt):
-                result.update(_validate_master_final_pdf_report(doc, prompt, page_texts))
+                result.update(_validate_master_final_pdf_report(doc, prompt, page_texts, page_dicts, page_drawings))
             result["text_layer"] = True
             result["bold_spans"] = sum(bool(flag & 16) for flag in flags)
             result["italic_spans"] = sum(bool(flag & 2) for flag in flags)
