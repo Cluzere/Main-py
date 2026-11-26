@@ -114,6 +114,15 @@ def build_file_generation_system_instruction(format_name: str) -> str:
         "Tugasmu hanya menyusun isi dokumen lengkap sesuai permintaan pengguna. "
         "Keluarkan hanya isi dokumen, tanpa penjelasan tentang tool, API, kemampuan sesi, atau proses pengiriman. "
         "Ikuti semua spesifikasi konten dan struktur pengguna; jangan mengarang fakta atau data yang tidak diminta."
+        + (
+            " Untuk laporan MASTER FINAL PDF CLOUZER, jangan membuat klaim bahwa jumlah halaman, ukuran A4, "
+            "judul, struktur bagian, jumlah paragraf, tabel produk, gaya header, lapisan teks, atau nomor halaman "
+            "belum diverifikasi: backend akan mengukur dan menyisipkan matriks hasil validasi otomatis setelah render. "
+            "Jangan membuat matriks validasi otomatis sendiri. Jangan mengklaim inspeksi visual manual, seleksi/salin "
+            "di aplikasi pembaca, atau pengiriman Discord telah berhasil; backend akan menandainya NOT VERIFIED "
+            "sampai pemeriksaan terpisah benar-benar dilakukan."
+            if fmt == "pdf" else ""
+        )
     )
 
 
@@ -1519,6 +1528,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
                     f"{first['text'][:35]!r} / {second['text'][:35]!r}."
                 )
 
+    table_content_pages = sum(bool(cells) for cells in table_cells_by_page.values())
     return {
         "master_final_report": True,
         "required_sections": list(_MASTER_FINAL_SECTIONS),
@@ -1526,6 +1536,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
         "product_rows": len(data_rows),
         "table_columns": 7,
         "table_header_pages": header_pages,
+        "table_content_pages": table_content_pages,
         "conclusion_with_opening_paragraph": True,
         "page_numbers_correct": True,
         "table_header_style": header_styles_ok,
@@ -1550,7 +1561,8 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
         abs(width - 595) <= 2 and abs(height - 842) <= 2
         for width, height in page_sizes
     )
-    extracted = str(summary.get("_extracted_text", ""))
+    table_pages = summary.get("table_content_pages", 0)
+    repeated_header_ok = table_pages <= 1 or summary.get("table_header_pages", 0) == table_pages
     checks = [
         ("Struktur lima bagian wajib", "PASS", "Lima heading terdeteksi berurutan."),
         ("Minimal dua paragraf per bagian", "PASS", "Seluruh bagian memenuhi jumlah minimum."),
@@ -1564,7 +1576,7 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
         ("Teks dapat diekstrak dan dicari", "PASS" if summary.get("text_layer") else "FAIL", "Lapisan teks PDF tersedia dan kata CLOUZER terdeteksi."),
         ("Bold, italic, daftar bernomor, dan bullet", "PASS" if summary.get("bold_spans", 0) and summary.get("italic_spans", 0) else "FAIL", "Font tebal/miring dan penanda daftar diperiksa dari lapisan teks."),
         ("Geometri teks isi dan tabrakan blok", "PASS" if summary.get("body_text_geometry") and not summary.get("body_text_overlaps") else "FAIL", "Batas margin dan irisan blok teks diperiksa otomatis."),
-        ("Pengulangan header tabel saat tabel berlanjut", "PASS", "Renderer mengulang header pada setiap halaman tabel lanjutan; tidak diwajibkan bila tabel satu halaman."),
+        ("Pengulangan header tabel saat tabel berlanjut", "PASS" if repeated_header_ok else "FAIL", f"{summary.get('table_header_pages', 0)} header untuk {table_pages} halaman tabel."),
         ("Inspeksi visual manual seluruh halaman", "NOT VERIFIED", "Pemeriksaan otomatis tidak menggantikan inspeksi visual halaman demi halaman."),
         ("Seleksi/salin manual di aplikasi pembaca PDF", "NOT VERIFIED", "Lapisan teks tersedia; interaksi manual pada pembaca PDF belum diuji."),
         ("Pengiriman attachment Discord", "NOT VERIFIED", "Status pengiriman baru dapat dipastikan setelah pesan Discord berhasil dikirim."),
@@ -2056,7 +2068,6 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         # matches the final rendered page count.
         for _ in range(4):
             first_summary = validate_document_file(fmt, prompt, data)
-            first_summary["_extracted_text"] = ""
             updated_text = _append_master_final_validation_summary(text, first_summary)
             if updated_text == text:
                 break
