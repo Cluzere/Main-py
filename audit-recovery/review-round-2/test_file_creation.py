@@ -625,7 +625,7 @@ Aktifkan autofilter dan freeze panes A2."""
 8|SSD|80
 9|RAM|90
 10|Flashdisk|100
-|TOTAL|550"""
+| | TOTAL | 550 |"""
         data, filename, _ = create_document_file("xlsx", prompt, content)
         self.assertEqual(filename, "TES_TOTAL_ROW_LABEL.xlsx")
         summary = validate_document_file("xlsx", prompt, data)
