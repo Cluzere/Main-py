@@ -410,7 +410,7 @@ def _populate_xlsx_formula_caches(data: bytes) -> bytes:
                 value = ws[coordinate].value
                 if isinstance(value, (int, float)) and not isinstance(value, bool):
                     result = value
-                elif isinstance(value, str) and value.startswith("="):
+                elif ws[coordinate].data_type == "f" and isinstance(value, str) and value.startswith("="):
                     expression = value[1:].replace("$", "").replace(" ", "")
                     match = re.fullmatch(r"([A-Z]{1,3}[0-9]+)\+([A-Z]{1,3}[0-9]+)-([A-Z]{1,3}[0-9]+)", expression, re.I)
                     if match:
@@ -448,7 +448,7 @@ def _populate_xlsx_formula_caches(data: bytes) -> bytes:
 
         for row in ws.iter_rows():
             for cell in row:
-                if isinstance(cell.value, str) and cell.value.startswith("="):
+                if cell.data_type == "f" and isinstance(cell.value, str) and cell.value.startswith("="):
                     value_at(cell.coordinate)
 
         ns_main = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -595,6 +595,12 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
                         ) from number_exc
             values.append(value)
         sheet.append(values)
+        # User-provided text is data, never a formula. Explicitly mark strings
+        # beginning with spreadsheet formula sigils as string cells so the
+        # cache evaluator and Excel cannot execute them.
+        for column_index, value in enumerate(values, 1):
+            if isinstance(value, str) and value.lstrip()[:1] in {"=", "+", "-", "@"}:
+                sheet.cell(row_index + 1, column_index).data_type = "s"
         if row_index > 0:
             for column_index in range(len(headers)):
                 if re.search(r"(?:tanggal|date)", headers[column_index]):
