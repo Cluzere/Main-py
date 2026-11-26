@@ -2324,3 +2324,41 @@ Final candidate head at the time of this record:
 - For prompts without source tables, successful generation still depends on the model returning a parseable table; numeric normalization handles common local formatting but does not solve provider outages or arbitrary model refusal.
 - These changes have passed candidate CI, but live Discord XLSX generation and attachment delivery have NOT yet been verified after the patch.
 - Next step: after reviewing the candidate diff, ask for/obtain explicit permission for one controlled live Discord test on the candidate runtime only. Keep production `main.py` and production `main` unchanged. Verify workbook contents, formula caches, dates, and Discord attachment separately.
+
+---
+
+## 47. XLSX FORMULA-LIKE TEXT INJECTION FIX — candidate-only patch (26 November 2026)
+
+### 47.1 Live reproduction and diagnosis
+The user ran the 10-row adversarial employee workbook test through CLOUZER. The prompt required six columns (No, Nama, Umur, Jabatan, Harga, Catatan) and explicitly required the Catatan value `=1+1` to remain literal text, not an Excel formula.
+
+CLOUZER returned:
+`⚠️ File XLSX belum berhasil dibuat atau dikirim. ValueError: Formula XLSX tidak didukung untuk cache: =1+1`
+
+Diagnosis: user/model-supplied formula-like text in a normal data cell was entering the formula/cache evaluation path. This should be treated as plain text. It is a genuine XLSX generation defect; the failure was not evidence that the data table had the wrong number of columns.
+
+### 47.2 Candidate implementation changes
+Changes were made only on branch `audit-recovery-gpt-2026-11-23`, in:
+- `audit-recovery/review-round-2/clouzer_file_creation.py`
+- `audit-recovery/review-round-2/test_file_creation.py`
+
+Implementation:
+1. The formula-cache evaluator now evaluates only cells whose openpyxl `data_type` is `f`, rather than every string beginning with `=`.
+2. Formula dependency scanning likewise follows only actual formula cells.
+3. When appending user/model data rows, formula-like strings beginning (after optional leading whitespace) with `=`, `+`, `-`, or `@` are explicitly marked as string cells (`data_type = s`) unless the column is a trusted, explicitly generated formula column.
+4. The trusted formula-column exclusion is important: the first CI run exposed that marking every formula-like value as text also broke legitimate generated inventory formulas. The implementation was corrected to preserve formulas in columns listed in `formula_specs`.
+5. Added regression test `test_xlsx_formula_like_user_text_is_preserved_as_literal_string`. It checks that `=1+1` remains the exact string in both normal workbook loading and `data_only=True` loading, and that the workbook still passes the expected dimension/sheet validation.
+
+### 47.3 CI status and evidence
+- First CI attempt after the initial patch failed: 3 existing stock-audit formula tests lost their trusted formula-cache results because the initial literal-string safeguard was too broad. This was caught before considering the patch complete.
+- Corrective commit: `e8886a8ddd54dd4eee97455c7f1fcc530e92b7d8` — `Preserve trusted generated XLSX formulas`.
+- New regression workflow run: `45799029457` — https://github.com/Cluzere/Main-py/actions/runs/45799029457
+- Syntax workflow run: `45799029437` — https://github.com/Cluzere/Main-py/actions/runs/45799029437
+- At the time this section was written, both latest workflow runs were still in progress. Do not mark CI as passed until their final conclusions and logs have been checked.
+- Previous failed run `45798917314` reported 111 tests with 3 errors, all three being trusted stock-audit formula/cache tests; the newly added literal-text regression itself passed. The correction specifically narrows literal treatment to non-formula columns.
+
+### 47.4 Scope and remaining verification
+- Production root `main.py`, production `main` branch, and Wispbyte deployment/runtime were not modified, deployed, or restarted.
+- This is a candidate-branch patch only. Live Discord generation and attachment delivery have not yet been re-tested after this change.
+- After CI completes, verify both workflow results and inspect their logs. If green, run the same 10-row live Discord test again and retrieve the resulting XLSX from Box. Inspect formula-like text cell type/value and all six-column/ten-row acceptance criteria.
+- Keep the result separate from the earlier baseline workbook PASS: that baseline only demonstrated simple XLSX creation and did not test formula-like text.
