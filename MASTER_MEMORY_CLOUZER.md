@@ -2724,3 +2724,12 @@ Files changed:
 
 Next required step before live testing: execute `python -m py_compile` on the candidate entrypoint/helper and run the full `test_file_creation.py` suite in a Python 3.12 environment with the same runtime dependencies. Fix any failures before asking the user to restart Wispbyte. If the tests pass, tell the user the exact candidate commit to fetch; do not imply it is deployed until fresh startup logs prove it.
 
+### 52.6 Dedicated audit workflow added
+
+- Added `.github/workflows/clouzer-multiformat-audit.yml` on the audit branch.
+- Workflow commit: `59a9dbdf3f3e486305b74b9de28e554456061e1a`.
+- It is configured for pushes to `audit-recovery-gpt-2026-11-23` and manual dispatch; steps compile the candidate entrypoint/helper, run Bandit high-severity scan, install the same runtime dependencies used by the previous successful candidate audit, and run the complete unittest discovery suite.
+- At the time of this update, GitHub combined status returned no status entries for this workflow commit. Therefore the workflow has been added, but execution/result is **NOT YET CONFIRMED**. Do not call tests passed.
+- The temporary draft PR #5 was closed without merging. Production `main` remains unchanged.
+- Current audit branch tip after adding the workflow: `59a9dbdf3f3e486305b74b9de28e554456061e1a`. Candidate code itself remains at `132d28841ee352319d83667f845ebec690e51d54`.
+
