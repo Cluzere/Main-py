@@ -126,7 +126,7 @@ def _requested_sheet_title(prompt: str) -> str | None:
         r"\s+(?:dengan|berisi|untuk|yang|sebanyak|dan|gunakan|berikut)\b",
         title, maxsplit=1, flags=re.I,
     )[0]
-    title = re.sub(r"[\[\]:*?/\]", " ", title).strip(" _-")[:31]
+    title = re.sub(r"[\[\]:*?/\\]", " ", title).strip(" _-")[:31]
     return title or None
 
 
@@ -345,7 +345,7 @@ def _safe_filename(prompt: str, extension: str) -> str:
     ext = re.escape(str(extension or "").lower().lstrip("."))
     quoted = re.search(r"[\x60\"']([A-Za-z0-9][A-Za-z0-9_-]{0,100}\." + ext + r")[\x60\"']", value, re.I)
     explicit = quoted or re.search(
-        r"(?<![A-Za-z0-9_./\])([A-Za-z0-9][A-Za-z0-9_-]{0,100}\." + ext + r")(?![A-Za-z0-9_])",
+        r"(?<![A-Za-z0-9_./\\])([A-Za-z0-9][A-Za-z0-9_-]{0,100}\." + ext + r")(?![A-Za-z0-9_])",
         value, re.I,
     )
     if explicit:
