@@ -1129,5 +1129,78 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
         self.assertGreaterEqual(summary["table_header_pages"], 2)
 
 
+    def _master_final_pdf_fixture(self):
+        prompt = """Buat PDF sungguhan bernama Tes_PDF_Final.pdf dan kirim sebagai attachment Discord.
+Judul laporan: LAPORAN PENGUJIAN GENERATOR PDF CLOUZER.
+Wajib ada bagian Pendahuluan, Tujuan Pengujian, Metode Pengujian, Hasil Pengujian, dan Kesimpulan, masing-masing minimal dua paragraf.
+Buat tabel 10 produk dengan 7 kolom: No, Nama, Produk, Kategori, Harga, Stok, Status.
+Gunakan format A4 minimal 4 halaman, teks bold dan italic, daftar bernomor dan daftar berpoin.
+Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat diseleksi, disalin, dan dicari, termasuk kata CLOUZER."""
+        long_a = (
+            "Pengujian ini dilakukan dengan prosedur yang terukur untuk memastikan setiap tahap berjalan sesuai tujuan. "
+            "Data diperiksa dari sisi kelengkapan, konsistensi, keterbacaan, dan kesesuaian terhadap spesifikasi yang ditetapkan. "
+            "Hasil utama harus dapat ditelusuri dan dijelaskan tanpa mengarang bukti yang tidak tersedia. " * 7
+        )
+        long_b = (
+            "Catatan evaluasi menjelaskan hasil yang benar-benar diamati, batas pemeriksaan, dan alasan setiap status diberikan. "
+            "Setiap kesimpulan harus didukung oleh keluaran yang dapat diperiksa ulang serta tidak boleh menyamakan pengujian otomatis "
+            "dengan pemeriksaan visual atau pengujian runtime. " * 7
+        )
+        sections = []
+        for heading in ("Pendahuluan", "Tujuan Pengujian", "Metode Pengujian", "Hasil Pengujian", "Kesimpulan"):
+            sections.extend((f"## {heading}", long_a, long_b))
+            if heading == "Metode Pengujian":
+                sections.extend(("1. Periksa file hasil", "- Cocokkan hasil dengan kriteria"))
+            if heading == "Hasil Pengujian":
+                sections.append(
+                    "No | Nama | Produk | Kategori | Harga | Stok | Status\\n"
+                    "--- | --- | --- | --- | --- | --- | ---\\n" +
+                    "\\n".join(
+                        f"{i} | Nama {i} | Produk {i} | Elektronik | Rp{i}00.000 | {i * 3} | PASS"
+                        for i in range(1, 11)
+                    )
+                )
+        content = "# LAPORAN PENGUJIAN GENERATOR PDF CLOUZER\\n\\n" + "\\n\\n".join(sections)
+        return prompt, content
+
+    def test_master_final_pdf_enforces_report_sections_paragraphs_and_table(self):
+        import pymupdf
+        prompt, content = self._master_final_pdf_fixture()
+        data, filename, mime = create_document_file("pdf", prompt, content)
+        summary = validate_document_file("pdf", prompt, data)
+        self.assertEqual(filename, "Tes_PDF_Final.pdf")
+        self.assertEqual(mime, "application/pdf")
+        self.assertGreaterEqual(summary["pages"], 4)
+        self.assertTrue(summary["master_final_report"])
+        self.assertEqual(summary["product_rows"], 10)
+        self.assertEqual(summary["table_columns"], 7)
+        self.assertEqual(summary["required_sections"], [
+            "Pendahuluan", "Tujuan Pengujian", "Metode Pengujian", "Hasil Pengujian", "Kesimpulan"
+        ])
+        self.assertTrue(all(count >= 2 for count in summary["paragraphs_per_section"].values()))
+        self.assertTrue(summary["conclusion_with_opening_paragraph"])
+        self.assertTrue(summary["page_numbers_correct"])
+        self.assertTrue(summary["table_header_style"])
+        self.assertTrue(summary["alternating_table_rows"])
+        self.assertTrue(summary["table_cell_borders"])
+        self.assertTrue(summary["body_text_geometry"])
+        self.assertFalse(summary["body_text_overlaps"])
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            extracted = "\\n".join(page.get_text() for page in doc)
+        self.assertIn("LAPORAN PENGUJIAN GENERATOR PDF CLOUZER", extracted)
+        self.assertIn("CLOUZER", extracted)
+
+    def test_master_final_pdf_rejects_section_with_only_one_paragraph(self):
+        prompt, content = self._master_final_pdf_fixture()
+        content = content.replace(
+            "## Tujuan Pengujian\\n\\n" + content.split("## Tujuan Pengujian\\n\\n", 1)[1].split("\\n\\n", 1)[0] + "\\n\\n",
+            "## Tujuan Pengujian\\n\\n",
+            1,
+        )
+        with self.assertRaisesRegex(ValueError, "Tujuan Pengujian.*minimal dua"):
+            create_document_file("pdf", prompt, content)
+
+
+
 if __name__ == "__main__":
     unittest.main()
