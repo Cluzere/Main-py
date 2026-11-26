@@ -2882,3 +2882,13 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - Preserve the project safety boundary throughout this process: work on the authorized audit branch only; do not modify production branch main, root production main.py, or restart/deploy Wispbyte without the user's explicit authorization.
 - This protocol applies to all future CLOUZER audit work, not only the PDF generator.
 
+
+
+### 52.14 Manual Discord-to-Box upload provenance — 26 November 2026
+
+- The current assistant tool setup cannot directly retrieve CLOUZER's generated attachment from the user's Discord session and transfer that binary into the user's Box account as an automatic Discord → Box workflow. Do not claim that this integration or automatic upload is working.
+- For the live PDF test, the user downloaded the generated PDF from Discord and then uploaded that downloaded file manually to Box. This provenance was explicitly clarified by the user; it was not an automatic upload by CLOUZER or by the assistant's tools.
+- The manually uploaded Box artifact was found and checked: `TES_PDF_TABLE_CLOUZER.pdf`, Box file ID `2616788670945`, URL https://account.box.com/file/2616788670945, size 11,765 bytes, SHA-1 `aed132af7fbf8cb6ef8cfa92759d4e6ef8789ec4`, created/modified `2026-11-26T13:59:18Z`, folder `All Files / CLOUZER_BUANGAN_UPLOAD / Tes 10 file`.
+- Box metadata identifies the user as the file creator/uploader. Box text extraction confirms the PDF contains the expected title, summary, seven-row test table, and conclusion. This proves the PDF exists in Box and its text is extractable; it does not prove the visual table styling, repeated table header, selectable text at the visual/layout level, Discord attachment delivery correctness, or any automatic Box integration.
+- Record the delivery and storage stages separately in future audits: (1) CLOUZER generates and validates the PDF, (2) CLOUZER sends it as a Discord attachment, (3) the user downloads it from Discord, (4) the user manually uploads it to Box. Only mark each stage verified when its own evidence exists. Never describe stage (4) as an automatic CLOUZER → Box upload.
+- This is a workflow/tooling limitation, not a failure of the PDF generator. Keep the manual upload path as the confirmed current procedure until a supported, authorized Discord-to-Box integration is actually implemented and tested.
