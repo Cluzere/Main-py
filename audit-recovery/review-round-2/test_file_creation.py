@@ -37,7 +37,7 @@ class FileCreationTests(unittest.TestCase):
         data, filename, mime = create_document_file("pdf", prompt, content)
         import pymupdf
         with pymupdf.open(stream=data, filetype="pdf") as doc:
-            extracted = "\\n".join(page.get_text() for page in doc)
+            extracted = "\n".join(page.get_text() for page in doc)
             drawings = sum(len(page.get_drawings()) for page in doc)
             self.assertGreaterEqual(doc.page_count, 1)
             self.assertIn("Penerimaan perintah", extracted)
