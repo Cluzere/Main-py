@@ -414,9 +414,31 @@ def _make_pdf(content: str, title: str) -> bytes:
         if not words:
             return [""]
         result, current = [], ""
+
+        def split_long_word(word):
+            chunks, chunk = [], ""
+            for char in word:
+                candidate = chunk + char
+                if chunk and fitz.get_text_length(candidate, fontname=font, fontsize=size) > width:
+                    chunks.append(chunk)
+                    chunk = char
+                else:
+                    chunk = candidate
+            if chunk:
+                chunks.append(chunk)
+            return chunks
+
         for word in words:
+            if fitz.get_text_length(word, fontname=font, fontsize=size) > width:
+                if current:
+                    result.append(current)
+                    current = ""
+                pieces = split_long_word(word)
+                result.extend(pieces[:-1])
+                current = pieces[-1] if pieces else ""
+                continue
             candidate = word if not current else current + " " + word
-            if fitz.get_text_length(candidate, fontname=font, fontsize=size) <= width or not current:
+            if fitz.get_text_length(candidate, fontname=font, fontsize=size) <= width:
                 current = candidate
             else:
                 result.append(current)
