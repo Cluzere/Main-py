@@ -2769,3 +2769,33 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - GitHub Actions workflow run #7: 45822917501, https://github.com/Cluzere/Main-py/actions/runs/45822917501 — completed, conclusion success. The candidate syntax/security/test workflow completed successfully after adding the regression test. Workflow run #6 for the helper change, 45822905955, also completed successfully.
 - This verifies the audit branch in GitHub Actions only. It does not deploy to Wispbyte, modify production main.py, restart the bot, prove live runtime generation, Discord attachment delivery, or automatic Box upload.
 - Latest candidate source entrypoint remains the previously fetched branch version (no change in this fix); latest audit branch tip is 9249cf64364fd7e8e0780becf209af284b9f7601. Before any Wispbyte deployment, fetch this exact branch tip and verify the startup log HEAD. Production branch main and root main.py remain untouched.
+
+### 52.10 XLSX missing-header recovery and strict schema validation — 26 November 2026
+
+**Confirmed code-level defect**
+- The previous XLSX builder treated the first model-returned row as the header without checking it against a user-declared schema. If the model returned data rows but omitted the header, a person name could become the header row. Numeric validation is header-driven, so columns such as Umur and Gaji then escaped native-number enforcement. The validator also did not independently enforce an explicitly declared header schema when the prompt contained no literal pipe table.
+- This explains how a malformed workbook could be accepted with data in row 1 and string-valued age/salary cells, even though the earlier Gaji regex had been fixed. The Gaji regex change alone was insufficient.
+
+**Audit-branch fix**
+- Added _requested_xlsx_headers() to extract explicit full column schemas from prompts such as “4 kolom Nama, Umur, Jabatan, Gaji” and “Kolom: No | Nama | Stok”. It deliberately does not interpret vague mentions such as “dengan kolom Harga dan Stok” as a complete schema.
+- When the model omits the header but returns the requested number of data columns, the builder may prepend the declared header only when all declared numeric columns in the first row parse as numbers. Otherwise it fails closed rather than guessing.
+- validate_document_file() independently checks that the generated workbook's header exactly matches the declared schema. Existing native-number checks then enforce Umur/Gaji numeric cell types.
+- Added regression test test_xlsx_recovers_missing_header_from_explicit_schema_and_validates_all_numeric_columns. It covers the five-row employee dataset with no model header, confirms the correct four headers, checks all Umur and Gaji values are native numeric cells, and verifies the validator rejects a tampered header.
+- The regression test was adjusted to cover the natural no-colon wording “4 kolom Nama, Umur, Jabatan, Gaji”.
+
+**Commits and verification**
+- Helper schema recovery: 555714f6c097ddedf4eedf917b7fb5d8baa9780b.
+- Regression test: eb05b70c4299304a520debcede2a3b5b2dcfcc79.
+- Parser hardening for explicit column declarations: 636a215eeebf2fc48aaf315054904a41692dfcf7.
+- Support for explicit column lists with or without a colon: 5ee42751419c58f58fbe5664bc68708847e6f7af.
+- No-colon regression wording: 55f3f6fa73dec5ed459d4fda3f14404ad9db0cec.
+- GitHub Actions run #15: 45824911532, https://github.com/Cluzere/Main-py/actions/runs/45824911532 — **success**. The workflow compiled the candidate, completed the Bandit high-severity scan, installed runtime dependencies, and ran the full suite: **123 tests, OK**.
+- Intermediate CI run #10 failed on two parser edge cases; those were corrected, and run #15 verifies the final no-colon parser/test commit. Do not cite the intermediate failure as the final test result.
+- Latest audit branch commit at this record: 55f3f6fa73dec5ed459d4fda3f14404ad9db0cec.
+- Candidate entrypoint was not changed in this remediation. Production root main.py, production branch main, and Wispbyte runtime were not modified, deployed, or restarted.
+
+**Operational status and next steps**
+- This is a code/CI PASS only. It does not prove the new helper is running on Wispbyte, that CLOUZER generated the workbook live, that Discord confirmed the attachment, or that Box received an automatic upload.
+- Before another live test, the user must restart the Wispbyte audit deployment from its panel so its startup script fetches the latest audit branch. Verify the startup log HEAD is 55f3f6fa73dec5ed459d4fda3f14404ad9db0cec.
+- Re-run the employee XLSX test and inspect the actual artifact bytes plus [FILE-STAGE] stage=validated and stage=discord_attachment_confirmed.
+- After XLSX live acceptance, continue the remaining format matrix from §52.1–52.2: PDF rendering, YAML extension, Markdown native .md, ODT native package/table, HTML, XML, and RTF; then re-test ZIP and CSV tool/delivery paths. Keep artifact structure, local builder validation, Discord delivery, and automatic Box upload as separate acceptance gates.
