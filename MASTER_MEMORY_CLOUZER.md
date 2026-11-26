@@ -2522,3 +2522,26 @@ Next actions:
 4. Then investigate the ZIP pre-content refusal as a separate model/tool-routing issue, not as a proven archive-writer bug.
 
 Safety boundary remains unchanged: no production `main.py`, production `main` branch, deployment, or Wispbyte restart was changed or authorized by this CI check. Since Wispbyte has historically fetched the audit branch on startup, do not restart it without explicit user authorization and a clear warning.
+
+
+## 50. VERIFIED CI LOG DETAIL — WORKSHEET PARSER
+
+Date: 2026-11-26.
+
+Follow-up inspection of the two completed GitHub Actions jobs for candidate commit dbcb3e06c3597e007eab8db98c32b0e8a33984c6:
+
+- Run 45802335315, job 139848503249 (final-candidate-syntax-regressions-and-attachment-audit): completed successfully. Its focused Python regression suite reports **112 tests, OK**.
+- Run 45802335530, job 139848506686 (compile): completed successfully. Its document creation and archive regression suite also reports **112 tests, OK**.
+- The named regression test_xlsx_requested_sheet_name_indonesian_instruction_variants passed. It checks four forms: Worksheet wajib bernama: Data Pegawai; Nama worksheet harus bernama Data Pegawai; Sheet: Data Pegawai; and a quoted/backticked worksheet name. It asserts both extraction and final workbook metadata.
+- Both logs contain a ValueError trace from a memory-size safety test (memory.json melewati batas ukuran aman; file lama dipertahankan); the test itself ends ok and the full suite ends OK. Do not misclassify this expected test output as a CI failure.
+
+Commit-diff precision:
+- The exact commit dbcb3e06c3597e007eab8db98c32b0e8a33984c6 changes only audit-recovery/review-round-2/clouzer_file_creation.py, allowing an optional colon after the worksheet label/connector in the name extractor.
+- audit-recovery/review-round-2/test_file_creation.py contains the four-variant regression test on the branch and was included in the passing 112-test run; it is not listed as a file changed by this specific commit. Avoid saying that this exact commit modified both files.
+
+Status interpretation:
+- Candidate parser regression: **CI PASS (112/112)**.
+- Live Discord-generated workbook with exact Data Pegawai worksheet name: **not yet verified**.
+- No production branch/file, deployment, or Wispbyte restart was changed.
+
+Next step remains a fresh live CLOUZER XLSX generation and binary inspection. Do not deploy/restart merely because CI passed.
