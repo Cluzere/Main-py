@@ -2354,7 +2354,7 @@ Implementation:
 - Corrective commit: `e8886a8ddd54dd4eee97455c7f1fcc530e92b7d8` — `Preserve trusted generated XLSX formulas`.
 - New regression workflow run: `45799029457` — https://github.com/Cluzere/Main-py/actions/runs/45799029457
 - Syntax workflow run: `45799029437` — https://github.com/Cluzere/Main-py/actions/runs/45799029437
-- At the time this section was written, both latest workflow runs were still in progress. Do not mark CI as passed until their final conclusions and logs have been checked.
+- Final CI result: regression workflow run `45799029457` completed successfully; logs show `Ran 111 tests in 1.049s` followed by `OK`. Syntax workflow run `45799029437` also completed successfully. Run links: https://github.com/Cluzere/Main-py/actions/runs/45799029457 and https://github.com/Cluzere/Main-py/actions/runs/45799029437.
 - Previous failed run `45798917314` reported 111 tests with 3 errors, all three being trusted stock-audit formula/cache tests; the newly added literal-text regression itself passed. The correction specifically narrows literal treatment to non-formula columns.
 
 ### 47.4 Scope and remaining verification
