@@ -159,7 +159,13 @@ def _prompt_pipe_table(prompt: str) -> list[list[str]]:
                 runs.append(current)
                 current = []
             continue
-        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        table_line = stripped
+        has_outer_pipe = table_line.startswith("|")
+        if has_outer_pipe:
+            table_line = table_line[1:]
+            if table_line.endswith("|"):
+                table_line = table_line[:-1]
+        cells = [cell.strip() for cell in table_line.split("|")]
         if len(cells) < 2:
             if current:
                 runs.append(current)
@@ -286,7 +292,13 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
         if not stripped or stripped.startswith("```"):
             continue
         if "|" in stripped:
-            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+            table_line = stripped
+            has_outer_pipe = table_line.startswith("|")
+            if has_outer_pipe:
+                table_line = table_line[1:]
+                if table_line.endswith("|"):
+                    table_line = table_line[:-1]
+            cells = [cell.strip() for cell in table_line.split("|")]
         elif "\t" in line:
             cells = [cell.strip() for cell in line.split("\t")]
         else:
