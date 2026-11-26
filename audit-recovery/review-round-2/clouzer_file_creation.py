@@ -1467,25 +1467,34 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
 
     conclusion_index = heading_indexes["Kesimpulan"]
     conclusion_heading = records[conclusion_index]
-    conclusion_page_text = page_texts[conclusion_heading["page"]]
-    conclusion_lines = conclusion_page_text.splitlines()
-    heading_line_index = next((
-        index for index, line in enumerate(conclusion_lines)
-        if normalized(line) == "kesimpulan"
-    ), None)
-    opening_text = ""
-    if heading_line_index is not None:
-        for line in conclusion_lines[heading_line_index + 1:]:
-            cleaned = re.sub(r"\s+", " ", line).strip()
-            if not cleaned:
-                continue
-            if re.match(r"(?i)^Halaman\s+\d+$", cleaned):
-                break
-            opening_text += (" " if opening_text else "") + cleaned
-            if len(opening_text) >= 80:
-                break
-    if len(opening_text) < 60:
-        raise ValueError(f"Heading Kesimpulan tidak langsung diikuti paragraf pembuka yang cukup pada halaman yang sama. page={conclusion_heading['page'] + 1}, heading_line={heading_line_index}, text_tail={conclusion_page_text[-1200:]!r}")
+    conclusion_page = doc[conclusion_heading["page"]]
+    heading_rect = conclusion_heading["rect"]
+    following_spans = []
+    for block in conclusion_page.get_text("dict")["blocks"]:
+        if "lines" not in block:
+            continue
+        for line in block["lines"]:
+            for span in line["spans"]:
+                span_text = str(span.get("text", "")).strip()
+                if not span_text:
+                    continue
+                span_rect = pymupdf.Rect(span["bbox"])
+                if span_rect.y0 < heading_rect.y1 - 1:
+                    continue
+                if span_rect.y0 > 790 or span_rect.x0 < 46 or span_rect.x1 > 549:
+                    continue
+                if re.match(r"(?i)^Halaman\s+\d+$", span_text):
+                    continue
+                following_spans.append((span_rect.y0, span_rect.x0, span_text))
+    following_spans.sort(key=lambda item: (item[0], item[1]))
+    opening_text = " ".join(item[2] for item in following_spans)
+    first_opening_y = following_spans[0][0] if following_spans else None
+    if len(opening_text) < 60 or first_opening_y is None or first_opening_y > heading_rect.y1 + 40:
+        raise ValueError(
+            "Heading Kesimpulan tidak langsung diikuti paragraf pembuka yang cukup pada halaman yang sama. "
+            f"page={conclusion_heading['page'] + 1}, opening_chars={len(opening_text)}, "
+            f"heading_bottom={heading_rect.y1:.1f}, opening_top={first_opening_y}."
+        )
 
 
     if len(data_rows) != 10:
