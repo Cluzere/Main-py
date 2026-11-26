@@ -356,6 +356,14 @@ def _make_pdf(content: str, title: str) -> bytes:
         if first.casefold() == title.casefold():
             source_lines = source_lines[1:]
     for line in source_lines:
+        line = re.sub(r"^\s{0,3}#{1,6}\s*", "", line)
+        if re.fullmatch(r"\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*", line):
+            continue
+        if line.strip().startswith("|") and line.strip().endswith("|"):
+            line = " | ".join(cell.strip() for cell in line.strip().strip("|").split("|"))
+        line = re.sub(r"\*\*(.*?)\*\*", r"\1", line)
+        line = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", line)
+        line = line.replace(chr(96), "")
         wrapped.extend(textwrap.wrap(line, width=96, break_long_words=True, break_on_hyphens=False) if line.strip() else [""])
     doc = fitz.open()
     try:
@@ -811,6 +819,159 @@ def _make_zip(content: str, title: str, prompt: str = "") -> bytes:
         if check.testzip() or set(check.namelist()) != set(files):
             raise RuntimeError("Validasi integritas ZIP gagal.")
     return data
+
+def _unfence_format_content(content: str) -> str:
+    value = str(content or "").strip()
+    lines = value.splitlines()
+    if len(lines) >= 3 and lines[0].lstrip().startswith(chr(96) * 3) and lines[-1].strip() == chr(96) * 3:
+        return "\n".join(lines[1:-1]).strip()
+    return value
+
+
+def _yaml_is_valid(value: str) -> bool:
+    try:
+        import yaml
+    except ImportError:
+        # Conservative fallback for the common mapping/list subset used here.
+        lines = value.splitlines()
+        if not any(line.strip() for line in lines):
+            return False
+        for line in lines:
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            if "\t" in line:
+                return False
+            item = line.strip()
+            if item.startswith("- "):
+                item = item[2:].strip()
+            if not re.match(r"^[A-Za-z0-9_.-]+\s*:", item):
+                return False
+        return True
+    try:
+        return yaml.safe_load(value) is not None
+    except Exception as exc:
+        raise ValueError("Sintaks YAML tidak valid: " + str(exc)[:180]) from exc
+
+
+def _make_rtf(content: str, title: str) -> bytes:
+    value = _unfence_format_content(content)
+    if value.startswith(r"{\rtf"):
+        return (value.rstrip() + "\n").encode("utf-8")
+
+    def escape_rtf(text: str) -> str:
+        output = []
+        for char in text:
+            code = ord(char)
+            if char in "\\{}":
+                output.append("\\" + char)
+            elif char == "\n":
+                output.append(r"\line ")
+            elif code < 128:
+                output.append(char)
+            elif code <= 0xFFFF:
+                signed = code if code < 0x8000 else code - 0x10000
+                output.append(r"\u" + str(signed) + "?")
+            else:
+                code -= 0x10000
+                for unit in (0xD800 + (code >> 10), 0xDC00 + (code & 0x3FF)):
+                    signed = unit if unit < 0x8000 else unit - 0x10000
+                    output.append(r"\u" + str(signed) + "?")
+        return "".join(output)
+
+    paragraphs = []
+    for line in value.splitlines() or [title]:
+        heading = re.match(r"^\s{0,3}#{1,6}\s+(.*)$", line)
+        if heading:
+            paragraphs.append(r"\pard\sa180\b " + escape_rtf(heading.group(1)) + r"\b0\par")
+        else:
+            escaped = escape_rtf(line)
+            escaped = re.sub(r"\*\*(.+?)\*\*", lambda m: r"\b " + m.group(1) + r"\b0 ", escaped)
+            escaped = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", lambda m: r"\i " + m.group(1) + r"\i0 ", escaped)
+            paragraphs.append(r"\pard\sa120 " + escaped + r"\par")
+    result = r"{\rtf1\ansi\deff0{\fonttbl{\f0 Arial;}}\viewkind4\uc1 " + "\n".join(paragraphs) + "}"
+    return result.encode("utf-8")
+
+
+def _make_odt(content: str, title: str) -> bytes:
+    import xml.etree.ElementTree as ET
+
+    ns = {
+        "office": "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
+        "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
+        "table": "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
+        "manifest": "urn:oasis:names:tc:opendocument:xmlns:manifest:1.0",
+    }
+    for prefix, uri in ns.items():
+        ET.register_namespace(prefix, uri)
+    def q(prefix, name):
+        return "{" + ns[prefix] + "}" + name
+
+    root = ET.Element(q("office", "document-content"), {q("office", "version"): "1.2"})
+    ET.SubElement(root, q("office", "automatic-styles"))
+    body = ET.SubElement(root, q("office", "body"))
+    office_text = ET.SubElement(body, q("office", "text"))
+    lines = str(content or "").splitlines() or [title]
+    index = 0
+    while index < len(lines):
+        raw = lines[index].strip()
+        if not raw:
+            index += 1
+            continue
+        if raw.startswith("|") and raw.endswith("|"):
+            table_lines = []
+            while index < len(lines):
+                candidate = lines[index].strip()
+                if not (candidate.startswith("|") and candidate.endswith("|")):
+                    break
+                cells = [cell.strip() for cell in candidate.strip("|").split("|")]
+                if not all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
+                    table_lines.append(cells)
+                index += 1
+            if table_lines:
+                width = len(table_lines[0])
+                if any(len(row) != width for row in table_lines):
+                    raise ValueError("Tabel ODT memiliki jumlah kolom tidak konsisten.")
+                table = ET.SubElement(office_text, q("table", "table"), {q("table", "name"): "Tabel1"})
+                for row_values in table_lines:
+                    row = ET.SubElement(table, q("table", "table-row"))
+                    for cell_value in row_values:
+                        cell = ET.SubElement(row, q("table", "table-cell"), {q("office", "value-type"): "string"})
+                        paragraph = ET.SubElement(cell, q("text", "p"))
+                        paragraph.text = cell_value
+            continue
+        heading = re.match(r"^\s{0,3}(#{1,6})\s+(.*)$", raw)
+        if heading:
+            paragraph = ET.SubElement(office_text, q("text", "h"), {q("text", "outline-level"): str(min(len(heading.group(1)), 6))})
+            paragraph.text = heading.group(2).strip()
+        else:
+            paragraph = ET.SubElement(office_text, q("text", "p"))
+            paragraph.text = raw
+        index += 1
+
+    content_xml = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    styles_root = ET.Element(q("office", "document-styles"), {q("office", "version"): "1.2"})
+    ET.SubElement(styles_root, q("office", "styles"))
+    styles_xml = ET.tostring(styles_root, encoding="utf-8", xml_declaration=True)
+    manifest_root = ET.Element(q("manifest", "manifest"), {q("manifest", "version"): "1.2"})
+    ET.SubElement(manifest_root, q("manifest", "file-entry"), {
+        q("manifest", "full-path"): "/", q("manifest", "media-type"): "application/vnd.oasis.opendocument.text"
+    })
+    for name in ("content.xml", "styles.xml"):
+        ET.SubElement(manifest_root, q("manifest", "file-entry"), {
+            q("manifest", "full-path"): name, q("manifest", "media-type"): "text/xml"
+        })
+    manifest_xml = ET.tostring(manifest_root, encoding="utf-8", xml_declaration=True)
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as archive:
+        mime_info = zipfile.ZipInfo("mimetype")
+        mime_info.compress_type = zipfile.ZIP_STORED
+        archive.writestr(mime_info, "application/vnd.oasis.opendocument.text")
+        archive.writestr("content.xml", content_xml, compress_type=zipfile.ZIP_DEFLATED)
+        archive.writestr("styles.xml", styles_xml, compress_type=zipfile.ZIP_DEFLATED)
+        archive.writestr("META-INF/manifest.xml", manifest_xml, compress_type=zipfile.ZIP_DEFLATED)
+    return output.getvalue()
+
+
 def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
