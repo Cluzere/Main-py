@@ -118,7 +118,8 @@ def _xlsx_formula_specs(headers: list[str], prompt: str) -> dict[int, tuple[str,
     """Return explicitly requested derived-column formulas."""
     low = str(prompt or "").casefold()
     normalized = [str(value).strip().casefold() for value in headers]
-    if "rumus" not in low:
+    # Users may describe native spreadsheet calculations as either "rumus" or "formula".
+    if not re.search(r"\b(?:rumus|formula(?:s)?)\b", low):
         return {}
     specs = {}
     if all(name in normalized for name in ("stok akhir", "stok awal", "barang masuk", "barang keluar")):

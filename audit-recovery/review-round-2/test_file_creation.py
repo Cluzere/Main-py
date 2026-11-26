@@ -4,7 +4,7 @@ import json
 import unittest
 import zipfile
 
-from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file
+from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file, _xlsx_formula_specs
 
 
 class FileCreationTests(unittest.TestCase):
@@ -378,11 +378,20 @@ Harus tepat 8 baris data dan 10 kolom."""
             wb.close()
 
 
+    def test_xlsx_formula_specs_accepts_indonesian_rumus_and_formula_wording(self):
+        headers = ["Stok Awal", "Barang Masuk", "Barang Keluar", "Stok Akhir", "Harga Satuan", "Total Nilai Stok"]
+        expected = {
+            3: ("stock_balance", (0, 1, 2)),
+            5: ("stock_value", (3, 4)),
+        }
+        self.assertEqual(_xlsx_formula_specs(headers, "Gunakan rumus Excel asli"), expected)
+        self.assertEqual(_xlsx_formula_specs(headers, "Gunakan formula Excel asli"), expected)
+
     def test_xlsx_stock_audit_two_formulas_total_and_header_freeze(self):
         from datetime import date
         from openpyxl import load_workbook
         prompt = """Buat XLSX bernama TES_PASS_RENDER_XLSX_03.xlsx, worksheet 'Audit Stok'.
-Gunakan rumus Stok Akhir dan Total Nilai Stok. Wajib tepat 10 baris data dan 10 kolom.
+Gunakan formula Excel asli untuk Stok Akhir dan Total Nilai Stok. Wajib tepat 10 baris data dan 10 kolom.
 Bekukan baris pertama. Tambahkan baris TOTAL dengan rumus SUM.
 No|Kode|Nama|Stok Awal|Barang Masuk|Barang Keluar|Stok Akhir|Harga Satuan|Total Nilai Stok|Tanggal Update
 1|BRG001|Laptop|10|5|3|12|7500000|90000000|2026-11-20
