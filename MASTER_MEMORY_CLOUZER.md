@@ -3147,3 +3147,45 @@ The report is still not an accepted final test report. It reads primarily as a t
 Text extraction does not establish the actual visual rendering of every page. Bold/italic appearance, exact colors, table borders, alternating fills, clipping, collisions, margins, page balance, and the last-page composition remain NOT VERIFIED until the page renders are visually inspected. Interactive selection/copy/paste, reader search, Discord attachment delivery, and successful download/reopen are also not proven by this text extraction.
 
 The current Box artifact was not overwritten or replaced. No new PDF was generated or delivered in this session. The file remains a source artifact for the next staging run and final comparison.
+
+
+## 52.22 MASTER FINAL PDF end-to-end validator, measured report summary, and CI completion — 26 November 2026
+
+### Scope and safety
+User reiterated direct authorization to continue the MASTER FINAL PDF repair. Work stayed on audit-recovery-gpt-2026-11-23 and PR #6. Production main branch, production root main.py, Wispbyte runtime, and the existing Box artifact were not modified. PR #6 is open, not merged.
+
+### Additional repairs completed after §52.20
+The candidate was advanced through successive failure/repair cycles. The latest code now includes:
+- Strict MASTER FINAL prompt recognition and report acceptance validation.
+- Exact required title, five section headings in order, at least two substantive paragraphs per section, exact 10-row/7-column product table, populated cells and sequential row numbers.
+- Dark-blue header with white bold text; alternating white/pale blue-gray product rows; vector borders for the full table.
+- A4 and minimum-page enforcement, page-number checks, text extraction/searchability, bold/italic/list-marker checks, printable text geometry, overlap detection, and conclusion opening-paragraph placement.
+- Conditional repeated table header enforcement only when the table actually spans multiple pages.
+- Rejection of unsupported NOT VERIFIED placeholders in model-provided source text.
+- A two-pass MASTER FINAL build: validate the first PDF, insert a backend-generated evidence summary based on measured validation results, rebuild, and validate the final artifact. The report summary records exactly three manual-only NOT VERIFIED statuses: visual page-by-page inspection, manual selection/copy in a PDF reader, and Discord attachment delivery. These are intentionally not claimed as automated PASS.
+- Summary refresh logic preserves the conclusion and keeps the page count stable; oversized paragraphs are split at sentence boundaries to avoid orphan headings and unsafe page flow.
+- Regression tests for schema mismatch, unsupported placeholders, measured summary insertion, page count consistency, conclusion placement, oversized paragraphs, conditional repeated headers, and the MASTER FINAL acceptance contract.
+
+### Latest GitHub state and verified CI
+- Branch: audit-recovery-gpt-2026-11-23
+- Latest branch HEAD and tested code/test SHA: f6213d906f8dd4ee628deb09e004b5627a2a04ae.
+- Latest helper blob: 95d78ea932f8331a62710e0d8d4760ce02d2fc93.
+- Latest test blob: b03445cc2a6be3087d025fc630ad599f15569e9b.
+- Candidate entrypoint blob: a150ad1ea815886950a511daf4fe74024761565c.
+- Three relevant workflows completed successfully on that exact SHA:
+  1. CLOUZER multi-format file audit, run 45861381982: https://github.com/Cluzere/Main-py/actions/runs/45861381982
+  2. Audit candidate syntax check, run 45861381851: https://github.com/Cluzere/Main-py/actions/runs/45861381851
+  3. Audit recovery candidate, run 45861381839: https://github.com/Cluzere/Main-py/actions/runs/45861381839
+- The detailed job records show every step completed successfully, including compilation, dependency consistency, security scans, complete candidate regression suite, document file creation tests, archive fixture/regressions, and focused candidate regressions.
+- An earlier series of candidate commits failed CI; those failures were repaired. Do not cite earlier failed runs as current status. Latest exact SHA above is green.
+- The comparison from previous recorded master-memory baseline 0cd6db16d5fc68d2dd0fd813db19b5daffb93c94 to latest code/test SHA showed 39 commits ahead, 0 behind. Changes were limited to MASTER_MEMORY_CLOUZER.md, candidate helper, and candidate test file; no production main.py changes.
+
+### PR and remaining real-world evidence
+- PR #6: https://github.com/Cluzere/Main-py/pull/6
+- PR is open and unmerged. It is not a production deployment.
+- CI PASS establishes candidate code/test success only. It does not establish a fresh live PDF, visual inspection, Discord delivery, Box replacement, or a user download.
+- Existing Box artifact Tes_PDF_Final.pdf (ID 2616990550824) was not overwritten.
+- No Wispbyte runtime restart or production action was performed.
+
+### Next required acceptance step
+Run the exact remembered MASTER FINAL prompt, filename Tes_PDF_Final.pdf, against the audit/staging runtime, then inspect every rendered page and verify the actual Discord attachment and Box artifact. Do not claim the live PDF acceptance is complete until those distinct evidence steps are confirmed.
