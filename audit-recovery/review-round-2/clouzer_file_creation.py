@@ -82,7 +82,16 @@ def detect_requested_file_format(prompt: str) -> str | None:
     if not value or not _CREATE_RE.search(value):
         return None
     low = value.lower()
-    if re.search(r"\b(?:bisa|apakah|sudah|udah|mampu|dapat)\b", low) and not _EXPLICIT_ACTION_RE.search(low):
+    # Detect interrogative requests by their sentence form, not by isolated
+    # capability words anywhere in the specification. A document request may
+    # legitimately contain phrases such as "teks dapat diseleksi".
+    starts_as_question = bool(re.match(
+        r"^\s*(?:apakah|bisakah|dapatkah|mampukah|sudahkah|udahkah)\b", low
+    ))
+    capability_question = low.rstrip().endswith("?") and bool(re.search(
+        r"\b(?:bisa|dapat|mampu|sudah|udah)\b", low
+    ))
+    if (starts_as_question or capability_question) and not _EXPLICIT_ACTION_RE.search(low):
         return None
     matches = [(match.start(), fmt) for fmt, pattern in _FORMAT_PATTERNS.items() if (match := pattern.search(value))]
     return min(matches)[1] if matches else None
