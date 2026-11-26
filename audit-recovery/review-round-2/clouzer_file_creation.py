@@ -126,7 +126,7 @@ def _requested_sheet_title(prompt: str) -> str | None:
         r"\s+(?:dengan|berisi|untuk|yang|sebanyak|dan|gunakan|berikut)\b",
         title, maxsplit=1, flags=re.I,
     )[0]
-    title = re.sub(r"[\[\]:*?/\\]", " ", title).strip(" _-")[:31]
+    title = re.sub(r"[\[\]:*?/\]", " ", title).strip(" _-")[:31]
     return title or None
 
 
@@ -345,7 +345,7 @@ def _safe_filename(prompt: str, extension: str) -> str:
     ext = re.escape(str(extension or "").lower().lstrip("."))
     quoted = re.search(r"[\x60\"']([A-Za-z0-9][A-Za-z0-9_-]{0,100}\." + ext + r")[\x60\"']", value, re.I)
     explicit = quoted or re.search(
-        r"(?<![A-Za-z0-9_./\\])([A-Za-z0-9][A-Za-z0-9_-]{0,100}\." + ext + r")(?![A-Za-z0-9_])",
+        r"(?<![A-Za-z0-9_./\])([A-Za-z0-9][A-Za-z0-9_-]{0,100}\." + ext + r")(?![A-Za-z0-9_])",
         value, re.I,
     )
     if explicit:
@@ -1332,22 +1332,22 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
 def extract_explicit_document_source(prompt: str) -> str:
     """Extract only source text explicitly supplied by the user, never inferred content."""
     value = str(prompt or "")
-    fenced = re.findall(r"(?ms)^[ \\t]*```[^\\n]*\\n(.*?)^[ \\t]*```[ \\t]*$", value)
+    fenced = re.findall(r"(?ms)^[ \t]*```[^\n]*\n(.*?)^[ \t]*```[ \t]*$", value)
     if len(fenced) == 1 and fenced[0].strip():
         return fenced[0].strip()
     if len(fenced) > 1:
         return ""
     section = re.search(
-        r"(?ims)(?:^|\\n)[ \\t]*(?:isi dokumen|konten dokumen|teks dokumen|sumber dokumen)[ \\t]*:[ \\t]*\\n(.*)\\Z",
+        r"(?ims)(?:^|\n)[ \t]*(?:isi dokumen|konten dokumen|teks dokumen|sumber dokumen)[ \t]*:[ \t]*\n(.*)\Z",
         value,
     )
     if section:
         source = section.group(1).strip()
-        if source and not re.match(r"(?i)^(?:\\[?(?:instruksi|ketentuan|format output)\\]?\\s*:)", source):
+        if source and not re.match(r"(?i)^(?:\[?(?:instruksi|ketentuan|format output)\]?\s*:)", source):
             return source
     rows = _prompt_pipe_table(value)
     if len(rows) >= 2 and rows[0]:
-        return "\\n".join(" | ".join(row) for row in rows)
+        return "\n".join(" | ".join(row) for row in rows)
     return ""
 
 
