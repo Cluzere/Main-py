@@ -1205,6 +1205,8 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         ])
         self.assertTrue(all(count >= 2 for count in summary["paragraphs_per_section"].values()))
         self.assertTrue(summary["conclusion_with_opening_paragraph"])
+        self.assertGreaterEqual(summary["last_page_text_chars"], 220)
+        self.assertTrue(all(value >= 120 for value in summary["page_body_chars"]))
         self.assertTrue(summary["page_numbers_correct"])
         self.assertTrue(summary["table_header_style"])
         self.assertTrue(summary["alternating_table_rows"])
@@ -1249,6 +1251,8 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertTrue(summary["master_final_report"])
         self.assertEqual(summary["product_rows"], 10)
         self.assertEqual(summary["table_columns"], 7)
+        self.assertGreaterEqual(summary["last_page_text_chars"], 220)
+        self.assertTrue(all(count >= 120 for count in summary["page_body_chars"]))
         self.assertTrue(all(count >= 4 for count in summary["paragraphs_per_section"].values()))
         import pymupdf
         with pymupdf.open(stream=data, filetype="pdf") as doc:
