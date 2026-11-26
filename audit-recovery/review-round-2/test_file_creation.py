@@ -384,9 +384,9 @@ Harus tepat 8 baris data dan 10 kolom."""
 
         prompt = "Buat XLSX dengan kolom Tanggal Update berupa tanggal Excel."
         content = (
-            "Kode|Tanggal Update\\n"
-            "A|20/11/2026\\n"
-            "B|21-11-2026\\n"
+            "Kode|Tanggal Update\n"
+            "A|20/11/2026\n"
+            "B|21-11-2026\n"
             "C|2026-11-22T00:00:00"
         )
         data, _, _ = create_document_file("xlsx", prompt, content)
