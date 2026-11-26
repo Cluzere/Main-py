@@ -4,7 +4,7 @@ import json
 import unittest
 import zipfile
 
-from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file, _xlsx_formula_specs
+from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file, _xlsx_formula_specs, _requested_sheet_title
 
 
 class FileCreationTests(unittest.TestCase):
@@ -672,6 +672,22 @@ Intan|26|=1+1"""
             self.assertEqual(cached_ws["C2"].data_type, "s")
         finally:
             cached_wb.close()
+
+    def test_xlsx_requested_sheet_name_indonesian_instruction_variants(self):
+        prompts = (
+            "Worksheet wajib bernama: Data Pegawai",
+            "Nama worksheet harus bernama Data Pegawai",
+            "Sheet: Data Pegawai",
+            "Buat worksheet bernama `Data Pegawai` dengan data berikut",
+        )
+        for prompt in prompts:
+            with self.subTest(prompt=prompt):
+                self.assertEqual(_requested_sheet_title(prompt), "Data Pegawai")
+                data, _, _ = create_document_file(
+                    "xlsx", prompt, "No\tNama\tUmur\n1\tAndi\t25"
+                )
+                summary = validate_document_file("xlsx", prompt, data)
+                self.assertEqual(summary["sheet_name"], "Data Pegawai")
 
 if __name__ == "__main__":
     unittest.main()
