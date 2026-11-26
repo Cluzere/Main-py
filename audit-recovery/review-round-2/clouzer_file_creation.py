@@ -2156,10 +2156,37 @@ def _build_master_final_pdf_source(model_content: str) -> str:
         ("9", "Webcam", "Webcam Full HD", "Periferal", "Rp385.000", "4", "Terbatas"),
         ("10", "Headset", "Headset USB", "Aksesori", "Rp310.000", "0", "Habis"),
     ]
+    # The model supplies concise section-specific narrative. The backend adds
+    # two distinct, factual scope/method paragraphs per section so the report
+    # has enough substance for a readable multi-page A4 artifact without
+    # asking the model to regenerate long prose or invent runtime outcomes.
+    supplemental_paragraphs = {
+        "Pendahuluan": [
+            "PDF dipilih karena format ini mempertahankan susunan halaman ketika dokumen dibuka pada perangkat dan aplikasi yang berbeda. Namun, tampilan yang tampak rapi saja belum cukup untuk menyatakan file berhasil diuji. Lapisan teks, urutan baca, ukuran halaman, elemen tabel, dan batas cetak perlu diperiksa secara terpisah agar dokumen tetap berguna untuk dibaca, dicari, dan diarsipkan.",
+            "Pengujian generator juga perlu membedakan hasil yang dapat dihitung oleh program dari hal yang memerlukan pengamatan manusia. Metadata, jumlah halaman, teks hasil ekstraksi, dan geometri objek dapat diperiksa secara otomatis. Keterbacaan visual pada layar, perilaku seleksi pada aplikasi pembaca, serta penerimaan lampiran oleh penerima merupakan pemeriksaan berbeda dan tidak boleh dinyatakan berhasil tanpa bukti langsung.",
+        ],
+        "Tujuan Pengujian": [
+            "Kriteria penerimaan disusun untuk menilai isi sekaligus bentuk keluaran. Struktur laporan harus memuat lima bagian dalam urutan yang benar, setiap bagian memiliki uraian yang cukup, dan tabel menampilkan sepuluh produk dengan tujuh kolom yang terisi. Persyaratan halaman A4, nomor halaman, gaya tipografi, serta keterbacaan teks menjadi bagian dari pemeriksaan yang sama pentingnya.",
+            "Tujuan lainnya adalah menjaga agar kesimpulan tidak terpisah dari paragraf pembukanya dan agar halaman terakhir tidak berisi sisa teks yang terlalu sedikit. Data produk yang dipakai oleh template merupakan contoh sintetis untuk pengujian tata letak, bukan catatan stok milik organisasi. Pemisahan ini mencegah contoh buatan disalahartikan sebagai data operasional yang sebenarnya.",
+        ],
+        "Metode Pengujian": [
+            "Pemeriksaan dimulai dari validasi sumber narasi dan pembentukan struktur dokumen oleh backend. Generator kemudian merender halaman, tabel, daftar, serta nomor halaman ke dalam PDF. Setelah berkas terbentuk, pemeriksa membaca kembali lapisan teks, memeriksa dimensi setiap halaman, menghitung elemen tabel, dan menilai posisi blok teks terhadap batas halaman.",
+            "Tahap berikutnya membandingkan isi tabel dengan skema yang diwajibkan, memeriksa urutan sepuluh nomor produk, memastikan sel tidak kosong atau berisi placeholder, dan menguji konsistensi warna serta garis batas. Pemeriksaan geometri juga mencari teks yang melewati area cetak dan blok yang saling bertabrakan. Setiap tahap menggunakan hasil berkas yang benar-benar dirender, bukan sekadar asumsi dari teks sumber.",
+        ],
+        "Hasil Pengujian": [
+            "Tabel menggunakan sepuluh contoh produk sintetis dengan nama, deskripsi, kategori, harga, jumlah stok, dan status yang terisi. Deskripsi yang bervariasi membantu menguji pembagian lebar kolom dan pembungkusan teks, sedangkan pola warna baris dan garis sel memudahkan pembaca mengikuti data secara horizontal. Nilai contoh tersebut hanya berfungsi sebagai fixture visual dan tidak menyatakan hasil inventaris aktual.",
+            "Interpretasi hasil harus mengikuti bukti dari PDF akhir. Kriteria yang berhasil diperiksa oleh validator otomatis dapat dilaporkan bersama ukuran atau jumlah yang terukur. Pemeriksaan visual halaman demi halaman, seleksi dan penyalinan manual, serta pengiriman attachment tetap dipisahkan karena tidak dapat dibuktikan hanya melalui proses pembuatan file di backend.",
+        ],
+        "Kesimpulan": [
+            "Kesimpulan pengujian perlu merangkum apakah struktur, tabel, tipografi, pagination, dan lapisan teks memenuhi spesifikasi setelah berkas final selesai dirender. Apabila satu syarat wajib gagal, generator harus menghentikan pengiriman dan menyampaikan penyebab teknisnya. Menghasilkan berkas yang dapat dibuka belum cukup apabila isi tabel, susunan halaman, atau bukti validasinya masih tidak sesuai.",
+            "Dokumen ini juga menjaga batas klaim secara eksplisit. Hasil otomatis hanya menjelaskan properti yang benar-benar diukur dari artefak final, sedangkan pemeriksaan manual tetap ditandai terpisah sampai dilakukan pada aplikasi pembaca dan kanal Discord. Dengan demikian, laporan dapat dipakai sebagai catatan pengujian yang dapat ditelusuri tanpa mengubah asumsi, data contoh, atau status yang belum dibuktikan menjadi fakta.",
+        ],
+    }
     output = ["# LAPORAN PENGUJIAN GENERATOR PDF CLOUZER"]
     for section in required_sections:
         output.extend(["", "## " + section, ""])
         output.extend(extracted[section][:2])
+        output.extend(supplemental_paragraphs[section])
         if section == "Metode Pengujian":
             output.extend([
                 "",
