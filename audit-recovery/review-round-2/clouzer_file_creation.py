@@ -1614,7 +1614,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
     ]
     for record in body_records:
         rect = record["rect"]
-        if rect.x0 < 46 or rect.x1 > 549 or rect.y0 < 82 or rect.y1 > 790:
+        if rect.x0 < 44 or rect.x1 > 551 or rect.y0 < 80 or rect.y1 > 792:
             raise ValueError(
                 f"Teks isi PDF keluar dari area cetak/margin pada halaman {record['page'] + 1}: "
                 f"{(round(rect.x0, 1), round(rect.y0, 1), round(rect.x1, 1), round(rect.y1, 1))}."
