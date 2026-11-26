@@ -1286,6 +1286,241 @@ def _make_odt(content: str, title: str) -> bytes:
     return output.getvalue()
 
 
+
+
+_MASTER_FINAL_SECTIONS = ("Pendahuluan", "Tujuan Pengujian", "Metode Pengujian", "Hasil Pengujian", "Kesimpulan")
+_MASTER_FINAL_COLUMNS = ("No", "Nama", "Produk", "Kategori", "Harga", "Stok", "Status")
+
+
+def _is_master_final_pdf_prompt(prompt: str) -> bool:
+    """Identify the specific MASTER FINAL report contract without affecting ordinary PDFs."""
+    value = str(prompt or "").casefold()
+    required = (
+        "laporan pengujian generator pdf clouzer",
+        "10 produk",
+        *_MASTER_FINAL_SECTIONS,
+        *_MASTER_FINAL_COLUMNS,
+    )
+    return all(item.casefold() in value for item in required)
+
+
+def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -> dict:
+    """Validate semantic structure and table fidelity for the MASTER FINAL PDF contract."""
+    import pymupdf
+
+    extracted = "\n".join(page_texts)
+    if "laporan pengujian generator pdf clouzer" not in extracted.casefold():
+        raise ValueError("Judul laporan MASTER FINAL tidak ditemukan pada PDF hasil.")
+    for page_number, page_text in enumerate(page_texts, 1):
+        if not re.search(r"\bHalaman\s+" + str(page_number) + r"\b", page_text, re.I):
+            raise ValueError(f"Nomor halaman PDF tidak cocok pada halaman {page_number}.")
+
+    records = []
+    table_cells_by_page = {}
+    table_rows_by_page = {}
+    header_pages = 0
+    data_rows = []
+    header_styles_ok = False
+    alternating_fills_ok = False
+    cell_borders_ok = False
+    navy = (0.21, 0.37, 0.57)
+    stripe = (0.96, 0.97, 0.98)
+
+    def normalized(value):
+        return re.sub(r"\s+", " ", str(value or "")).strip().casefold()
+
+    def close_color(actual, expected, tolerance=0.035):
+        return bool(actual and len(actual) >= 3 and all(abs(actual[i] - expected[i]) <= tolerance for i in range(3)))
+
+    for page_index, page in enumerate(doc):
+        for block in page.get_text("blocks"):
+            if len(block) >= 5 and str(block[4]).strip():
+                records.append({
+                    "page": page_index,
+                    "rect": pymupdf.Rect(block[:4]),
+                    "text": str(block[4]).strip(),
+                })
+        grouped = {}
+        for drawing in page.get_drawings():
+            rect = drawing.get("rect")
+            if rect is None or rect.x0 < 40 or rect.x1 > 555 or rect.y0 < 75 or rect.y1 > 795:
+                continue
+            if rect.width < 30 or rect.height < 10:
+                continue
+            grouped.setdefault(round(rect.y0, 1), []).append({
+                "rect": pymupdf.Rect(rect),
+                "fill": drawing.get("fill"),
+                "stroke": drawing.get("color"),
+                "width": drawing.get("width", 0),
+            })
+        page_rows = []
+        for y, cells in sorted(grouped.items()):
+            cells.sort(key=lambda cell: cell["rect"].x0)
+            if len(cells) == 7:
+                page_rows.append((y, cells))
+        table_rows_by_page[page_index] = page_rows
+        table_cells_by_page[page_index] = [cell["rect"] for _, cells in page_rows for cell in cells]
+
+        header_index = None
+        for row_index, (_, cells) in enumerate(page_rows):
+            values = [
+                normalized(page.get_textbox(pymupdf.Rect(
+                    cell["rect"].x0 + 1, cell["rect"].y0 + 1,
+                    cell["rect"].x1 - 1, cell["rect"].y1 - 1,
+                )))
+                for cell in cells
+            ]
+            if tuple(values) == tuple(item.casefold() for item in _MASTER_FINAL_COLUMNS):
+                header_index = row_index
+                header_pages += 1
+                header_styles_ok = all(close_color(cell["fill"], navy) for cell in cells)
+                cell_borders_ok = all(cell["stroke"] is not None and cell["width"] > 0 for cell in cells)
+                white_spans = 0
+                for block in page.get_text("dict")["blocks"]:
+                    if "lines" not in block:
+                        continue
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            if span.get("color") == 0xFFFFFF and any(
+                                cell["rect"].contains(pymupdf.Point(
+                                    (span["bbox"][0] + span["bbox"][2]) / 2,
+                                    (span["bbox"][1] + span["bbox"][3]) / 2,
+                                )) for cell in cells
+                            ):
+                                white_spans += 1
+                header_styles_ok = header_styles_ok and white_spans >= 7
+                break
+        if header_index is not None:
+            page_data = []
+            for _, cells in page_rows[header_index + 1:]:
+                values = [
+                    re.sub(r"\s+", " ", page.get_textbox(pymupdf.Rect(
+                        cell["rect"].x0 + 1, cell["rect"].y0 + 1,
+                        cell["rect"].x1 - 1, cell["rect"].y1 - 1,
+                    ))).strip()
+                    for cell in cells
+                ]
+                if values and re.fullmatch(r"\d{1,2}", values[0]):
+                    page_data.append((values, cells))
+            data_rows.extend(values for values, _ in page_data)
+            fills = [cells[0]["fill"] for _, cells in page_data]
+            if len(fills) >= 2:
+                alternating_fills_ok = all(
+                    close_color(fills[i], (1, 1, 1) if i % 2 == 0 else stripe)
+                    for i in range(len(fills))
+                )
+
+    records.sort(key=lambda item: (item["page"], item["rect"].y0, item["rect"].x0))
+    heading_indexes = {}
+    for section in _MASTER_FINAL_SECTIONS:
+        matches = [
+            i for i, record in enumerate(records)
+            if normalized(record["text"]) == section.casefold()
+        ]
+        if not matches:
+            raise ValueError(f"Bagian wajib '{section}' tidak ditemukan sebagai heading PDF.")
+        heading_indexes[section] = matches[0]
+    ordered_indexes = [heading_indexes[section] for section in _MASTER_FINAL_SECTIONS]
+    if ordered_indexes != sorted(ordered_indexes):
+        raise ValueError("Urutan lima bagian laporan MASTER FINAL tidak sesuai.")
+
+    def is_table_block(record):
+        center = pymupdf.Point(
+            (record["rect"].x0 + record["rect"].x1) / 2,
+            (record["rect"].y0 + record["rect"].y1) / 2,
+        )
+        return any(
+            rect.contains(center)
+            for rects in table_cells_by_page.values()
+            for rect in rects
+        )
+
+    paragraph_counts = {}
+    for section_index, section in enumerate(_MASTER_FINAL_SECTIONS):
+        start = heading_indexes[section] + 1
+        end = heading_indexes[_MASTER_FINAL_SECTIONS[section_index + 1]] if section_index + 1 < len(_MASTER_FINAL_SECTIONS) else len(records)
+        paragraphs = [
+            record for record in records[start:end]
+            if len(record["text"]) >= 60
+            and record["rect"].x0 < 100
+            and record["rect"].y0 >= 65
+            and record["rect"].y1 <= 810
+            and not re.match(r"(?i)^Halaman\s+\d+$", record["text"])
+            and not is_table_block(record)
+        ]
+        paragraph_counts[section] = len(paragraphs)
+        if len(paragraphs) < 2:
+            raise ValueError(
+                f"Bagian '{section}' hanya memiliki {len(paragraphs)} paragraf isi yang terdeteksi; minimal dua diwajibkan."
+            )
+
+    conclusion_index = heading_indexes["Kesimpulan"]
+    conclusion_heading = records[conclusion_index]
+    opening = next((
+        record for record in records[conclusion_index + 1:]
+        if record["page"] == conclusion_heading["page"]
+        and record["rect"].y0 >= conclusion_heading["rect"].y1 - 1
+        and record["rect"].x0 < 100
+        and len(record["text"]) >= 60
+        and not is_table_block(record)
+    ), None)
+    if opening is None:
+        raise ValueError("Heading Kesimpulan tidak langsung diikuti paragraf pembuka yang cukup pada halaman yang sama.")
+
+    if len(data_rows) != 10:
+        raise ValueError(f"Tabel MASTER FINAL harus memiliki tepat 10 baris produk; terdeteksi {len(data_rows)}.")
+    if [row[0].strip() for row in data_rows] != [str(i) for i in range(1, 11)]:
+        raise ValueError("Nomor produk pada tabel harus berurutan dari 1 sampai 10.")
+    if any(len(row) != 7 or any(not str(value).strip() for value in row) for row in data_rows):
+        raise ValueError("Setiap baris produk harus memiliki tujuh sel terisi.")
+    if not header_styles_ok:
+        raise ValueError("Header tabel harus berwarna biru tua dengan teks putih tebal.")
+    if not alternating_fills_ok:
+        raise ValueError("Warna baris tabel tidak mengikuti pola selang-seling putih dan abu-biru muda.")
+    if not cell_borders_ok:
+        raise ValueError("Sel tabel tidak memiliki garis batas vektor yang lengkap.")
+
+    # Check body text geometry and accidental text-block collisions. Table-cell
+    # text is excluded because its placement is intentionally inside cell shapes.
+    body_records = [
+        record for record in records
+        if record["rect"].y0 >= 65 and record["rect"].y1 <= 810
+        and not is_table_block(record)
+    ]
+    for record in body_records:
+        rect = record["rect"]
+        if rect.x0 < 40 or rect.x1 > 555:
+            raise ValueError(f"Teks laporan keluar dari area margin pada halaman {record['page'] + 1}.")
+    for index, first in enumerate(body_records):
+        for second in body_records[index + 1:]:
+            if second["page"] != first["page"]:
+                if second["page"] > first["page"]:
+                    break
+                continue
+            intersection = first["rect"] & second["rect"]
+            if not intersection.is_empty and intersection.get_area() > 1.0:
+                raise ValueError(
+                    f"Blok teks bertabrakan pada halaman {first['page'] + 1}: "
+                    f"{first['text'][:35]!r} / {second['text'][:35]!r}."
+                )
+
+    return {
+        "master_final_report": True,
+        "required_sections": list(_MASTER_FINAL_SECTIONS),
+        "paragraphs_per_section": paragraph_counts,
+        "product_rows": len(data_rows),
+        "table_columns": 7,
+        "table_header_pages": header_pages,
+        "conclusion_with_opening_paragraph": True,
+        "page_numbers_correct": True,
+        "table_header_style": header_styles_ok,
+        "alternating_table_rows": alternating_fills_ok,
+        "table_cell_borders": cell_borders_ok,
+        "body_text_geometry": True,
+        "body_text_overlaps": False,
+    }
+
+
 def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
@@ -1358,6 +1593,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                     raise ValueError("Heading Kesimpulan tidak ditemukan bersama isi paragraf pada halaman yang sama.")
             table_groups = []
             repeated_header_pages = 0
+            table_content_pages = 0
             for page in doc:
                 row_cells = {}
                 navy_cells = {}
@@ -1374,7 +1610,10 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                     fill = drawing.get("fill")
                     if fill and len(fill) >= 3 and all(abs(fill[i] - (0.21, 0.37, 0.57)[i]) < 0.03 for i in range(3)):
                         navy_cells[key] = navy_cells.get(key, 0) + 1
-                table_groups.extend(count for count in row_cells.values() if count >= 2)
+                page_table_groups = [count for count in row_cells.values() if count >= 2]
+                table_groups.extend(page_table_groups)
+                if page_table_groups:
+                    table_content_pages += 1
                 if any(count >= 2 for count in navy_cells.values()):
                     repeated_header_pages += 1
             result["table_row_groups"] = len(table_groups)
@@ -1383,8 +1622,19 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 raise ValueError(
                     f"Tabel diminta memuat 10 produk, tetapi hanya {len(table_groups)} kelompok baris sel yang terdeteksi."
                 )
-            if re.search(r"header\s+tabel\s+(?:harus\s+)?berulang|ulang(?:i|an)?\s+header\s+tabel", prompt, re.I) and repeated_header_pages < 2:
-                raise ValueError("Header tabel berulang belum terbukti pada minimal dua halaman.")
+            conditional_repeat = bool(re.search(
+                r"(?:ulangi|ulang(?:i|an)?)\s+header(?:\s+tabel)?\s+jika\s+tabel\s+berlanjut|"
+                r"header(?:\s+tabel)?\s+(?:diulang|berulang)\s+jika\s+tabel\s+berlanjut",
+                prompt, re.I,
+            ))
+            repeat_requested = bool(re.search(
+                r"header\s+tabel\s+(?:harus\s+)?berulang|ulang(?:i|an)?\s+header\s+tabel",
+                prompt, re.I,
+            ))
+            if repeat_requested and table_content_pages > 1 and repeated_header_pages < table_content_pages:
+                raise ValueError("Header tabel tidak terulang pada setiap halaman lanjutan tabel.")
+            if _is_master_final_pdf_prompt(prompt):
+                result.update(_validate_master_final_pdf_report(doc, prompt, page_texts))
             result["text_layer"] = True
             result["bold_spans"] = sum(bool(flag & 16) for flag in flags)
             result["italic_spans"] = sum(bool(flag & 2) for flag in flags)
