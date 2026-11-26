@@ -1455,7 +1455,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
     opening = next((
         record for record in records[conclusion_index + 1:]
         if record["page"] == conclusion_heading["page"]
-        and record["rect"].y0 >= conclusion_heading["rect"].y1 - 1
+        and record["rect"].y0 >= conclusion_heading["rect"].y0
         and record["rect"].x0 < 100
         and len(record["text"]) >= 60
         and not is_table_block(record)
