@@ -5235,9 +5235,66 @@ class ClouzerBot(commands.Bot):
                                 _xlsx_diag_tab_rows,
                                 _xlsx_diag_md_rows,
                             )
-                        generated_bytes, generated_name, generated_mime = create_document_file(
-                            requested_file_format, clean_content, reply_text or ""
-                        )
+                        try:
+                            generated_bytes, generated_name, generated_mime = create_document_file(
+                                requested_file_format, clean_content, reply_text or ""
+                            )
+                        except ValueError as build_exc:
+                            # A malformed model response is retried once for XLSX instead
+                            # of immediately failing the user's file request. This retry
+                            # asks for strict TSV and does not fabricate or alter source data.
+                            retryable_xlsx_shape = (
+                                requested_file_format == "xlsx"
+                                and "harus memiliki header dan setidaknya satu baris data" in str(build_exc).lower()
+                            )
+                            if not retryable_xlsx_shape:
+                                raise
+                            logging.warning(
+                                "[XLSX-RETRY] scope=%s reason=unstructured_model_output action=retry_once",
+                                scope_key,
+                            )
+                            await status_msg.edit(
+                                content="⚠️ Format tabel dari model belum terbaca. CLOUZER mencoba menyusun ulang tabel XLSX sekali..."
+                            )
+                            xlsx_retry_messages = copy.deepcopy(payload_messages)
+                            xlsx_retry_messages.append({
+                                "role": "user",
+                                "content": (
+                                    "[PERBAIKAN FORMAT XLSX - PENGULANGAN INTERNAL]\n"
+                                    "Jawaban sebelumnya tidak berisi tabel yang dapat dibaca. Susun ulang seluruh "
+                                    "isi spreadsheet berdasarkan permintaan asli pengguna. Keluarkan HANYA tabel TSV "
+                                    "(kolom dipisahkan karakter TAB), satu baris header lalu seluruh baris data. "
+                                    "Jangan keluarkan penjelasan, daftar, atau kalimat pembuka. Pertahankan seluruh "
+                                    "nilai, tanggal, dan angka nol. Jangan mengarang data yang tidak tersedia."
+                                ),
+                            })
+                            retry_reply, retry_function_calls = await self.run_responses_ai(
+                                xlsx_retry_messages,
+                                status_msg,
+                                mode=mode,
+                                allow_tools=False,
+                                allow_image_tool=False,
+                            )
+                            if retry_function_calls:
+                                logging.warning(
+                                    "[XLSX-RETRY] scope=%s ignored_function_calls=%d",
+                                    scope_key,
+                                    len(retry_function_calls),
+                                )
+                            reply_text = retry_reply or ""
+                            _retry_lines = [line for line in reply_text.splitlines() if line.strip()]
+                            logging.warning(
+                                "[XLSX-DIAG] scope=%s retry_chars=%d retry_nonempty_lines=%d "
+                                "retry_tab_rows=%d retry_markdown_pipe_rows=%d",
+                                scope_key,
+                                len(reply_text),
+                                len(_retry_lines),
+                                sum(1 for line in _retry_lines if "\\t" in line),
+                                sum(1 for line in _retry_lines if line.strip().startswith("|") and line.strip().endswith("|")),
+                            )
+                            generated_bytes, generated_name, generated_mime = create_document_file(
+                                requested_file_format, clean_content, reply_text
+                            )
                         validation_summary = validate_document_file(requested_file_format, clean_content, generated_bytes)
                         logging.info("[FILE-STAGE] scope=%s format=%s stage=validated details=%s", scope_key, requested_file_format, json.dumps(validation_summary, ensure_ascii=False))
                         generated_file = discord.File(fp=io.BytesIO(generated_bytes), filename=generated_name)
