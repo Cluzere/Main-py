@@ -2280,31 +2280,22 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         raise RuntimeError("File hasil melebihi batas aman 8 MB.")
 
     if fmt == "pdf" and _is_master_final_pdf_prompt(prompt):
-        # Two-pass (iterative) generation: validate the actual first render,
-        # embed its measured results into the report, then rebuild and validate
-        # the final artifact. Repeat until the page count reported in the PDF
-        # matches the final rendered page count.
-        final_summary = None
-        for _ in range(4):
-            # Reuse validation evidence for the current bytes at the next pass.
-            first_summary = final_summary or validate_document_file(fmt, prompt, data, enforce_minimum_pages=False)
-            updated_text = _append_master_final_validation_summary(text, first_summary)
-            if updated_text == text:
-                final_summary = first_summary
-                break
-            text = updated_text
-            data = builders[fmt]()
-            if not data:
-                raise RuntimeError("PDF MASTER FINAL kosong setelah ringkasan validasi disisipkan.")
-            if len(data) > MAX_GENERATED_FILE_BYTES:
-                raise RuntimeError("PDF MASTER FINAL melebihi batas aman 8 MB setelah validasi.")
-            final_summary = validate_document_file(fmt, prompt, data)
-            if final_summary.get("pages") == first_summary.get("pages"):
-                break
-        else:
-            raise RuntimeError("Jumlah halaman PDF MASTER FINAL tidak stabil setelah penyisipan ringkasan validasi.")
-
-        # The summary above validates the exact final bytes; avoid duplicate work.
+        # Exactly two builds and two validations: inspect the narrative/table
+        # baseline without enforcing the final page minimum, append measured
+        # evidence, then enforce every acceptance rule on the exact final bytes.
+        # The baseline page count is explicitly labeled as pre-appendix data;
+        # the embedded minimum-page PASS is valid only because this function
+        # returns a file after the final-byte validator accepts it.
+        baseline_summary = validate_document_file(
+            fmt, prompt, data, enforce_minimum_pages=False
+        )
+        text = _append_master_final_validation_summary(text, baseline_summary)
+        data = builders[fmt]()
+        if not data:
+            raise RuntimeError("PDF MASTER FINAL kosong setelah ringkasan validasi disisipkan.")
+        if len(data) > MAX_GENERATED_FILE_BYTES:
+            raise RuntimeError("PDF MASTER FINAL melebihi batas aman 8 MB setelah validasi.")
+        final_summary = validate_document_file(fmt, prompt, data, enforce_minimum_pages=True)
         if not final_summary or not final_summary.get("valid"):
             raise RuntimeError("Validasi akhir PDF MASTER FINAL tidak menghasilkan status valid.")
     else:
