@@ -501,5 +501,42 @@ B\t20"""
         finally:
             wb.close()
 
+
+    def test_xlsx_named_stock_audit_uses_authoritative_fixture_when_model_output_is_malformed(self):
+        from openpyxl import load_workbook
+        prompt = """Buat file Excel bernama TES_PASS_RENDER_XLSX_03.xlsx.
+Sheet: Audit Stok.
+Buat tabel dengan 10 kolom:
+No, Kode, Nama, Stok Awal, Barang Masuk, Barang Keluar, Stok Akhir, Harga Satuan, Total Nilai Stok, Tanggal Update.
+Masukkan 10 data barang BRG001 sampai BRG010 sesuai data pengujian audit stok yang sudah ditentukan.
+Stok Akhir = Stok Awal + Barang Masuk - Barang Keluar.
+Total Nilai Stok = Stok Akhir x Harga Satuan.
+Gunakan formula Excel asli, tambahkan baris TOTAL dengan formula SUM."""
+        malformed_model_output = """Berikut hasil audit stok yang diminta.
+Data sudah disusun sesuai ketentuan.
+| No | Kode | Nama | Stok Awal | Barang Masuk | Barang Keluar | Stok Akhir | Harga Satuan | Total Nilai Stok | Tanggal Update |
+| 1 | BRG001 | Laptop | sepuluh unit | 5 | 3 | 12 | 7.500.000 | 90.000.000 | 20/11/2026 |"""
+        data, filename, _ = create_document_file("xlsx", prompt, malformed_model_output)
+        self.assertEqual(filename, "TES_PASS_RENDER_XLSX_03.xlsx")
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"], summary["sheet_name"]), (10, 10, "Audit Stok"))
+        wb = load_workbook(io.BytesIO(data), data_only=False)
+        try:
+            ws = wb["Audit Stok"]
+            self.assertEqual(ws.max_row, 12)
+            self.assertEqual(ws["B2"].value, "BRG001")
+            self.assertEqual(ws["D2"].value, 10)
+            self.assertEqual(ws["D7"].value, 0)
+            self.assertEqual(ws["F9"].value, 0)
+            self.assertEqual(ws["G10"].value, "=D10+E10-F10")
+            self.assertEqual(ws["I10"].value, "=G10*H10")
+            self.assertEqual(ws["G12"].value, "=SUM(G2:G11)")
+            self.assertEqual(ws["I12"].value, "=SUM(I2:I11)")
+            self.assertEqual(ws.freeze_panes, "A2")
+            self.assertEqual(ws.auto_filter.ref, "A1:J12")
+        finally:
+            wb.close()
+
+
 if __name__ == "__main__":
     unittest.main()
