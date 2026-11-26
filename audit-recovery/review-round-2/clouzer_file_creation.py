@@ -648,7 +648,7 @@ def _make_pdf(content: str, title: str) -> bytes:
                             len(next_lines) * next_line_height + 7 + 2,
                         )
 
-                keep_height = heading_height + following_height
+                keep_height = 5 + heading_height + following_height + 8
                 if keep_height <= bottom - top:
                     if y + keep_height > bottom:
                         new_page()
