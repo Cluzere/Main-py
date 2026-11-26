@@ -1320,12 +1320,16 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 span for page in doc for block in page.get_text("dict")["blocks"] if "lines" in block
                 for line in block["lines"] for span in line["spans"] if span.get("text", "").strip()
             ]
-            if any(
-                span["bbox"][0] < 30 or span["bbox"][1] < 12
-                or span["bbox"][2] > 565 or span["bbox"][3] > 835
-                for span in spans
-            ):
-                raise ValueError("Teks PDF keluar dari batas halaman atau area margin aman.")
+            for page in doc:
+                page_rect = page.rect
+                for block in page.get_text("dict")["blocks"]:
+                    if "lines" not in block:
+                        continue
+                    for line in block["lines"]:
+                        for span in line["spans"]:
+                            x0, y0, x1, y1 = span["bbox"]
+                            if x0 < 0 or y0 < 0 or x1 > page_rect.width or y1 > page_rect.height:
+                                raise ValueError("Teks PDF keluar dari batas fisik halaman.")
             flags = [span.get("flags", 0) for span in spans]
             if re.search(r"\b(?:italic|miring)\b", prompt, re.I) and not any(flag & 2 for flag in flags):
                 raise ValueError("Prompt meminta teks italic/miring, tetapi tidak ditemukan font italic pada PDF.")
