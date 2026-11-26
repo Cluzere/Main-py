@@ -4,10 +4,22 @@ import json
 import unittest
 import zipfile
 
-from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file, resolve_document_source, _xlsx_formula_specs, _requested_sheet_title
+from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file, resolve_document_source, build_file_generation_system_instruction, _xlsx_formula_specs, _requested_sheet_title
 
 
 class FileCreationTests(unittest.TestCase):
+    def test_file_generation_system_instruction_uses_local_backend_for_all_formats(self):
+        formats = ("txt", "pdf", "docx", "xlsx", "pptx", "zip", "csv", "json", "md", "html", "xml", "yaml", "rtf", "odt")
+        for fmt in formats:
+            with self.subTest(fmt=fmt):
+                instruction = build_file_generation_system_instruction(fmt)
+                self.assertIn(fmt.upper(), instruction)
+                self.assertIn("generator dokumen lokal", instruction)
+                self.assertIn("TIDAK perlu", instruction)
+                self.assertIn("jangan pernah menjawab", instruction.lower())
+        with self.assertRaises(ValueError):
+            build_file_generation_system_instruction("exe")
+
     def test_detect_all_eight_formats(self):
         prompts = {
             "Buat catatan TXT": "txt", "Buat laporan PDF": "pdf",
