@@ -88,6 +88,26 @@ def detect_requested_file_format(prompt: str) -> str | None:
     return min(matches)[1] if matches else None
 
 
+def build_file_generation_system_instruction(format_name: str) -> str:
+    """Explain the local file-generation architecture to the model for file requests."""
+    fmt = str(format_name or "").lower().lstrip(".")
+    if fmt not in _FORMAT_PATTERNS:
+        raise ValueError("Format file tidak didukung.")
+    return (
+        "TUGAS PENYUSUNAN KONTEN DOKUMEN — INSTRUKSI SISTEM KHUSUS. "
+        "Pengguna meminta file dengan format " + fmt.upper() + ". "
+        "Kamu TIDAK perlu dan TIDAK boleh mencoba memanggil tool untuk membuat atau mengirim file. "
+        "Arsitektur aplikasi sudah menyediakan generator dokumen lokal: setelah kamu mengeluarkan "
+        "isi dokumen sebagai teks, program Python CLOUZER akan membuat file " + fmt.upper() +
+        ", memvalidasinya, lalu mengirimkannya sebagai attachment Discord. "
+        "Karena itu jangan pernah menjawab bahwa tool pembuatan file, penyimpanan file, atau "
+        "pengiriman attachment tidak tersedia. Jangan mengklaim file sudah dibuat atau dikirim. "
+        "Tugasmu hanya menyusun isi dokumen lengkap sesuai permintaan pengguna. "
+        "Keluarkan hanya isi dokumen, tanpa penjelasan tentang tool, API, kemampuan sesi, atau proses pengiriman. "
+        "Ikuti semua spesifikasi konten dan struktur pengguna; jangan mengarang fakta atau data yang tidak diminta."
+    )
+
+
 def _safe_title(content: str, prompt: str) -> str:
     for line in str(content or "").splitlines():
         match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)\s*$", line)
