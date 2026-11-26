@@ -1220,9 +1220,41 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertIn("NOT VERIFIED", extracted)
         self.assertEqual(re.sub(r"\s+", " ", extracted).casefold().count("not verified"), 3)
         self.assertIn("Pengiriman attachment Discord", extracted)
-        page_match = re.search(r"Jumlah halaman pada hasil validasi awal:\s*(\d+)", extracted)
+        page_match = re.search(r"Jumlah halaman sebelum lampiran validasi:\s*(\d+)", extracted)
         self.assertIsNotNone(page_match)
-        self.assertEqual(int(page_match.group(1)), summary["pages"])
+        self.assertLessEqual(int(page_match.group(1)), summary["pages"])
+
+
+    def test_master_final_pdf_short_ai_narrative_reaches_four_pages_after_backend_summary(self):
+        prompt, _ = self._master_final_pdf_fixture()
+        paragraph_a = (
+            "Pengujian generator dokumen menilai ketepatan struktur, keterbacaan, konsistensi isi, "
+            "dan kesesuaian keluaran terhadap persyaratan yang telah ditentukan. "
+        ) * 4
+        paragraph_b = (
+            "Setiap temuan harus dapat ditelusuri melalui artefak, pengukuran otomatis, atau pemeriksaan manual "
+            "yang dinyatakan secara jujur sesuai batas bukti yang tersedia. "
+        ) * 4
+        model_content = "\\n\\n".join(
+            part
+            for section in ("Pendahuluan", "Tujuan Pengujian", "Metode Pengujian", "Hasil Pengujian", "Kesimpulan")
+            for part in ("## " + section, paragraph_a, paragraph_b)
+        )
+        data, filename, mime = create_document_file("pdf", prompt, model_content)
+        summary = validate_document_file("pdf", prompt, data)
+        self.assertEqual(filename, "Tes_PDF_Final.pdf")
+        self.assertEqual(mime, "application/pdf")
+        self.assertGreaterEqual(summary["pages"], 4)
+        self.assertTrue(summary["master_final_report"])
+        self.assertEqual(summary["product_rows"], 10)
+        self.assertEqual(summary["table_columns"], 7)
+        self.assertTrue(all(count >= 2 for count in summary["paragraphs_per_section"].values()))
+        import pymupdf
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            extracted = "\\n".join(page.get_text() for page in doc)
+        self.assertIn("Jumlah halaman sebelum lampiran validasi:", extracted)
+        self.assertIn("Elemen vektor tabel", extracted)
+        self.assertEqual(re.sub(r"\\s+", " ", extracted).casefold().count("not verified"), 3)
 
     def test_master_final_pdf_rejects_wrong_table_header_schema(self):
         prompt, content = self._master_final_pdf_fixture()
