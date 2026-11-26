@@ -17,6 +17,9 @@ class FileCreationTests(unittest.TestCase):
                 self.assertIn("generator dokumen lokal", instruction)
                 self.assertIn("TIDAK perlu", instruction)
                 self.assertIn("jangan pernah menjawab", instruction.lower())
+        pdf_instruction = build_file_generation_system_instruction("pdf")
+        self.assertIn("backend akan mengukur dan menyisipkan matriks hasil validasi otomatis", pdf_instruction)
+        self.assertIn("Jangan mengklaim inspeksi visual manual", pdf_instruction)
         with self.assertRaises(ValueError):
             build_file_generation_system_instruction("exe")
 
@@ -1189,6 +1192,13 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
             extracted = "\n".join(page.get_text() for page in doc)
         self.assertIn("LAPORAN PENGUJIAN GENERATOR PDF CLOUZER", extracted)
         self.assertIn("CLOUZER", extracted)
+        self.assertIn("Ringkasan Validasi Otomatis CLOUZER", extracted)
+        self.assertIn("Inspeksi visual manual seluruh halaman", extracted)
+        self.assertIn("NOT VERIFIED", extracted)
+        self.assertIn("Pengiriman attachment Discord", extracted)
+        page_match = re.search(r"Jumlah halaman pada hasil validasi awal:\\s*(\\d+)", extracted)
+        self.assertIsNotNone(page_match)
+        self.assertEqual(int(page_match.group(1)), summary["pages"])
 
     def test_master_final_pdf_rejects_wrong_table_header_schema(self):
         prompt, content = self._master_final_pdf_fixture()
