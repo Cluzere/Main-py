@@ -286,29 +286,46 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = _safe_sheet_title(prompt)
-    rows = []
+    # Parse contiguous table blocks independently; do not concatenate unrelated tables.
+    table_runs, current_run, current_width = [], [], None
     for line in content.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("```"):
+            if current_run: table_runs.append(current_run); current_run = []; current_width = None
             continue
-        if "|" in stripped:
+        if '|' in stripped:
             table_line = stripped
-            has_outer_pipe = table_line.startswith("|")
-            if has_outer_pipe:
+            if table_line.startswith('|'):
                 table_line = table_line[1:]
-                if table_line.endswith("|"):
-                    table_line = table_line[:-1]
-            cells = [cell.strip() for cell in table_line.split("|")]
-        elif "\t" in line:
-            cells = [cell.strip() for cell in line.split("\t")]
+                if table_line.endswith('|'): table_line = table_line[:-1]
+            cells = [cell.strip() for cell in table_line.split('|')]
+        elif "\t" in line: cells = [cell.strip() for cell in line.split("\t")]
         else:
-            # Explanatory prose is not a table row.
+            if current_run: table_runs.append(current_run); current_run = []; current_width = None
             continue
-        if cells and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
+        if cells and all(re.fullmatch(r':?-{3,}:?', cell.replace(' ', '')) for cell in cells): continue
+        if len(cells) < 2:
+            if current_run: table_runs.append(current_run); current_run = []; current_width = None
             continue
-        if len(cells) >= 2:
-            rows.append(cells)
+        if current_width is not None and len(cells) != current_width:
+            table_runs.append(current_run); current_run = []
+        current_run.append(cells); current_width = len(cells)
+    if current_run: table_runs.append(current_run)
     expected_rows = _prompt_pipe_table(prompt)
+    usable_runs = [run for run in table_runs if len(run) >= 2]
+    if expected_rows:
+        matching_width = [run for run in usable_runs if len(run[0]) == len(expected_rows[0])]
+        if matching_width:
+            rows = min(matching_width, key=lambda run: (0 if run[0] == expected_rows[0] else 1, 0 if run == expected_rows else 1, abs(len(run) - len(expected_rows)), -len(run)))
+        else: rows = max(usable_runs, key=len, default=[])
+    else:
+        count_match = re.search(r'\b(\d{1,4})\s*baris\s+data\b', str(prompt or '').lower())
+        if not count_match: count_match = re.search(r'\btepat\s+(\d{1,4})\s*(?:baris|rows?)\b', str(prompt or '').lower())
+        column_match = re.search(r'\b(\d{1,3})\s*(?:kolom|columns?)\b', str(prompt or '').lower())
+        target_rows = int(count_match.group(1)) + 1 if count_match else None
+        target_columns = int(column_match.group(1)) if column_match else None
+        candidates = [run for run in usable_runs if target_columns is None or len(run[0]) == target_columns]
+        rows = min(candidates, key=lambda run: (abs(len(run) - target_rows) if target_rows is not None else 0, -len(run)), default=max(usable_runs, key=len, default=[]))
     if expected_rows and rows != expected_rows:
         # Recover only when the model returned unstructured prose or an exact
         # prefix of the user's source table. A structured table with altered
