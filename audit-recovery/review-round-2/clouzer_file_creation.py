@@ -1485,7 +1485,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
             if len(opening_text) >= 80:
                 break
     if len(opening_text) < 60:
-        raise ValueError("Heading Kesimpulan tidak langsung diikuti paragraf pembuka yang cukup pada halaman yang sama.")
+        raise ValueError(f"Heading Kesimpulan tidak langsung diikuti paragraf pembuka yang cukup pada halaman yang sama. page={conclusion_heading['page'] + 1}, heading_line={heading_line_index}, text_tail={conclusion_page_text[-1200:]!r}")
 
 
     if len(data_rows) != 10:
