@@ -5242,60 +5242,57 @@ class ClouzerBot(commands.Bot):
                                 requested_file_format, clean_content, file_source_content
                             )
                         except ValueError as build_exc:
-                            # A malformed model response is retried once for XLSX instead
-                            # of immediately failing the user's file request. This retry
-                            # asks for strict TSV and does not fabricate or alter source data.
-                            retryable_xlsx_shape = (
-                                requested_file_format == "xlsx"
-                                and "harus memiliki header dan setidaknya satu baris data" in str(build_exc).lower()
-                            )
-                            if not retryable_xlsx_shape:
-                                raise
+                            # Shared one-shot recovery for malformed model output across all formats.
                             logging.warning(
-                                "[XLSX-RETRY] scope=%s reason=unstructured_model_output action=retry_once",
-                                scope_key,
+                                "[FILE-RETRY] scope=%s format=%s reason=%s action=retry_once",
+                                scope_key, requested_file_format, type(build_exc).__name__,
                             )
                             await status_msg.edit(
-                                content="⚠️ Format tabel dari model belum terbaca. CLOUZER mencoba menyusun ulang tabel XLSX sekali..."
+                                content="⚠️ Struktur file " + requested_file_format.upper() + " belum valid. CLOUZER mencoba menyusun ulang sekali..."
                             )
-                            xlsx_retry_messages = copy.deepcopy(payload_messages)
-                            xlsx_retry_messages.append({
+                            retry_instructions = {
+                                "xlsx": "Keluarkan hanya tabel TSV: satu header dan seluruh baris data. Pertahankan nol di depan, tanggal, dan angka. Jangan mengarang data.",
+                                "csv": "Keluarkan hanya CSV valid dengan satu header dan seluruh baris data. Quote field yang berisi koma atau baris baru. Jangan mengarang data.",
+                                "json": "Keluarkan hanya satu dokumen JSON valid. Pastikan semua string, escape, koma, dan kurung seimbang. Jangan mengarang data.",
+                                "html": "Keluarkan hanya dokumen HTML5 lengkap dengan doctype, html, head, dan body. Gunakan elemen semantik yang diminta. Jangan mengarang data.",
+                                "xml": "Keluarkan hanya satu dokumen XML well-formed dengan satu root element. Escape karakter khusus dengan benar. Jangan mengarang data.",
+                                "yaml": "Keluarkan hanya YAML valid dengan indentasi konsisten. Jangan mengarang data.",
+                                "zip": "Keluarkan anggota arsip dengan format === FILE: nama_file === pada setiap file, lalu isi file. Penuhi semua nama anggota yang diminta. Jangan mengarang data.",
+                                "pptx": "Keluarkan isi setiap slide dengan judul dan konten, pisahkan slide memakai baris --- SLIDE ---. Penuhi jumlah slide yang diminta. Jangan mengarang data.",
+                                "rtf": "Keluarkan hanya dokumen RTF asli yang dimulai dengan {\\rtf dan memiliki struktur grup seimbang. Jangan mengarang data.",
+                                "md": "Keluarkan hanya Markdown lengkap dengan heading dan struktur yang diminta. Jangan mengarang data.",
+                                "pdf": "Keluarkan isi dokumen lengkap dengan judul, bagian, dan tabel yang diminta; jangan sertakan penjelasan di luar dokumen. Jangan mengarang data.",
+                                "docx": "Keluarkan isi dokumen Word lengkap dengan judul, bagian, dan tabel yang diminta. Jangan mengarang data.",
+                                "odt": "Keluarkan isi dokumen OpenDocument lengkap dengan judul, bagian, dan tabel yang diminta. Jangan mengarang data.",
+                                "txt": "Keluarkan hanya isi teks lengkap sesuai permintaan. Jangan mengarang data.",
+                            }
+                            retry_messages = copy.deepcopy(payload_messages)
+                            retry_messages.append({
                                 "role": "user",
                                 "content": (
-                                    "[PERBAIKAN FORMAT XLSX - PENGULANGAN INTERNAL]\n"
-                                    "Jawaban sebelumnya tidak berisi tabel yang dapat dibaca. Susun ulang seluruh "
-                                    "isi spreadsheet berdasarkan permintaan asli pengguna. Keluarkan HANYA tabel TSV "
-                                    "(kolom dipisahkan karakter TAB), satu baris header lalu seluruh baris data. "
-                                    "Jangan keluarkan penjelasan, daftar, atau kalimat pembuka. Pertahankan seluruh "
-                                    "nilai, tanggal, dan angka nol. Jangan mengarang data yang tidak tersedia."
+                                    "[PERBAIKAN STRUKTUR FILE - PENGULANGAN INTERNAL]\\n"
+                                    "Respons sebelumnya gagal divalidasi: " + str(build_exc)[:240] + "\\n"
+                                    "Susun ulang berdasarkan permintaan asli pengguna. "
+                                    + retry_instructions.get(requested_file_format, "Keluarkan isi dokumen lengkap dan valid.")
+                                    + "\\nPertahankan seluruh fakta dan nilai sumber. Jangan menambahkan data, jangan melakukan web search, dan jangan memanggil tool."
                                 ),
                             })
                             retry_reply, retry_function_calls = await self.run_responses_ai(
-                                xlsx_retry_messages,
-                                status_msg,
-                                mode=mode,
-                                allow_tools=False,
-                                allow_image_tool=False,
+                                retry_messages, status_msg, mode=mode, allow_tools=False, allow_image_tool=False,
                             )
                             if retry_function_calls:
                                 logging.warning(
-                                    "[XLSX-RETRY] scope=%s ignored_function_calls=%d",
-                                    scope_key,
-                                    len(retry_function_calls),
+                                    "[FILE-RETRY] scope=%s ignored_function_calls=%d",
+                                    scope_key, len(retry_function_calls),
                                 )
                             reply_text = retry_reply or ""
-                            _retry_lines = [line for line in reply_text.splitlines() if line.strip()]
-                            logging.warning(
-                                "[XLSX-DIAG] scope=%s retry_chars=%d retry_nonempty_lines=%d "
-                                "retry_tab_rows=%d retry_markdown_pipe_rows=%d",
-                                scope_key,
-                                len(reply_text),
-                                len(_retry_lines),
-                                sum(1 for line in _retry_lines if "\\t" in line),
-                                sum(1 for line in _retry_lines if line.strip().startswith("|") and line.strip().endswith("|")),
+                            retry_lower = reply_text.strip().lower()
+                            retry_refused = any(marker in retry_lower for marker in file_refusal_markers)
+                            retry_source_content = resolve_document_source(
+                                requested_file_format, clean_content, reply_text, model_refused=retry_refused,
                             )
                             generated_bytes, generated_name, generated_mime = create_document_file(
-                                requested_file_format, clean_content, reply_text
+                                requested_file_format, clean_content, retry_source_content,
                             )
                         validation_summary = validate_document_file(requested_file_format, clean_content, generated_bytes)
                         logging.info("[FILE-STAGE] scope=%s format=%s stage=validated details=%s", scope_key, requested_file_format, json.dumps(validation_summary, ensure_ascii=False))
