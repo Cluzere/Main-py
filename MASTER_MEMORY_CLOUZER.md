@@ -3240,3 +3240,43 @@ Run the exact remembered MASTER FINAL prompt, filename Tes_PDF_Final.pdf, agains
 5. Rerun the same MASTER FINAL prompt on the Wispbyte audit candidate; obtain the new Discord attachment and Box artifact.
 6. Re-download and inspect the new artifact, all page renders, manual PDF-reader selection/search, and Discord delivery separately.
 7. Keep all changes on `audit-recovery-gpt-2026-11-23`; do not touch production `main.py` or merge PR #6 without explicit authorization.
+
+
+## 52.24 Perbaikan audit PDF MASTER FINAL berdasarkan artefak Box — 2026-11-27
+
+### Artefak dan temuan aktual
+- Artefak yang diperiksa assistant pada Box: `Tes_PDF_Final (1).pdf`, Box file ID `2617131553220`.
+- Laporan pemeriksaan sebelumnya mencatat 6 halaman A4, PDF terbuka, teks dapat diekstrak, lima bagian laporan ditemukan, dan tabel berisi 10 baris dengan 7 kolom.
+- Dua cacat isi/tata letak yang terlihat:
+  1. Enam kolom data produk pada 10 baris berisi tanda tanya/placeholder (60 sel tidak berisi data produk yang bermakna).
+  2. Ringkasan validasi otomatis yang panjang disisipkan SEBELUM heading Kesimpulan. Akibatnya Kesimpulan terdorong ke halaman paling akhir dan halaman terakhir hanya memuat sedikit isi.
+- Status delivery Discord pada artefak tersebut tetap NOT VERIFIED; jangan menyimpulkan file benar-benar dikirim dari keberadaan file di Box saja.
+- Pemeriksaan visual terdahulu melaporkan semua 6 halaman telah dirender dan ditinjau. Catatan ini merekam hasil pemeriksaan tersebut, bukan bukti inspeksi baru.
+
+### Patch kandidat yang dibuat pada 2026-11-27
+Branch: `audit-recovery-gpt-2026-11-23`. Production `main.py` tidak disentuh.
+
+1. File `audit-recovery/review-round-2/clouzer_file_creation.py`
+   - Validasi MASTER FINAL sekarang menolak placeholder eksplisit pada sel tabel produk: `?`, `??`, `???`, dash-only, `TBD`, `TODO`, `N/A`, `belum diisi`, `data belum tersedia`, `isi di sini`, `placeholder`, dan placeholder bracketed yang menyebut isi/data/nama/produk/harga/stok.
+   - Pesan error menyebut nomor baris dan kolom yang mengandung placeholder.
+   - Ringkasan validasi backend sekarang ditempatkan SETELAH seluruh isi laporan, bukan tepat sebelum Kesimpulan. Ini menjaga Kesimpulan tetap menyatu dengan paragraf-paragrafnya dan mencegah matriks backend yang panjang memaksa Kesimpulan menjadi ekor satu paragraf di halaman baru.
+   - Ringkasan lama yang sudah ada di sumber dibuang sebelum dibuat ulang agar tidak terduplikasi.
+
+2. File `audit-recovery/review-round-2/test_file_creation.py`
+   - Ditambahkan regresi yang memastikan tanda tanya di sel tabel MASTER FINAL ditolak.
+   - Ditambahkan regresi yang memastikan paragraf Kesimpulan tetap muncul sebelum ringkasan validasi otomatis.
+
+### Commit patch
+- `dedb108c33f0f2981547b68fe4c01b2b8e542158` — `fix(pdf): preserve conclusion and reject placeholder product rows`
+- `78fb4bef8ea1db3db928ae9dcf024065c2159a18` — `test(pdf): cover placeholder rows and conclusion pagination`
+- Branch HEAD yang dibaca ulang dari GitHub: `78fb4bef8ea1db3db928ae9dcf024065c2159a18`.
+
+### Status verifikasi setelah patch
+- Perubahan kode dan dua regresi sudah ditulis ke branch audit.
+- GitHub Actions workflow run untuk commit `78fb4bef8ea1db3db928ae9dcf024065c2159a18` belum muncul pada pemeriksaan connector saat pencatatan ini. Karena itu status eksekusi tes adalah **NOT VERIFIED**; jangan klaim tes lulus.
+- Belum ada PDF baru yang dihasilkan oleh runtime Wispbyte setelah patch ini. Jangan klaim cacat artefak Box telah terbukti selesai pada runtime.
+- Wispbyte harus restart/fetch ulang branch audit untuk menjalankan commit baru. Jangan sentuh production.
+- Setelah runtime diperbarui, ulangi prompt MASTER FINAL yang sama. Jika model mengembalikan placeholder, generator harus menolak file dan mempertahankan retry context; jangan mengirim PDF dengan data produk kosong.
+- Periksa PDF baru di Box: semua 10 baris harus berisi nilai nyata/non-placeholder pada 7 kolom; Kesimpulan harus tetap memiliki minimal dua paragraf dan tidak boleh menjadi satu paragraf pendek di halaman terakhir; ringkasan validasi berada setelah Kesimpulan; lakukan render visual semua halaman. Delivery Discord tetap perlu bukti attachment pada pesan Discord.
+
+**Peringatan untuk agent berikutnya:** Jangan mengubah production atau menyebut patch ini sukses runtime hanya karena commit berhasil. Bedakan commit GitHub, CI, restart Wispbyte, artefak PDF baru, inspeksi visual, dan delivery Discord sebagai enam bukti yang berbeda.
