@@ -1332,7 +1332,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
 def extract_explicit_document_source(prompt: str) -> str:
     """Extract only source text explicitly supplied by the user, never inferred content."""
     value = str(prompt or "")
-    fenced = re.findall(r"(?ms)^[ \t]*```[^\n]*\n(.*?)^[ \t]*```[ \t]*(?:\\n|$)", value)
+    fenced = re.findall(r"(?ms)^[ \t]*```[^\n]*\n(.*?)^[ \t]*```[ \t]*(?:\n|$)", value)
     if len(fenced) == 1 and fenced[0].strip():
         return fenced[0].strip()
     if len(fenced) > 1:
