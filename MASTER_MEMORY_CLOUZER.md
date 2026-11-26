@@ -2870,3 +2870,15 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - Production root `main.py`, production branch `main`, and Wispbyte deployment/restart were not modified or performed. The user must initiate the Wispbyte audit deployment restart from its panel before live testing. Before deployment, fetch the current audit branch tip and verify the startup log reports that exact fetched HEAD; ensure the candidate code includes entrypoint commit `9bd2e618fc29b54d70aec4ee7f3c84ee5b15e41d` or a descendant. The branch may advance with later docs-only Master Memory commits.
 - Run the provided 14-format Discord prompt matrix only after the audit deployment is restarted. For every live test, record requested prompt, returned artifact bytes, native structure/content validation, `[FILE-STAGE] stage=validated`, `stage=discord_attachment_confirmed`, and automatic Box upload provenance as independent evidence gates.
 - Do not promise zero future errors. The acceptance target is reproducible pass evidence and fail-closed behavior for unsupported/ambiguous source data.
+
+### 52.13 Mandatory CI completion and failure-repair protocol — 26 November 2026
+
+**Permanent operating rule for all future audit-branch changes**
+- Whenever a code, test, workflow, or other CI-triggering commit is pushed, do not stop at “CI running”, do not leave the run unattended, and do not report the task as complete while required checks are still queued or in progress.
+- Poll/inspect the exact GitHub Actions run(s) associated with the new commit until every required job reaches a terminal state. Confirm the run's tested commit SHA matches the latest relevant branch HEAD; a green run for an older commit is not evidence that the newest changes passed.
+- If CI succeeds, report the final conclusion explicitly as **CI PASS**, including the run link, tested commit SHA, and relevant test/check counts or summaries when available.
+- If any required CI job fails, inspect its job steps and logs, identify the actual root cause, repair the code/tests/workflow on the audit branch, push the correction, and wait for the newly triggered CI run to finish. Repeat the diagnose → fix → rerun → wait cycle until required checks pass or a genuine external blocker prevents progress.
+- Never hide a failure, call an in-progress run successful, or treat a commit/push as proof of correctness. If a failure cannot be repaired because of an external dependency, unavailable secret, runner outage, permissions issue, or other blocker, report the exact failing check and evidence, explain what is blocking it, and state that CI is **NOT PASS**.
+- Preserve the project safety boundary throughout this process: work on the authorized audit branch only; do not modify production branch main, root production main.py, or restart/deploy Wispbyte without the user's explicit authorization.
+- This protocol applies to all future CLOUZER audit work, not only the PDF generator.
+
