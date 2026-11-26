@@ -1578,7 +1578,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
         record for record in records
         if not is_table_block(record)
         and normalized(record["text"]) != document_title
-        and not re.match(r"(?i)^Halaman\\s+\\d+$", record["text"])
+        and not re.match(r"(?i)^Halaman\s+\d+$", record["text"])
     ]
     for record in body_records:
         rect = record["rect"]
