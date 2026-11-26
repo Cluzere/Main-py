@@ -2737,3 +2737,12 @@ Next required step before live testing: execute `python -m py_compile` on the ca
 
 The follow-up Master Memory commit after the workflow addition is `e48338be498345c8a7f0c94ef81a49e18e795645`. This is the latest branch tip recorded at this point; it changes the Master Memory document only. The candidate code commit remains `132d28841ee352319d83667f845ebec690e51d54`, and the workflow file was added in `59a9dbdf3f3e486305b74b9de28e554456061e1a`.
 
+### 52.8 Multi-format audit CI verified successfully (2026-11-26)
+
+- Triggered the existing CLOUZER multi-format file audit workflow by creating a no-content-change commit on the audit branch only: `ba369e6ed8bc3f941b127bbe70afecbd91c55a01`. It reuses the exact same Git tree `eb99d66b0c48e138094d53342ba3dc5b1ce266ca`; no source files changed in this trigger commit.
+- GitHub Actions run #4: `45820582026`, conclusion **success**. Run URL: https://github.com/Cluzere/Main-py/actions/runs/45820582026
+- Verified all workflow steps completed: candidate syntax compilation, Bandit high-severity security scan, dependency installation, and complete regression suite.
+- Regression result from the job log: **121 tests ran, OK**. This includes the new format-specific tests (MD, HTML, XML, YAML, RTF, ODT and PDF Markdown cleanup) and existing candidate regression tests.
+- Candidate code remains `132d28841ee352319d83667f845ebec690e51d54`; the CI trigger commit does not alter its tree. The successful CI validates this candidate tree in GitHub Actions only.
+- This does **not** prove runtime behavior on Wispbyte, real Discord attachment delivery, or automatic Box upload. No production deployment/restart was performed; production `main.py` and branch `main` were not changed.
+- GitHub Actions emitted deprecation warnings for Node.js 20-targeting actions and Python dependency warning output; these did not fail the run. The regression test that deliberately logs a memory-save error passed as expected.
