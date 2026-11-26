@@ -32,6 +32,7 @@ if _SCRIPT_MODULE_DIR not in sys.path:
 from clouzer_file_creation import (
     detect_requested_file_format,
     create_document_file,
+    resolve_document_source,
     is_retry_command,
     normalize_pending_retry_task,
     validate_document_file,
@@ -5205,18 +5206,19 @@ class ClouzerBot(commands.Bot):
                             "tidak dapat melampirkan", "cannot create a file",
                             "cannot attach", "no file-generation tool",
                         )
-                        if any(marker in file_reply_lower for marker in file_refusal_markers):
-                            if requested_file_format != "xlsx":
-                                raise RuntimeError(
-                                    "Model menolak tugas pembuatan file sebelum menghasilkan isi dokumen. "
-                                    "Respons penolakan tidak akan dikemas sebagai file."
-                                )
-                            # XLSX helper may safely recover only when the user's original
-                            # prompt contains a complete explicit table; it never invents rows.
+                        model_refused_file_content = any(
+                            marker in file_reply_lower for marker in file_refusal_markers
+                        )
+                        if model_refused_file_content:
                             logging.warning(
-                                "[XLSX-FALLBACK] scope=%s model_refusal_detected=1 source=explicit_prompt_table",
-                                scope_key,
+                                "[FILE-FALLBACK] scope=%s format=%s model_refusal_detected=1 "
+                                "source=explicit_user_content_only",
+                                scope_key, requested_file_format,
                             )
+                        file_source_content = resolve_document_source(
+                            requested_file_format, clean_content, reply_text or "",
+                            model_refused=model_refused_file_content,
+                        )
                         if requested_file_format == "xlsx":
                             _xlsx_diag_text = reply_text or ""
                             _xlsx_diag_lines = [line for line in _xlsx_diag_text.splitlines() if line.strip()]
@@ -5237,7 +5239,7 @@ class ClouzerBot(commands.Bot):
                             )
                         try:
                             generated_bytes, generated_name, generated_mime = create_document_file(
-                                requested_file_format, clean_content, reply_text or ""
+                                requested_file_format, clean_content, file_source_content
                             )
                         except ValueError as build_exc:
                             # A malformed model response is retried once for XLSX instead
