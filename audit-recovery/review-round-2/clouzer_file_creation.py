@@ -630,8 +630,14 @@ def _make_pdf(content: str, title: str) -> bytes:
                         next_value = re.sub(r"\*\*(.*?)\*\*", r"\1", next_value)
                         next_value = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", next_value)
                         next_value = next_value.replace(chr(96), "")
-                        next_lines = wrap_cell(next_value, "helv", 9.5, content_width)
-                        following_height = len(next_lines) * (9.5 * 1.45) + 7
+                        next_marker = re.match(r"^(?:[-*•]\\s+|\\d+[.)]\\s+)", next_value)
+                        next_width = content_width - (18 if next_marker else 0)
+                        next_lines = wrap_cell(next_value, "helv", 9.5, next_width)
+                        next_line_height = 9.5 * 1.55
+                        following_height = max(
+                            next_line_height + 7,
+                            len(next_lines) * next_line_height + 7 + 2,
+                        )
 
                 keep_height = heading_height + following_height
                 if keep_height <= bottom - top:
