@@ -114,19 +114,22 @@ def _safe_sheet_title(prompt: str) -> str:
     return _requested_sheet_title(prompt) or "Data"
 
 
-def _xlsx_formula_specs(headers: list[str], prompt: str) -> dict[int, tuple[str, tuple[int, int, int]]]:
-    """Return formulas explicitly requested for supported derived XLSX columns."""
+def _xlsx_formula_specs(headers: list[str], prompt: str) -> dict[int, tuple[str, tuple[int, ...]]]:
+    """Return explicitly requested derived-column formulas."""
     low = str(prompt or "").casefold()
     normalized = [str(value).strip().casefold() for value in headers]
-    required = ("stok akhir", "stok awal", "barang masuk", "barang keluar")
-    if "rumus" not in low or not all(name in normalized for name in required):
+    if "rumus" not in low:
         return {}
-    return {
-        normalized.index("stok akhir"): (
-            "stock_balance",
-            (normalized.index("stok awal"), normalized.index("barang masuk"), normalized.index("barang keluar")),
-        )
-    }
+    specs = {}
+    if all(name in normalized for name in ("stok akhir", "stok awal", "barang masuk", "barang keluar")):
+        specs[normalized.index("stok akhir")] = ("stock_balance", (normalized.index("stok awal"), normalized.index("barang masuk"), normalized.index("barang keluar")))
+    if all(name in normalized for name in ("total nilai stok", "stok akhir", "harga satuan")):
+        specs[normalized.index("total nilai stok")] = ("stock_value", (normalized.index("stok akhir"), normalized.index("harga satuan")))
+    return specs
+
+
+def _is_xlsx_total_row(row: list[str]) -> bool:
+    return bool(row and str(row[0]).strip().casefold() in {"total", "jumlah"})
 
 
 def _xlsx_date_value(value: str):
@@ -280,22 +283,19 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
     rows = []
     for line in content.splitlines():
         stripped = line.strip()
-        if not stripped:
+        if not stripped or stripped.startswith("```"):
             continue
-        if stripped.startswith("|") and stripped.endswith("|"):
+        if "|" in stripped:
             cells = [cell.strip() for cell in stripped.strip("|").split("|")]
         elif "\t" in line:
             cells = [cell.strip() for cell in line.split("\t")]
-        elif "|" in line:
-            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
         else:
-            rows.append([line])
+            # Explanatory prose is not a table row.
             continue
         if cells and all(re.fullmatch(r":?-{3,}:?", cell.replace(" ", "")) for cell in cells):
             continue
-        rows.append(cells)
-    if not rows:
-        rows = [[content]]
+        if len(cells) >= 2:
+            rows.append(cells)
     expected_rows = _prompt_pipe_table(prompt)
     if expected_rows and rows != expected_rows:
         # Recover only when the model returned unstructured prose or an exact
@@ -320,11 +320,17 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
                 raise ValueError("Satu cell XLSX melebihi batas 32.767 karakter.")
             if row_index > 0 and column_index in formula_specs:
                 formula_kind, source_indexes = formula_specs[column_index]
-                if formula_kind == "stock_balance":
-                    from openpyxl.utils import get_column_letter
+                from openpyxl.utils import get_column_letter
+                excel_row = row_index + 1
+                if _is_xlsx_total_row(row):
+                    letter = get_column_letter(column_index + 1)
+                    value = f"=SUM({letter}2:{letter}{excel_row - 1})"
+                elif formula_kind == "stock_balance":
                     a, b, c = (get_column_letter(index + 1) for index in source_indexes)
-                    excel_row = row_index + 1
                     value = f"={a}{excel_row}+{b}{excel_row}-{c}{excel_row}"
+                elif formula_kind == "stock_value":
+                    a, b = (get_column_letter(index + 1) for index in source_indexes)
+                    value = f"={a}{excel_row}*{b}{excel_row}"
             elif row_index > 0 and column_index < len(headers) and re.search(r"(?:tanggal|date)", headers[column_index]):
                 value = _xlsx_date_value(value)
             elif row_index > 0 and column_index < len(headers) and _NUMERIC_XLSX_HEADER_RE.search(headers[column_index]):
@@ -341,6 +347,7 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
                     sheet.cell(row_index + 1, column_index + 1).number_format = "yyyy-mm-dd"
     if expected_rows and rows != expected_rows:
         raise ValueError("Data XLSX tidak sama persis dengan tabel sumber pada prompt; pembuatan dibatalkan.")
+    sheet.freeze_panes = "A2"
     for cell in sheet[1]:
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="365F91")
@@ -433,25 +440,29 @@ def _rows_from_text(value: str) -> list[list[str]]:
 def _check_table(rows: list[list[str]], prompt: str, label: str) -> None:
     if len(rows) < 2 or not rows[0]:
         raise ValueError(label + " harus memiliki header dan setidaknya satu baris data.")
-    if len(rows) - 1 > MAX_TABLE_ROWS or len(rows[0]) > MAX_TABLE_COLUMNS:
+    if any(len(row) != len(rows[0]) for row in rows):
+        raise ValueError(label + " memiliki jumlah kolom yang tidak konsisten.")
+    totals = [i for i, row in enumerate(rows[1:], 1) if _is_xlsx_total_row(row)]
+    if len(totals) > 1 or (totals and totals[0] != len(rows) - 1):
+        raise ValueError(label + " hanya boleh memiliki satu baris TOTAL di posisi paling akhir.")
+    actual = len(rows) - 1 - bool(totals)
+    if actual > MAX_TABLE_ROWS or len(rows[0]) > MAX_TABLE_COLUMNS:
         raise ValueError(label + " melewati batas 10.000 baris data atau 256 kolom.")
     low = prompt.lower()
-    row_match = re.search(r"\b(\d{1,4})\s*(?:baris data|baris|rows?|produk(?:s)?|products?|records?)\b", low)
+    row_match = re.search(r"\b(\d{1,4})\s*baris\s+data\b", low)
+    if not row_match:
+        row_match = re.search(r"\btepat\s+(\d{1,4})\s*(?:baris|rows?)\b", low)
+    if not row_match:
+        row_match = re.search(r"\b(\d{1,4})\s*(?:rows?|produk(?:s)?|products?|records?)\b", low)
     col_match = re.search(r"\b(\d{1,3})\s*(?:kolom|columns?)\b", low)
     allow_more = bool(re.search(r"\b(?:minimal|setidaknya|paling sedikit|at least)\b", low))
     if row_match:
         expected = int(row_match.group(1))
-        actual = len(rows) - 1
         if (actual < expected) if allow_more else (actual != expected):
             qualifier = "minimal" if allow_more else "tepat"
             raise ValueError(f"{label} berisi {actual} baris data; permintaan {qualifier} {expected}.")
-    if col_match:
-        expected = int(col_match.group(1))
-        actual = len(rows[0])
-        if actual != expected:
-            raise ValueError(f"{label} memiliki {actual} kolom; permintaan tepat {expected} kolom.")
-    if any(len(row) != len(rows[0]) for row in rows):
-        raise ValueError(label + " memiliki jumlah kolom yang tidak konsisten.")
+    if col_match and len(rows[0]) != int(col_match.group(1)):
+        raise ValueError(f"{label} memiliki {len(rows[0])} kolom; permintaan tepat {col_match.group(1)} kolom.")
 
 def _make_csv(content: str, prompt: str) -> bytes:
     import csv
@@ -562,21 +573,50 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                     value = cell.value
                     if row_number > 1 and index in formula_specs:
                         formula_kind, source_indexes = formula_specs[index]
-                        if formula_kind != "stock_balance" or not isinstance(value, str) or not value.startswith("="):
-                            raise ValueError(f"Kolom {ws.cell(1, index + 1).value} harus berisi rumus Excel pada baris {row_number}.")
                         from openpyxl.utils import get_column_letter
-                        a, b, c = (get_column_letter(source_index + 1) for source_index in source_indexes)
-                        expected_formula = f"={a}{row_number}+{b}{row_number}-{c}{row_number}"
-                        if value.replace("$", "").replace(" ", "").casefold() != expected_formula.casefold():
-                            raise ValueError(f"Rumus pada {ws.cell(row_number, index + 1).coordinate} tidak sesuai.")
-                        source_values = [ws.cell(row_number, source_index + 1).value for source_index in source_indexes]
-                        if any(not isinstance(item, (int, float)) or isinstance(item, bool) for item in source_values):
-                            raise ValueError(f"Sumber rumus stok harus berupa angka pada baris {row_number}.")
-                        calculated = source_values[0] + source_values[1] - source_values[2]
+                        is_total = _is_xlsx_total_row([str(c.value or "") for c in ws[row_number]])
+                        if not isinstance(value, str) or not value.startswith("="):
+                            raise ValueError(f"Kolom {ws.cell(1, index + 1).value} harus berisi rumus Excel pada baris {row_number}.")
+                        if is_total:
+                            letter = get_column_letter(index + 1)
+                            expected_formula = f"=SUM({letter}2:{letter}{row_number - 1})"
+                            if value.replace("$", "").replace(" ", "").casefold() != expected_formula.casefold():
+                                raise ValueError(f"Rumus total pada {ws.cell(row_number, index + 1).coordinate} tidak sesuai.")
+                            if formula_kind == "stock_balance":
+                                a, b, c = source_indexes
+                                calculated = sum(ws.cell(r, a + 1).value + ws.cell(r, b + 1).value - ws.cell(r, c + 1).value for r in range(2, row_number))
+                            elif formula_kind == "stock_value":
+                                balance_col = next((k for k, v in formula_specs.items() if v[0] == "stock_balance"), None)
+                                if balance_col is None:
+                                    raise ValueError("Rumus total nilai stok membutuhkan rumus Stok Akhir.")
+                                stock_sources = formula_specs[balance_col][1]
+                                a, b, c = stock_sources
+                                price_col = source_indexes[1]
+                                calculated = sum((ws.cell(r, a + 1).value + ws.cell(r, b + 1).value - ws.cell(r, c + 1).value) * ws.cell(r, price_col + 1).value for r in range(2, row_number))
+                        elif formula_kind == "stock_balance":
+                            a, b, c = (get_column_letter(source_index + 1) for source_index in source_indexes)
+                            expected_formula = f"={a}{row_number}+{b}{row_number}-{c}{row_number}"
+                            if value.replace("$", "").replace(" ", "").casefold() != expected_formula.casefold():
+                                raise ValueError(f"Rumus pada {ws.cell(row_number, index + 1).coordinate} tidak sesuai.")
+                            source_values = [ws.cell(row_number, source_index + 1).value for source_index in source_indexes]
+                            if any(not isinstance(item, (int, float)) or isinstance(item, bool) for item in source_values):
+                                raise ValueError(f"Sumber rumus stok harus berupa angka pada baris {row_number}.")
+                            calculated = source_values[0] + source_values[1] - source_values[2]
+                        elif formula_kind == "stock_value":
+                            a, b = (get_column_letter(source_index + 1) for source_index in source_indexes)
+                            expected_formula = f"={a}{row_number}*{b}{row_number}"
+                            if value.replace("$", "").replace(" ", "").casefold() != expected_formula.casefold():
+                                raise ValueError(f"Rumus pada {ws.cell(row_number, index + 1).coordinate} tidak sesuai.")
+                            source_values = [ws.cell(row_number, source_index + 1).value for source_index in source_indexes]
+                            if any(not isinstance(item, (int, float)) or isinstance(item, bool) for item in source_values):
+                                raise ValueError(f"Sumber rumus nilai stok harus berupa angka pada baris {row_number}.")
+                            if isinstance(source_values[0], str) and source_values[0].startswith("="):
+                                raise ValueError("Referensi stok akhir rumus tidak boleh berupa teks.")
+                            calculated = source_values[0] * source_values[1]
                         if expected_rows and row_number - 1 < len(expected_rows):
                             expected_value = expected_rows[row_number - 1][index].strip()
                             if not re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", expected_value) or calculated != float(expected_value):
-                                raise ValueError(f"Hasil rumus stok berbeda dari tabel sumber pada baris {row_number}.")
+                                raise ValueError(f"Hasil rumus {formula_kind} berbeda dari tabel sumber pada baris {row_number}.")
                             canonical.append(expected_value)
                         else:
                             canonical.append(str(calculated))
@@ -609,7 +649,8 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                             raise ValueError(f"Kolom {ws.cell(1, index + 1).value} harus berisi tanggal Excel pada baris {row_number}.")
             if ws.max_row > 1 and ws.max_column > 0 and not ws.auto_filter.ref:
                 raise ValueError("XLSX tidak memiliki filter tabel yang diminta.")
-            result.update({"rows": len(canonical_rows) - 1, "columns": len(canonical_rows[0]), "sheets": len(wb.sheetnames), "sheet_name": ws.title})
+            data_row_count = len(canonical_rows) - 1 - bool(canonical_rows and _is_xlsx_total_row(canonical_rows[-1]))
+            result.update({"rows": data_row_count, "columns": len(canonical_rows[0]), "sheets": len(wb.sheetnames), "sheet_name": ws.title})
         finally:
             wb.close()
     elif fmt == "pptx":

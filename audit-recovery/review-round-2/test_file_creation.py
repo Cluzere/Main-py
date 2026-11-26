@@ -377,5 +377,53 @@ Harus tepat 8 baris data dan 10 kolom."""
         finally:
             wb.close()
 
+
+    def test_xlsx_stock_audit_two_formulas_total_and_header_freeze(self):
+        from datetime import date
+        from openpyxl import load_workbook
+        prompt = """Buat XLSX bernama TES_PASS_RENDER_XLSX_03.xlsx, worksheet 'Audit Stok'.
+Gunakan rumus Stok Akhir dan Total Nilai Stok. Wajib tepat 10 baris data dan 10 kolom.
+Bekukan baris pertama. Tambahkan baris TOTAL dengan rumus SUM.
+No|Kode|Nama|Stok Awal|Barang Masuk|Barang Keluar|Stok Akhir|Harga Satuan|Total Nilai Stok|Tanggal Update
+1|BRG001|Laptop|10|5|3|12|7500000|90000000|2026-11-20
+2|BRG002|Mouse|50|20|15|55|150000|8250000|2026-11-21
+3|BRG003|Keyboard|30|10|5|35|250000|8750000|2026-11-22
+4|BRG004|Monitor|15|5|8|12|1800000|21600000|2026-11-23
+5|BRG005|Printer|8|4|2|10|2200000|22000000|2026-11-24
+6|BRG006|Flashdisk|0|25|10|15|75000|1125000|2026-11-25
+7|BRG007|SSD|12|0|4|8|950000|7600000|2026-11-26
+8|BRG008|RAM|20|10|0|30|600000|18000000|2026-11-26
+9|BRG009|Webcam|5|5|10|0|400000|0|2026-11-26
+10|BRG010|Headset|25|15|5|35|350000|12250000|2026-11-26
+TOTAL||||||212||189575000|"""
+        content = prompt.split("No|Kode|Nama|", 1)[1]
+        content = "No|Kode|Nama|" + content
+        data, filename, _ = create_document_file("xlsx", prompt, content)
+        self.assertEqual(filename, "TES_PASS_RENDER_XLSX_03.xlsx")
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"], summary["sheet_name"]), (10, 10, "Audit Stok"))
+        wb = load_workbook(io.BytesIO(data), data_only=False)
+        try:
+            ws = wb["Audit Stok"]
+            self.assertEqual(ws.max_row, 12)
+            self.assertEqual(ws.max_column, 10)
+            self.assertEqual(ws.freeze_panes, "A2")
+            self.assertEqual(ws.auto_filter.ref, "A1:J12")
+            for row in range(2, 12):
+                self.assertEqual(ws.cell(row, 7).value, f"=D{row}+E{row}-F{row}")
+                self.assertEqual(ws.cell(row, 9).value, f"=G{row}*H{row}")
+            self.assertEqual(ws["G12"].value, "=SUM(G2:G11)")
+            self.assertEqual(ws["I12"].value, "=SUM(I2:I11)")
+            self.assertTrue(ws["A1"].font.bold)
+        finally:
+            wb.close()
+
+    def test_xlsx_ignores_explanatory_prose_around_pipe_table(self):
+        prompt = "Buat XLSX tepat 2 baris data dan 2 kolom.\nA|B\n1|x\n2|y"
+        content = "Berikut tabel yang diminta:\nA|B\n1|x\n2|y\nSelesai dibuat."
+        data, _, _ = create_document_file("xlsx", prompt, content)
+        result = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((result["rows"], result["columns"]), (2, 2))
+
 if __name__ == "__main__":
     unittest.main()
