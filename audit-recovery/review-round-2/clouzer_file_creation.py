@@ -480,7 +480,7 @@ def _make_pdf(content: str, title: str) -> bytes:
         inner_widths = [max(18, width - 2 * pad_x) for width in widths]
         header_lines = [wrap_cell(value, "hebo", font_size, inner_widths[i])
                         for i, value in enumerate(normalized[0])]
-        header_height = max(len(lines) for lines in header_lines) * (font_size * 1.25) + 2 * pad_y
+        header_height = max(len(lines) for lines in header_lines) * (font_size * 1.6) + 2 * pad_y
 
         def header():
             nonlocal y
@@ -500,7 +500,7 @@ def _make_pdf(content: str, title: str) -> bytes:
         for row_index, row in enumerate(normalized[1:], 1):
             cell_lines = [wrap_cell(value, "helv", font_size, inner_widths[i])
                           for i, value in enumerate(row)]
-            row_height = max(len(lines) for lines in cell_lines) * (font_size * 1.25) + 2 * pad_y
+            row_height = max(len(lines) for lines in cell_lines) * (font_size * 1.6) + 2 * pad_y
             if y + row_height > bottom:
                 new_page()
                 header()
