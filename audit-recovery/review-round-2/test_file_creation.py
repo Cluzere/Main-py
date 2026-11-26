@@ -723,5 +723,100 @@ Intan|26|=1+1"""
                 summary = validate_document_file("xlsx", prompt, data)
                 self.assertEqual(summary["sheet_name"], "Data Pegawai")
 
+
+    def test_detect_six_additional_native_formats(self):
+        prompts = {
+            "Buat file Markdown bernama TES_MARKDOWN_CLOUZER.md": "md",
+            "Buat file HTML bernama TES_HTML_CLOUZER.html": "html",
+            "Buat file XML bernama TES_XML_CLOUZER.xml": "xml",
+            "Buat file YAML bernama TES_YAML_CLOUZER.yaml": "yaml",
+            "Buat file RTF bernama TES_RTF_CLOUZER.rtf": "rtf",
+            "Buat file ODT bernama TES_ODT_CLOUZER.odt": "odt",
+        }
+        for prompt, expected in prompts.items():
+            with self.subTest(prompt=prompt):
+                self.assertEqual(detect_requested_file_format(prompt), expected)
+
+    def test_markdown_native_extension_and_content(self):
+        content = "# Laporan CLOUZER\n\n## Hasil\n\n**Lulus** untuk format Markdown."
+        data, filename, mime = create_document_file("md", "Buat Markdown bernama TES_MARKDOWN_CLOUZER.md", content)
+        self.assertEqual(filename, "TES_MARKDOWN_CLOUZER.md")
+        self.assertIn("text/markdown", mime)
+        self.assertEqual(data.decode("utf-8").strip(), content)
+        self.assertTrue(validate_document_file("md", "Buat Markdown", data)["valid"])
+
+    def test_html_native_document_and_table_validation(self):
+        content = """<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Tes</title></head><body><h1>Tes</h1><table><thead><tr><th>Nama</th></tr></thead><tbody><tr><td>Andi</td></tr></tbody></table></body></html>"""
+        data, filename, mime = create_document_file("html", "Buat HTML dengan tabel asli bernama TES_HTML_CLOUZER.html", content)
+        self.assertEqual(filename, "TES_HTML_CLOUZER.html")
+        self.assertIn("text/html", mime)
+        self.assertTrue(validate_document_file("html", "Buat HTML dengan tabel", data)["valid"])
+        with self.assertRaisesRegex(ValueError, "tabel asli"):
+            validate_document_file("html", "Buat HTML dengan tabel", b"<!DOCTYPE html><html><head></head><body>Tanpa tabel</body></html>")
+
+    def test_xml_is_parsed_and_malformed_xml_rejected(self):
+        content = '<?xml version="1.0" encoding="UTF-8"?><pengujian><sistem>CLOUZER</sistem></pengujian>'
+        data, filename, mime = create_document_file("xml", "Buat XML bernama TES_XML_CLOUZER.xml", content)
+        self.assertEqual(filename, "TES_XML_CLOUZER.xml")
+        self.assertIn("application/xml", mime)
+        self.assertTrue(validate_document_file("xml", "Buat XML", data)["valid"])
+        with self.assertRaises(ValueError):
+            validate_document_file("xml", "Buat XML", b"<pengujian><rusak></pengujian>")
+
+    def test_yaml_native_extension_and_safe_validation(self):
+        content = "sistem: CLOUZER\nstatus: pengujian\ndata:\n  - id: 1\n    nama: Andi\n    hasil: Lulus\n"
+        data, filename, mime = create_document_file("yaml", "Buat YAML bernama TES_YAML_CLOUZER.yaml", content)
+        self.assertEqual(filename, "TES_YAML_CLOUZER.yaml")
+        self.assertIn("yaml", mime)
+        self.assertTrue(validate_document_file("yaml", "Buat YAML", data)["valid"])
+        with self.assertRaises(ValueError):
+            validate_document_file("yaml", "Buat YAML", b"ini bukan yaml: [")
+
+    def test_rtf_is_real_rtf_not_renamed_plain_text(self):
+        content = r"{\rtf1\ansi{\b Teks tebal}\par{\i Teks miring}\par}"
+        data, filename, mime = create_document_file("rtf", "Buat RTF bernama TES_RTF_CLOUZER.rtf", content)
+        self.assertEqual(filename, "TES_RTF_CLOUZER.rtf")
+        self.assertEqual(mime, "application/rtf")
+        self.assertTrue(validate_document_file("rtf", "Buat RTF", data)["valid"])
+        with self.assertRaisesRegex(ValueError, "header RTF"):
+            validate_document_file("rtf", "Buat RTF", b"Ini hanya teks biasa")
+
+    def test_odt_is_native_package_with_real_table(self):
+        content = """# LAPORAN PENGUJIAN ODT
+
+## Informasi Pengujian
+
+Dokumen OpenDocument CLOUZER.
+
+| No | Nama | Status |
+|---|---|---|
+| 1 | Andi | Lulus |
+| 2 | Budi | Lulus |"""
+        prompt = "Buat file ODT bernama TES_ODT_CLOUZER.odt dengan tabel asli."
+        data, filename, mime = create_document_file("odt", prompt, content)
+        self.assertEqual(filename, "TES_ODT_CLOUZER.odt")
+        self.assertEqual(mime, "application/vnd.oasis.opendocument.text")
+        summary = validate_document_file("odt", prompt, data)
+        self.assertTrue(summary["valid"])
+        self.assertEqual(summary["tables"], 1)
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            self.assertEqual(archive.namelist()[0], "mimetype")
+            self.assertEqual(archive.read("mimetype"), b"application/vnd.oasis.opendocument.text")
+            root = __import__("xml.etree.ElementTree", fromlist=["ElementTree"]).fromstring(archive.read("content.xml"))
+            table_tag = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}table"
+            self.assertTrue(any(node.tag == table_tag for node in root.iter()))
+
+    def test_pdf_removes_markdown_heading_and_emphasis_tokens(self):
+        import pymupdf
+        content = "## Hasil Pengujian\n\n**CLOUZER** berhasil membuat dokumen."
+        data, _, _ = create_document_file("pdf", "Buat PDF", content)
+        with pymupdf.open(stream=data, filetype="pdf") as document:
+            extracted = "\n".join(page.get_text() for page in document)
+        self.assertNotIn("##", extracted)
+        self.assertNotIn("**", extracted)
+        self.assertIn("Hasil Pengujian", extracted)
+        self.assertIn("CLOUZER", extracted)
+
+
 if __name__ == "__main__":
     unittest.main()
