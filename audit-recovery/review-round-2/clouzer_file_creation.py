@@ -160,6 +160,51 @@ _NUMERIC_XLSX_HEADER_RE = re.compile(
     r"(?:harga|price|biaya|cost|stok|stock|masuk|keluar|qty|kuantitas|jumlah|quantity|nomor|umur|usia|age|^no\.?$)",
     re.I,
 )
+def _xlsx_number_value(value: object):
+    """Parse numeric Excel values without silently accepting ambiguous text."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    raw = str(value or "").strip().replace("\\u00a0", "").replace(" ", "")
+    if not raw:
+        raise ValueError("Nilai angka XLSX kosong.")
+    negative = raw.startswith("(") and raw.endswith(")")
+    if negative:
+        raw = raw[1:-1]
+    raw = re.sub(r"(?i)^(?:rp|idr|rupiah)", "", raw)
+    raw = re.sub(r"[^0-9,.+\\-]", "", raw)
+    if not raw or not re.fullmatch(r"[+-]?[0-9][0-9,.]*", raw):
+        raise ValueError("Nilai angka XLSX tidak valid: " + str(value))
+    sign = ""
+    if raw[:1] in "+-":
+        sign, raw = raw[0], raw[1:]
+    if not raw or not re.search(r"\\d", raw):
+        raise ValueError("Nilai angka XLSX tidak valid: " + str(value))
+    if "," in raw and "." in raw:
+        decimal_sep = "," if raw.rfind(",") > raw.rfind(".") else "."
+        thousands_sep = "." if decimal_sep == "," else ","
+        raw = raw.replace(thousands_sep, "")
+        if raw.count(decimal_sep) != 1:
+            raise ValueError("Pemisah angka XLSX ambigu: " + str(value))
+        raw = raw.replace(decimal_sep, ".")
+    elif "," in raw or "." in raw:
+        sep = "," if "," in raw else "."
+        parts = raw.split(sep)
+        if len(parts) > 2:
+            if all(len(part) == 3 for part in parts[1:]):
+                raw = "".join(parts)
+            else:
+                raise ValueError("Pemisah angka XLSX ambigu: " + str(value))
+        elif len(parts) == 2:
+            if len(parts[1]) == 3:
+                raw = "".join(parts)
+            elif 1 <= len(parts[1]) <= 2:
+                raw = parts[0] + "." + parts[1]
+            else:
+                raise ValueError("Pemisah angka XLSX ambigu: " + str(value))
+    parsed = float(sign + raw) if "." in raw else int(sign + raw)
+    return -parsed if negative else parsed
+
+
 
 
 def _prompt_pipe_table(prompt: str) -> list[list[str]]:
@@ -259,7 +304,9 @@ def _validate_content(content: str) -> str:
         "tidak tersedia alat", "tidak punya alat", "tidak memiliki alat",
         "belum bisa melampirkan", "tidak bisa melampirkan",
         "tidak dapat melampirkan", "cannot create a file", "cannot attach",
-        "no file-generation tool",
+        "no file-generation tool", "saya tidak dapat membuat file",
+        "saya tidak bisa membuat file", "maaf, saya tidak dapat membuat",
+        "maaf saya tidak dapat membuat", "maaf, saya tidak bisa membuat",
     )
     if any(marker in content.lower() for marker in failure_markers):
         raise ValueError("Model mengembalikan pesan kegagalan, bukan isi dokumen; tidak dikemas sebagai file.")
@@ -471,10 +518,9 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
         expected_rows = known_stock_fixture
     usable_runs = [run for run in table_runs if len(run) >= 2]
     if expected_rows:
-        matching_width = [run for run in usable_runs if len(run[0]) == len(expected_rows[0])]
-        if matching_width:
-            rows = min(matching_width, key=lambda run: (0 if run[0] == expected_rows[0] else 1, 0 if run == expected_rows else 1, abs(len(run) - len(expected_rows)), -len(run)))
-        else: rows = max(usable_runs, key=len, default=[])
+        # Explicit user-provided source data is authoritative over model output.
+        # Never let model reformatting, truncation, or hallucinations alter it.
+        rows = expected_rows
     else:
         count_match = re.search(r'\b(\d{1,4})\s*baris\s+data\b', str(prompt or '').lower())
         if not count_match: count_match = re.search(r'\btepat\s+(\d{1,4})\s*(?:baris|rows?)\b', str(prompt or '').lower())
@@ -528,11 +574,12 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
                 if _is_xlsx_total_row(row):
                     value = value.strip() or None
                 else:
-                    candidate = value.strip()
-                    if re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", candidate):
-                        value = float(candidate) if "." in candidate else int(candidate)
-                    else:
-                        raise ValueError(f"Kolom {rows[0][column_index]} harus berupa angka pada baris {row_index + 1}.")
+                    try:
+                        value = _xlsx_number_value(value)
+                    except ValueError as number_exc:
+                        raise ValueError(
+                            f"Kolom {rows[0][column_index]} harus berupa angka pada baris {row_index + 1}: {number_exc}"
+                        ) from number_exc
             values.append(value)
         sheet.append(values)
         if row_index > 0:
@@ -928,11 +975,10 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         raise ValueError("Format file tidak didukung.")
     try:
         text = _validate_content(content)
-    except ValueError as exc:
-        # XLSX can be built deterministically from an explicit table already present
-        # in the user's prompt when the model refuses/returns a failure message.
-        # Never synthesize rows: the prompt must contain a complete rectangular table.
-        if fmt != "xlsx" or "Model mengembalikan pesan kegagalan" not in str(exc):
+    except ValueError:
+        # A complete rectangular source table in the user's prompt is enough
+        # to create XLSX without relying on model prose or formatting.
+        if fmt != "xlsx":
             raise
         prompt_rows = _prompt_pipe_table(prompt)
         if len(prompt_rows) < 2 or not prompt_rows[0]:
