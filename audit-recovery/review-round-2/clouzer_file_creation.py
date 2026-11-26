@@ -583,7 +583,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                     elif isinstance(value, (_datetime.datetime, _datetime.date)):
                         canonical.append(value.date().isoformat() if isinstance(value, _datetime.datetime) else value.isoformat())
                     else:
-                        canonical.append(str(value or ""))
+                        canonical.append(str(value if value is not None else ""))
                 canonical_rows.append(canonical)
             _check_table(canonical_rows, prompt, "XLSX")
             if expected_rows and canonical_rows != expected_rows:
