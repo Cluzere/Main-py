@@ -2484,3 +2484,41 @@ Verdict:
 - ZIP request: **user-facing FAIL due to pre-content model refusal; packager defect unproven**.
 - Discord attachment delivery: separate acceptance gate; not independently established by Box upload.
 - No code changes, deployment, or restart were performed as part of this artifact audit/update.
+
+
+## 49. WORKSHEET-NAME PARSER FIX — CI VERIFIED
+
+Date: 2026-11-26.
+
+Candidate commit:
+- Branch: `audit-recovery-gpt-2026-11-23`
+- Commit: `dbcb3e06c3597e007eab8db98c32b0e8a33984c6`
+- Commit message: `Handle colon in worksheet naming instruction`
+- The commit belongs to the audit candidate branch, not production `main`.
+
+GitHub Actions verification (queried directly after completion):
+1. [Audit recovery candidate](https://github.com/Cluzere/Main-py/actions/runs/45802335315)
+   - Run ID: `45802335315`
+   - Status: completed
+   - Conclusion: **success**
+   - Job: `final-candidate-syntax-regressions-and-attachment-audit`
+   - Successful steps include candidate compilation, high-severity Bandit scan, runtime dependency installation, and focused regression tests.
+2. [Audit candidate syntax check](https://github.com/Cluzere/Main-py/actions/runs/45802335530)
+   - Run ID: `45802335530`
+   - Status: completed
+   - Conclusion: **success**
+   - Job: `compile`
+   - Successful steps include dependency consistency, candidate compilation, Bandit, dependency vulnerability audit, document file creation tests, original CLOUZER ZIP fixture verification, candidate archive regression tests, and existing audit regression tests when present.
+
+Interpretation:
+- Both workflows and all listed jobs/steps completed successfully for commit `dbcb3e06c3597e007eab8db98c32b0e8a33984c6`.
+- This verifies CI for the candidate commit, including its focused regression-test step. The workflow job summaries exposed step conclusions but not individual test counts; do not invent or report a test count.
+- CI success is not the same as a new live-generated XLSX proving that the worksheet is named exactly `Data Pegawai`. A fresh end-to-end artifact test is still required.
+
+Next actions:
+1. Run a fresh live CLOUZER XLSX prompt explicitly requesting worksheet `Data Pegawai`, preferably combining formula-like literal values and the previously failing Indonesian wording.
+2. Inspect the actual workbook binary and require `workbook.sheetnames == ["Data Pegawai"]`, exact headers/records, numeric cell types, and formula-like values stored as strings.
+3. If the live artifact passes, update the live-test checklist in §48 accordingly; if it fails, capture exact prompt, response, Box file ID, and workbook metadata before another patch.
+4. Then investigate the ZIP pre-content refusal as a separate model/tool-routing issue, not as a proven archive-writer bug.
+
+Safety boundary remains unchanged: no production `main.py`, production `main` branch, deployment, or Wispbyte restart was changed or authorized by this CI check. Since Wispbyte has historically fetched the audit branch on startup, do not restart it without explicit user authorization and a clear warning.
