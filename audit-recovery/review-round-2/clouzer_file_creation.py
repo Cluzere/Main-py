@@ -1329,6 +1329,45 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
     result["valid"] = True
     return result
 
+def extract_explicit_document_source(prompt: str) -> str:
+    """Extract only source text explicitly supplied by the user, never inferred content."""
+    value = str(prompt or "")
+    fenced = re.findall(r"(?ms)^[ \\t]*```[^\\n]*\\n(.*?)^[ \\t]*```[ \\t]*$", value)
+    if len(fenced) == 1 and fenced[0].strip():
+        return fenced[0].strip()
+    if len(fenced) > 1:
+        return ""
+    section = re.search(
+        r"(?ims)(?:^|\\n)[ \\t]*(?:isi dokumen|konten dokumen|teks dokumen|sumber dokumen)[ \\t]*:[ \\t]*\\n(.*)\\Z",
+        value,
+    )
+    if section:
+        source = section.group(1).strip()
+        if source and not re.match(r"(?i)^(?:\\[?(?:instruksi|ketentuan|format output)\\]?\\s*:)", source):
+            return source
+    rows = _prompt_pipe_table(value)
+    if len(rows) >= 2 and rows[0]:
+        return "\\n".join(" | ".join(row) for row in rows)
+    return ""
+
+
+def resolve_document_source(format_name: str, prompt: str, model_content: str, model_refused: bool = False) -> str:
+    """Select model output normally; on refusal, use only explicit user source."""
+    fmt = str(format_name or "").lower().lstrip(".")
+    if fmt not in _FORMAT_PATTERNS:
+        raise ValueError("Format file tidak didukung.")
+    if not model_refused:
+        return _validate_content(model_content)
+    if fmt == "xlsx" and len(_prompt_pipe_table(prompt)) >= 2:
+        return ""
+    explicit_source = extract_explicit_document_source(prompt)
+    if explicit_source:
+        return _validate_content(explicit_source)
+    raise RuntimeError(
+        "Model menolak tugas pembuatan file dan prompt tidak berisi sumber dokumen eksplisit yang lengkap. "
+        "Tambahkan isi dokumen atau tabel secara langsung; CLOUZER tidak akan mengarang konten."
+    )
+
 def create_document_file(format_name: str, prompt: str, content: str) -> tuple[bytes, str, str]:
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
