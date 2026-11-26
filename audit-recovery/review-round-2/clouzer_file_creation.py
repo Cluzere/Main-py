@@ -1214,7 +1214,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
             result["pages"] = doc.page_count
             result["text_chars"] = len(extracted.strip())
             result["vector_drawings"] = sum(len(page.get_drawings()) for page in doc)
-            if re.search(r"\\b(?:tabel|table)\\b", prompt, re.I) and result["vector_drawings"] < 6:
+            if re.search(r"\b(?:tabel|table)\b", prompt, re.I) and result["vector_drawings"] < 6:
                 raise ValueError("PDF diminta memiliki tabel, tetapi struktur tabel visual tidak ditemukan.")
     elif fmt == "docx":
         from docx import Document
