@@ -118,10 +118,10 @@ def build_file_generation_system_instruction(format_name: str) -> str:
             " Untuk laporan MASTER FINAL PDF CLOUZER, backend memakai template deterministik untuk judul, tabel 10 produk, "
             "format tabel, daftar, pagination, nomor halaman, dan ringkasan validasi. Karena itu JANGAN tulis judul, tabel, "
             "baris produk, daftar, atau ringkasan validasi. Keluarkan hanya lima heading berikut persis dan masing-masing "
-            "tepat dua paragraf naratif yang substantif (sekitar 75-95 kata per paragraf), gunakan heading Markdown persis "
+            "tepat dua paragraf naratif yang substantif dan ringkas (sekitar 45-60 kata per paragraf), gunakan heading Markdown persis "
             "dengan format ## Nama Bagian untuk: Pendahuluan, Tujuan Pengujian, Metode Pengujian, Hasil Pengujian, "
             "Kesimpulan. Pisahkan setiap paragraf dengan satu baris kosong. "
-            "Jangan menambah heading lain, jangan menulis NOT VERIFIED, dan jangan mengklaim pemeriksaan visual manual, "
+            "Jangan menambah heading lain, jangan menulis NOT VERIFIED, jangan menyatakan hasil lulus/gagal, jumlah halaman, durasi, atau temuan aktual yang belum diberikan oleh backend, dan jangan mengklaim pemeriksaan visual manual, "
             "seleksi/salin manual, atau pengiriman Discord berhasil. Backend akan menyusun bagian non-naratif dan validasi."
             if fmt == "pdf" else ""
         )
