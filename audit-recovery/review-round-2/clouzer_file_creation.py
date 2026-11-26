@@ -1296,7 +1296,8 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
     elif fmt == "pdf":
         import pymupdf
         with pymupdf.open(stream=data, filetype="pdf") as doc:
-            extracted = "\n".join(page.get_text() for page in doc)
+            page_texts = [page.get_text() for page in doc]
+            extracted = "\n".join(page_texts)
             if doc.page_count < 1 or not extracted.strip():
                 raise ValueError("PDF tidak memiliki halaman atau teks.")
             result["pages"] = doc.page_count
@@ -1304,6 +1305,50 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
             result["vector_drawings"] = sum(len(page.get_drawings()) for page in doc)
             if re.search(r"\b(?:tabel|table)\b", prompt, re.I) and result["vector_drawings"] < 6:
                 raise ValueError("PDF diminta memiliki tabel, tetapi struktur tabel visual tidak ditemukan.")
+            page_sizes = [(round(page.rect.width), round(page.rect.height)) for page in doc]
+            result["page_sizes"] = page_sizes
+            if re.search(r"\bA4\b", prompt, re.I) and any(
+                abs(width - 595) > 2 or abs(height - 842) > 2 for width, height in page_sizes
+            ):
+                raise ValueError("Ukuran halaman PDF tidak konsisten dengan A4 potret.")
+            page_count_match = re.search(r"(?:minimal|sekurang-kurangnya|paling sedikit)\s+(\d+)\s+halaman", prompt, re.I)
+            if page_count_match and doc.page_count < int(page_count_match.group(1)):
+                raise ValueError(
+                    f"PDF hanya memiliki {doc.page_count} halaman; prompt meminta minimal {page_count_match.group(1)}."
+                )
+            spans = [
+                span for page in doc for block in page.get_text("dict")["blocks"] if "lines" in block
+                for line in block["lines"] for span in line["spans"] if span.get("text", "").strip()
+            ]
+            if any(
+                span["bbox"][0] < 30 or span["bbox"][1] < 12
+                or span["bbox"][2] > 565 or span["bbox"][3] > 835
+                for span in spans
+            ):
+                raise ValueError("Teks PDF keluar dari batas halaman atau area margin aman.")
+            flags = [span.get("flags", 0) for span in spans]
+            if re.search(r"\b(?:italic|miring)\b", prompt, re.I) and not any(flag & 2 for flag in flags):
+                raise ValueError("Prompt meminta teks italic/miring, tetapi tidak ditemukan font italic pada PDF.")
+            if re.search(r"\b(?:bold|tebal)\b", prompt, re.I) and not any(flag & 16 for flag in flags):
+                raise ValueError("Prompt meminta teks bold/tebal, tetapi tidak ditemukan font bold pada PDF.")
+            if re.search(r"daftar bernomor|numbered list", prompt, re.I) and not re.search(r"(?m)^\s*1[.)]\s+", extracted):
+                raise ValueError("Daftar bernomor yang diminta tidak ditemukan pada lapisan teks PDF.")
+            if re.search(r"daftar berpoin|bullet list", prompt, re.I) and not re.search(r"[•▪◦]", extracted):
+                raise ValueError("Daftar berpoin yang diminta tidak ditemukan pada lapisan teks PDF.")
+            if re.search(r"\bCLOUZER\b", prompt, re.I) and "clouzer" not in extracted.casefold():
+                raise ValueError("Kata CLOUZER tidak dapat ditemukan pada lapisan teks PDF.")
+            if re.search(r"kesimpulan", prompt, re.I) and re.search(r"heading|judul.*paragraf|bersama", prompt, re.I):
+                conclusion_pages = [
+                    text for text in page_texts
+                    if re.search(r"\bKesimpulan\b", text, re.I)
+                    and len(re.sub(r"\s+", "", text)) > 80
+                ]
+                if not conclusion_pages:
+                    raise ValueError("Heading Kesimpulan tidak ditemukan bersama isi paragraf pada halaman yang sama.")
+            result["text_layer"] = True
+            result["bold_spans"] = sum(bool(flag & 16) for flag in flags)
+            result["italic_spans"] = sum(bool(flag & 2) for flag in flags)
+            result["within_page_bounds"] = True
     elif fmt == "docx":
         from docx import Document
         doc = Document(io.BytesIO(data))
