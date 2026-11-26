@@ -3280,3 +3280,11 @@ Branch: `audit-recovery-gpt-2026-11-23`. Production `main.py` tidak disentuh.
 - Periksa PDF baru di Box: semua 10 baris harus berisi nilai nyata/non-placeholder pada 7 kolom; Kesimpulan harus tetap memiliki minimal dua paragraf dan tidak boleh menjadi satu paragraf pendek di halaman terakhir; ringkasan validasi berada setelah Kesimpulan; lakukan render visual semua halaman. Delivery Discord tetap perlu bukti attachment pada pesan Discord.
 
 **Peringatan untuk agent berikutnya:** Jangan mengubah production atau menyebut patch ini sukses runtime hanya karena commit berhasil. Bedakan commit GitHub, CI, restart Wispbyte, artefak PDF baru, inspeksi visual, dan delivery Discord sebagai enam bukti yang berbeda.
+
+
+### Addendum — final branch-head correction, 2026-11-27
+- Placeholder matcher escaping was corrected in a follow-up commit after source review:
+  `60374a7d213e52258ed5e2b5cb15878dab6ca817` — `fix(pdf): correct placeholder matcher escaping`.
+- The audit branch HEAD was verified as `60374a7d213e52258ed5e2b5cb15878dab6ca817` before this memory addendum.
+- CI runs were visible for commits `dedb108c...` and `78fb4bef...`, but they were still in progress at the time of the check; no run was yet visible for `60374a7d...`. Therefore the final corrected HEAD has **no verified passing CI result yet**.
+- The memory addendum itself advances the branch again. Re-read branch HEAD after this commit before deployment. Any CI triggered by the memory-only commit does not replace tests against the exact code HEAD unless the workflow checks out and tests that exact resulting SHA.
