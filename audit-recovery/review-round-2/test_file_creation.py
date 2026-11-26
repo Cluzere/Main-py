@@ -20,6 +20,24 @@ class FileCreationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_file_generation_system_instruction("exe")
 
+    def test_detect_pdf_request_even_when_spec_mentions_selectable_text(self):
+        prompt = """Buat PDF sungguhan bernama TES_PDF_MASTER_FINAL.pdf dan kirim sebagai attachment Discord.
+
+Buat laporan berjudul LAPORAN PENGUJIAN GENERATOR PDF CLOUZER.
+Validasi teks: PDF harus bisa dibuka, teks dapat diseleksi, disalin, dan dicari.
+Jangan mengklaim berhasil jika file belum benar-benar dibuat dan dikirim."""
+        self.assertEqual(detect_requested_file_format(prompt), "pdf")
+
+    def test_detect_capability_question_as_non_file_request(self):
+        prompts = (
+            "Apakah CLOUZER bisa membuat PDF?",
+            "Bisakah kamu buat PDF?",
+            "CLOUZER dapat membuat PDF?",
+        )
+        for prompt in prompts:
+            with self.subTest(prompt=prompt):
+                self.assertIsNone(detect_requested_file_format(prompt))
+
     def test_detect_all_eight_formats(self):
         prompts = {
             "Buat catatan TXT": "txt", "Buat laporan PDF": "pdf",
