@@ -98,7 +98,7 @@ def _requested_sheet_title(prompt: str) -> str | None:
     """Extract an explicitly requested worksheet name without capturing instruction words."""
     value = re.sub(r"\*\*(.*?)\*\*|__(.*?)__", lambda match: match.group(1) or match.group(2), str(prompt or ""))
     label = r"(?:nama\s+)?(?:worksheet|work\s*sheet|sheet|lembar\s+kerja)"
-    connector = r"(?:wajib\s+|harus\s+)?(?:bernama|dengan\s+nama|name|:)"
+    connector = r"(?:wajib\s+|harus\s+)?(?:bernama|dengan\s+nama|name|:)(?:\s*:)? 
     quoted = re.search(
         label + r"\s*" + connector + r"\s*[\x60\"']([^\x60\"']{1,80})[\x60\"']",
         value, re.I,
