@@ -37,6 +37,7 @@ from clouzer_file_creation import (
     normalize_pending_retry_task,
     validate_document_file,
     build_file_generation_system_instruction,
+    _is_master_final_pdf_prompt,
 )
 from clouzer_box_oauth import start_box_oauth_server, box_api_request
 
@@ -5233,6 +5234,10 @@ class ClouzerBot(commands.Bot):
                     img_calls = []
 
                 if requested_file_format:
+                    is_master_final_pdf_request = (
+                        requested_file_format == "pdf" and _is_master_final_pdf_prompt(clean_content)
+                    )
+                    file_source_content = None
                     try:
                         # A model refusal is not document content. Do not package it as a
                         # successful TXT/PDF/etc.; retain the original request for Ulangi.
@@ -5284,6 +5289,16 @@ class ClouzerBot(commands.Bot):
                                 requested_file_format, clean_content, file_source_content
                             )
                         except (ValueError, RuntimeError) as build_exc:
+                            # Once MASTER FINAL source resolution succeeded, subsequent PDF errors
+                            # come from deterministic local rendering/validation. Re-querying the
+                            # model cannot repair those failures and only burns tokens/CPU.
+                            if is_master_final_pdf_request and file_source_content is not None:
+                                logging.error(
+                                    "[FILE-BUILD-STOP] scope=%s format=pdf stage=local_render_or_validation "
+                                    "reason=%s retry=skipped",
+                                    scope_key, type(build_exc).__name__,
+                                )
+                                raise
                             # Shared one-shot recovery for malformed model output across all formats.
                             logging.warning(
                                 "[FILE-RETRY] scope=%s format=%s reason=%s action=retry_once",
