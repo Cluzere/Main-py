@@ -3288,3 +3288,55 @@ Branch: `audit-recovery-gpt-2026-11-23`. Production `main.py` tidak disentuh.
 - The audit branch HEAD was verified as `60374a7d213e52258ed5e2b5cb15878dab6ca817` before this memory addendum.
 - CI runs were visible for commits `dedb108c...` and `78fb4bef...`, but they were still in progress at the time of the check; no run was yet visible for `60374a7d...`. Therefore the final corrected HEAD has **no verified passing CI result yet**.
 - The memory addendum itself advances the branch again. Re-read branch HEAD after this commit before deployment. Any CI triggered by the memory-only commit does not replace tests against the exact code HEAD unless the workflow checks out and tests that exact resulting SHA.
+
+
+## 52.25 MASTER FINAL PDF pagination, validation, and CPU-workflow repair — 26 November 2026
+
+### Runtime failure that triggered this repair
+- Wispbyte was running audit candidate commit `ae5b75c48af59b713ec239fc1b1205feb3863df4`.
+- The live MASTER FINAL PDF request reached local PDF creation, then failed twice with:
+  `ValueError: PDF hanya memiliki 3 halaman; prompt meminta minimal 4.`
+- The first PDF validation enforced the final minimum-page rule before the backend had appended its own validation summary. That made a three-page narrative baseline fail before the summary could be rendered, and the generic file retry unnecessarily called the model again even though the failure was in deterministic local PDF rendering/validation.
+- This was a genuine code-path defect, not an API connectivity or Wispbyte startup failure.
+
+### Repairs on the audit branch only
+Branch: `audit-recovery-gpt-2026-11-23`.
+
+1. `audit-recovery/review-round-2/clouzer_file_creation.py`
+   - `validate_document_file` now accepts `enforce_minimum_pages`; ordinary PDFs and the final MASTER FINAL artifact still enforce the requested minimum. Only the first baseline inspection skips that final-only gate.
+   - MASTER FINAL generation is now a deterministic two-build/two-validation flow:
+     1. Build and inspect the narrative/report baseline without enforcing the final minimum-page gate.
+     2. Append the backend's measured validation matrix after the complete report body, rebuild once, and validate the exact final PDF with the full minimum-page rule enabled.
+   - The baseline page count is labeled explicitly as the page count before the validation appendix. The PDF is not returned unless the final artifact passes the actual minimum-page validator.
+   - The local template retains ten complete synthetic product rows, clearly labels them as illustrative rather than actual inventory, and now adds two distinct factual scope/method paragraphs to each of the five report sections. This makes pagination robust even when the model supplies only the requested two concise narrative paragraphs per section; the model is not asked to regenerate long filler text.
+   - The final report summary distinguishes conditional repeated-header behavior as NOT APPLICABLE when the table fits on one page. Exactly three manual-only statuses remain NOT VERIFIED: visual page-by-page inspection, manual select/copy in a PDF reader, and Discord attachment delivery.
+   - MASTER FINAL validation rejects sparse/empty pages using an explicit text-density heuristic: at least 120 non-whitespace characters per page and at least 220 on the final page. This is an automated heuristic, not a replacement for visual inspection.
+   - The semantic validator now reuses the caller's cached PyMuPDF page dictionaries and drawing lists instead of extracting those expensive structures again. This removes duplicate per-page `get_text("dict")` and `get_drawings()` work inside the MASTER FINAL validator.
+
+2. `audit-recovery/review-round-2/revisi_audit_final_main.py`
+   - After MASTER FINAL source resolution succeeds, subsequent local PDF build/validation failures no longer trigger another AI generation attempt. The failure is logged as `[FILE-BUILD-STOP]` with retry skipped.
+   - One-shot model retry remains available when source resolution itself fails (for example, incomplete model narrative). Other file formats retain their existing recovery behavior.
+
+3. `audit-recovery/review-round-2/test_file_creation.py`
+   - Added a regression that supplies a realistic short model response (two narrative paragraphs per section), passes it through the full `resolve_document_source` pipeline, and requires the final backend-generated PDF to meet the four-page minimum.
+   - The regression also checks all five sections, four paragraphs per section after deterministic backend completion, ten product rows/seven columns, the validation appendix, exactly three NOT VERIFIED manual-only statuses, and non-sparse page-content metrics.
+   - Existing tests continue to cover placeholder rejection, conclusion placement before the appendix, table schema/style/borders, page numbering, text extraction, and repeated headers when the table actually spans pages.
+
+### Exact latest code/test commit and CI evidence
+- Latest tested code/test commit: `4a04103734908cb1ac47c11fa2780759c88effe2`.
+- Helper blob: `4289945a463cf70121be16bbd00656d9e82cb54e`.
+- The three relevant GitHub Actions workflows all completed SUCCESS on that exact SHA:
+  1. CLOUZER multi-format file audit, run `45885367750`: https://github.com/Cluzere/Main-py/actions/runs/45885367750 — 148 tests passed.
+  2. Audit recovery candidate, run `45885367720`: https://github.com/Cluzere/Main-py/actions/runs/45885367720 — 148 tests passed.
+  3. Audit candidate syntax check, run `45885367483`: https://github.com/Cluzere/Main-py/actions/runs/45885367483 — compile/security checks passed; document suite 148 tests, archive suite 72 tests, existing regression suite 93 tests passed.
+- The new short-narrative pagination regression passed in both the multi-format and audit recovery workflows.
+- Latest branch head before this memory update was `4a04103734908cb1ac47c11fa2780759c88effe2`.
+
+### Deployment and acceptance boundary
+- All changes remain on the audit branch. Production branch `main` and production root `main.py` were not changed, deployed, or restarted.
+- PR #6 remains open and draft/unmerged. Do not merge it or deploy to production without explicit authorization.
+- Wispbyte has NOT yet been restarted onto commit `4a04103734908cb1ac47c11fa2780759c88effe2`; the user's currently running process is still on the older `ae5b75c` candidate until the user resets/restarts it.
+- No new live PDF, Discord attachment confirmation, Box replacement, manual PDF-reader selection/search, visual page-by-page inspection, or Wispbyte CPU measurement has yet been obtained after these repairs.
+- The next staging step is to ask the user to reset/restart Wispbyte so its startup command fetches the current audit branch head. Then run the exact MASTER FINAL prompt once, inspect the actual PDF and every rendered page, verify Discord attachment delivery, and record CPU/time. Do not call the live PDF perfect/accepted until those separate evidence steps pass.
+
+**Agent handoff warning:** CI green means the code/test suite passes; it does not prove the live Wispbyte PDF is accepted. Ask for Wispbyte reset only after the exact branch head is confirmed. Never touch production.
