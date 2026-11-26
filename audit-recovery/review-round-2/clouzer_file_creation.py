@@ -1623,7 +1623,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                     f"Tabel diminta memuat 10 produk, tetapi hanya {len(table_groups)} kelompok baris sel yang terdeteksi."
                 )
             repeat_requested = bool(re.search(
-                r"header\s+tabel\s+(?:harus\s+)?berulang|ulang(?:i|an)?\s+header\s+tabel",
+                r"header\s+tabel\s+(?:harus\s+)?berulang|ulang(?:i|an)?\s+header(?:\s+tabel)?",
                 prompt, re.I,
             ))
             if repeat_requested and table_content_pages > 1 and repeated_header_pages < table_content_pages:
