@@ -190,7 +190,7 @@ def _xlsx_date_value(value: str):
 
 
 _NUMERIC_XLSX_HEADER_RE = re.compile(
-    r"(?:harga|price|biaya|cost|stok|stock|masuk|keluar|qty|kuantitas|jumlah|quantity|nomor|umur|usia|age|^no\.?$)",
+    r"(?:harga|price|biaya|cost|gaji|salary|salaries|upah|pendapatan|income|kompensasi|tunjangan|stok|stock|masuk|keluar|qty|kuantitas|jumlah|quantity|nomor|umur|usia|age|^no\.?$)",
     re.I,
 )
 def _xlsx_number_value(value: object):
