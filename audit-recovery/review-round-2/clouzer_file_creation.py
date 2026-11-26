@@ -107,7 +107,7 @@ def _requested_sheet_title(prompt: str) -> str | None:
         title = quoted.group(1).strip()
     else:
         match = re.search(
-            label + r"\s*" + connector + r"\s*([A-Za-z0-9 _-]{1,80})",
+            label + r"\s*" + connector + r"\s*:?\s*([A-Za-z0-9 _-]{1,80})",
             value, re.I,
         )
         if not match:
