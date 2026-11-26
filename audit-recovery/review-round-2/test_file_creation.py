@@ -21,6 +21,8 @@ class FileCreationTests(unittest.TestCase):
         pdf_instruction = build_file_generation_system_instruction("pdf")
         self.assertIn("backend memakai template deterministik", pdf_instruction)
         self.assertIn("tepat dua paragraf naratif", pdf_instruction)
+        self.assertIn("45-60 kata per paragraf", pdf_instruction)
+        self.assertIn("jangan menyatakan hasil lulus/gagal", pdf_instruction)
         self.assertIn("jangan mengklaim pemeriksaan visual manual", pdf_instruction.lower())
         with self.assertRaises(ValueError):
             build_file_generation_system_instruction("exe")
