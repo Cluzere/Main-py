@@ -571,7 +571,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                             raise ValueError(f"Rumus pada {ws.cell(row_number, index + 1).coordinate} tidak sesuai.")
                         source_values = [ws.cell(row_number, source_index + 1).value for source_index in source_indexes]
                         if any(not isinstance(item, (int, float)) or isinstance(item, bool) for item in source_values):
-                            raise ValueError(f"Sumber rumus stok harus berupa angka pada baris {row_number}.")
+                            raise ValueError(f"Sumber rumus stok harus berupa angka pada baris {row_number}; nilai={source_values!r}; indeks={source_indexes!r}.")
                         calculated = source_values[0] + source_values[1] - source_values[2]
                         if expected_rows and row_number - 1 < len(expected_rows):
                             expected_value = expected_rows[row_number - 1][index].strip()
