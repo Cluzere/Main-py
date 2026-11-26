@@ -4,7 +4,7 @@ import json
 import unittest
 import zipfile
 
-from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file, _xlsx_formula_specs, _requested_sheet_title
+from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file, resolve_document_source, _xlsx_formula_specs, _requested_sheet_title
 
 
 class FileCreationTests(unittest.TestCase):
@@ -906,3 +906,26 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_refusal_uses_explicit_fenced_source_for_all_supported_formats(self):
+        prompt = "Buat file dokumen.\\nIsi dokumen sumber:\\n```text\\nJudul Audit CLOUZER\\n\\nKonten sumber harus dipertahankan persis.\\n```\\nJangan tambahkan data."
+        expected = "Judul Audit CLOUZER\\n\\nKonten sumber harus dipertahankan persis."
+        formats = ("txt", "pdf", "docx", "xlsx", "pptx", "zip", "csv", "json", "md", "html", "xml", "yaml", "rtf", "odt")
+        for fmt in formats:
+            with self.subTest(fmt=fmt):
+                source = resolve_document_source(fmt, prompt, "Saya tidak bisa membuat file.", model_refused=True)
+                self.assertEqual(source, expected)
+
+    def test_refusal_fails_closed_without_explicit_source(self):
+        with self.assertRaisesRegex(RuntimeError, "tidak akan mengarang"):
+            resolve_document_source("pdf", "Buat file PDF tentang CLOUZER.", "Saya tidak bisa membuat file.", model_refused=True)
+
+    def test_non_refusal_keeps_model_content(self):
+        content = "# Judul\\n\\nIsi dari model."
+        self.assertEqual(resolve_document_source("pdf", "Buat PDF", content), content)
+
+    def test_refusal_extracts_explicit_markdown_table_for_pdf(self):
+        prompt = "Buat PDF dari tabel berikut:\\n| Nama | Umur |\\n|---|---|\\n| Andi | 25 |\\n| Budi | 30 |"
+        source = resolve_document_source("pdf", prompt, "Tidak bisa membuat file.", model_refused=True)
+        self.assertIn("Andi", source)
+        self.assertIn("Budi", source)
