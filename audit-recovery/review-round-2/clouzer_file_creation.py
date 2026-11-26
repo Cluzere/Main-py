@@ -541,9 +541,13 @@ def _make_pdf(content: str, title: str) -> bytes:
             for i, lines in enumerate(header_lines):
                 rect = fitz.Rect(x, y, x + widths[i], y + header_height)
                 page.draw_rect(rect, color=(0.72, 0.78, 0.85), fill=navy, width=0.45)
-                page.insert_textbox(fitz.Rect(x + pad_x, y + pad_y, x + widths[i] - pad_x, y + header_height - pad_y),
-                                    "\n".join(lines), fontsize=font_size, fontname="hebo",
-                                    color=(1, 1, 1), lineheight=1.2)
+                remaining = page.insert_textbox(
+                    fitz.Rect(x + pad_x, y + pad_y, x + widths[i] - pad_x, y + header_height - pad_y),
+                    "\n".join(lines), fontsize=font_size, fontname="hebo",
+                    color=(1, 1, 1), lineheight=1.2,
+                )
+                if remaining < 0:
+                    raise ValueError("Header tabel PDF tidak muat di dalam sel; pembuatan dibatalkan agar teks tidak terpotong.")
                 x += widths[i]
             y += header_height
 
@@ -1482,15 +1486,20 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
 
     # Check body text geometry and accidental text-block collisions. Table-cell
     # text is excluded because its placement is intentionally inside cell shapes.
+    document_title = normalized(_safe_title(extracted, prompt))
     body_records = [
         record for record in records
-        if record["rect"].y0 >= 65 and record["rect"].y1 <= 810
-        and not is_table_block(record)
+        if not is_table_block(record)
+        and normalized(record["text"]) != document_title
+        and not re.match(r"(?i)^Halaman\\s+\\d+$", record["text"])
     ]
     for record in body_records:
         rect = record["rect"]
-        if rect.x0 < 40 or rect.x1 > 555:
-            raise ValueError(f"Teks laporan keluar dari area margin pada halaman {record['page'] + 1}.")
+        if rect.x0 < 46 or rect.x1 > 549 or rect.y0 < 82 or rect.y1 > 790:
+            raise ValueError(
+                f"Teks isi PDF keluar dari area cetak/margin pada halaman {record['page'] + 1}: "
+                f"{(round(rect.x0, 1), round(rect.y0, 1), round(rect.x1, 1), round(rect.y1, 1))}."
+            )
     for index, first in enumerate(body_records):
         for second in body_records[index + 1:]:
             if second["page"] != first["page"]:
