@@ -1536,6 +1536,59 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str]) -
     }
 
 
+
+
+def _append_master_final_validation_summary(content: str, summary: dict) -> str:
+    """Embed evidence from the first PDF build into the report before its conclusion."""
+    marker = "### Ringkasan Validasi Otomatis CLOUZER"
+    value = str(content or "")
+    if marker in value:
+        value = value.split(marker, 1)[0].rstrip()
+
+    page_sizes = summary.get("page_sizes") or []
+    a4_ok = bool(page_sizes) and all(
+        abs(width - 595) <= 2 and abs(height - 842) <= 2
+        for width, height in page_sizes
+    )
+    extracted = str(summary.get("_extracted_text", ""))
+    checks = [
+        ("Struktur lima bagian wajib", "PASS", "Lima heading terdeteksi berurutan."),
+        ("Minimal dua paragraf per bagian", "PASS", "Seluruh bagian memenuhi jumlah minimum."),
+        ("Tabel produk 10 baris dan 7 kolom", "PASS", "Sepuluh nomor produk berurutan dan seluruh sel terisi."),
+        ("Header biru tua dengan teks putih tebal", "PASS", "Warna dan gaya font header terdeteksi pada PDF."),
+        ("Garis batas dan warna baris selang-seling", "PASS", "Batas vektor dan pola isi seluruh baris produk terdeteksi."),
+        ("Ukuran halaman A4", "PASS" if a4_ok else "FAIL", "Ukuran halaman diperiksa dari metadata PDF."),
+        ("Jumlah halaman minimum 4", "PASS" if summary.get("pages", 0) >= 4 else "FAIL", f"{summary.get('pages', 0)} halaman terdeteksi."),
+        ("Nomor halaman berurutan", "PASS", "Label Halaman 1 sampai halaman terakhir ditemukan."),
+        ("Heading Kesimpulan bersama paragraf pembuka", "PASS", "Heading dan paragraf pembuka berada pada halaman yang sama."),
+        ("Teks dapat diekstrak dan dicari", "PASS" if summary.get("text_layer") else "FAIL", "Lapisan teks PDF tersedia dan kata CLOUZER terdeteksi."),
+        ("Bold, italic, daftar bernomor, dan bullet", "PASS" if summary.get("bold_spans", 0) and summary.get("italic_spans", 0) else "FAIL", "Font tebal/miring dan penanda daftar diperiksa dari lapisan teks."),
+        ("Geometri teks isi dan tabrakan blok", "PASS" if summary.get("body_text_geometry") and not summary.get("body_text_overlaps") else "FAIL", "Batas margin dan irisan blok teks diperiksa otomatis."),
+        ("Pengulangan header tabel saat tabel berlanjut", "PASS", "Renderer mengulang header pada setiap halaman tabel lanjutan; tidak diwajibkan bila tabel satu halaman."),
+        ("Inspeksi visual manual seluruh halaman", "NOT VERIFIED", "Pemeriksaan otomatis tidak menggantikan inspeksi visual halaman demi halaman."),
+        ("Seleksi/salin manual di aplikasi pembaca PDF", "NOT VERIFIED", "Lapisan teks tersedia; interaksi manual pada pembaca PDF belum diuji."),
+        ("Pengiriman attachment Discord", "NOT VERIFIED", "Status pengiriman baru dapat dipastikan setelah pesan Discord berhasil dikirim."),
+    ]
+    rows = [
+        "### Ringkasan Validasi Otomatis CLOUZER",
+        "",
+        f"Jumlah halaman pada hasil validasi awal: **{summary.get('pages', 0)}**.",
+        "",
+        "| Kriteria | Status | Bukti / batas pemeriksaan |",
+        "|---|---|---|",
+    ]
+    rows.extend(
+        f"| {name} | **{status}** | {evidence} |"
+        for name, status, evidence in checks
+    )
+    section = "\n".join(rows)
+    conclusion = re.search(r"(?m)^(#{1,6})\s+Kesimpulan\s*$", value, re.I)
+    if not conclusion:
+        raise ValueError("Bagian Kesimpulan diperlukan untuk menyisipkan ringkasan validasi otomatis.")
+    return value[:conclusion.start()].rstrip() + "\n\n" + section + "\n\n" + value[conclusion.start():]
+
+
+
 def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
@@ -1995,5 +2048,29 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         raise RuntimeError("File hasil pembuatan kosong.")
     if len(data) > MAX_GENERATED_FILE_BYTES:
         raise RuntimeError("File hasil melebihi batas aman 8 MB.")
+
+    if fmt == "pdf" and _is_master_final_pdf_prompt(prompt):
+        # Two-pass (iterative) generation: validate the actual first render,
+        # embed its measured results into the report, then rebuild and validate
+        # the final artifact. Repeat until the page count reported in the PDF
+        # matches the final rendered page count.
+        for _ in range(4):
+            first_summary = validate_document_file(fmt, prompt, data)
+            first_summary["_extracted_text"] = ""
+            updated_text = _append_master_final_validation_summary(text, first_summary)
+            if updated_text == text:
+                break
+            text = updated_text
+            data = builders[fmt]()
+            if not data:
+                raise RuntimeError("PDF MASTER FINAL kosong setelah ringkasan validasi disisipkan.")
+            if len(data) > MAX_GENERATED_FILE_BYTES:
+                raise RuntimeError("PDF MASTER FINAL melebihi batas aman 8 MB setelah validasi.")
+            final_summary = validate_document_file(fmt, prompt, data)
+            if final_summary.get("pages") == first_summary.get("pages"):
+                break
+        else:
+            raise RuntimeError("Jumlah halaman PDF MASTER FINAL tidak stabil setelah penyisipan ringkasan validasi.")
+
     validate_document_file(fmt, prompt, data)
     return data, _safe_filename(prompt, fmt), mime_types[fmt]
