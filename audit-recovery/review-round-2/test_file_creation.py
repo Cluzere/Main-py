@@ -904,12 +904,9 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
             validate_document_file("xlsx", prompt, output.getvalue())
 
 
-if __name__ == "__main__":
-    unittest.main()
-
     def test_refusal_uses_explicit_fenced_source_for_all_supported_formats(self):
-        prompt = "Buat file dokumen.\\nIsi dokumen sumber:\\n```text\\nJudul Audit CLOUZER\\n\\nKonten sumber harus dipertahankan persis.\\n```\\nJangan tambahkan data."
-        expected = "Judul Audit CLOUZER\\n\\nKonten sumber harus dipertahankan persis."
+        prompt = "Buat file dokumen.\nIsi dokumen sumber:\n```text\nJudul Audit CLOUZER\n\nKonten sumber harus dipertahankan persis.\n```\nJangan tambahkan data."
+        expected = "Judul Audit CLOUZER\n\nKonten sumber harus dipertahankan persis."
         formats = ("txt", "pdf", "docx", "xlsx", "pptx", "zip", "csv", "json", "md", "html", "xml", "yaml", "rtf", "odt")
         for fmt in formats:
             with self.subTest(fmt=fmt):
@@ -921,11 +918,15 @@ if __name__ == "__main__":
             resolve_document_source("pdf", "Buat file PDF tentang CLOUZER.", "Saya tidak bisa membuat file.", model_refused=True)
 
     def test_non_refusal_keeps_model_content(self):
-        content = "# Judul\\n\\nIsi dari model."
+        content = "# Judul\n\nIsi dari model."
         self.assertEqual(resolve_document_source("pdf", "Buat PDF", content), content)
 
     def test_refusal_extracts_explicit_markdown_table_for_pdf(self):
-        prompt = "Buat PDF dari tabel berikut:\\n| Nama | Umur |\\n|---|---|\\n| Andi | 25 |\\n| Budi | 30 |"
+        prompt = "Buat PDF dari tabel berikut:\n| Nama | Umur |\n|---|---|\n| Andi | 25 |\n| Budi | 30 |"
         source = resolve_document_source("pdf", prompt, "Tidak bisa membuat file.", model_refused=True)
         self.assertIn("Andi", source)
         self.assertIn("Budi", source)
+
+
+if __name__ == "__main__":
+    unittest.main()
