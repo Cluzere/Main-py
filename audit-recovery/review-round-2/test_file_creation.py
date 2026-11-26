@@ -1049,7 +1049,7 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
             "- Butir pertama\n"
             "- Butir kedua\n"
         )
-        data, _, _ = create_document_file("pdf", "Buat PDF", content)
+        data, _, _ = create_document_file("pdf", "Buat PDF dengan bold italic daftar bernomor dan daftar berpoin", content)
         with pymupdf.open(stream=data, filetype="pdf") as doc:
             spans = [
                 span
@@ -1091,6 +1091,28 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
                             self.assertGreaterEqual(y0, 15)
                             self.assertLessEqual(x1, 560)
                             self.assertLessEqual(y1, 835)
+
+
+    def test_pdf_validator_enforces_minimum_pages_a4_and_required_styles(self):
+        content = (
+            "# Laporan CLOUZER\n\n"
+            "Teks **tebal** dan *miring* untuk memvalidasi font.\n\n"
+            "1. Langkah pertama\n"
+            "- Butir pertama\n\n"
+            + "\n\n".join(
+                "Paragraf panjang nomor %d untuk memastikan dokumen melewati empat halaman A4 dengan tata letak yang stabil." % i
+                for i in range(1, 230)
+            )
+            + "\n\n## Kesimpulan\n\nKesimpulan lengkap berada pada halaman yang sama dengan heading dan menjelaskan hasil pengujian."
+        )
+        prompt = "Buat PDF A4 minimal 4 halaman dengan teks bold italic, daftar bernomor dan daftar berpoin, serta heading Kesimpulan bersama paragraf pembuka."
+        data, _, _ = create_document_file("pdf", prompt, content)
+        summary = validate_document_file("pdf", prompt, data)
+        self.assertGreaterEqual(summary["pages"], 4)
+        self.assertTrue(summary["text_layer"])
+        self.assertTrue(summary["within_page_bounds"])
+        self.assertGreater(summary["bold_spans"], 0)
+        self.assertGreater(summary["italic_spans"], 0)
 
 
 if __name__ == "__main__":
