@@ -691,7 +691,10 @@ def _make_pdf(content: str, title: str) -> bytes:
                 if keep_height <= bottom - top:
                     if y + keep_height > bottom:
                         new_page()
-                elif y + heading_height > bottom:
+                elif following_height > 0 or y + heading_height > bottom:
+                    # If the full paragraph cannot be reserved on the current
+                    # page, start the heading on a fresh page. Oversized prose
+                    # has already been split into bounded sentence chunks.
                     new_page()
 
                 y += 5
