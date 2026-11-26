@@ -354,17 +354,17 @@ def _populate_xlsx_formula_caches(data: bytes) -> bytes:
                     result = value
                 elif isinstance(value, str) and value.startswith("="):
                     expression = value[1:].replace("$", "").replace(" ", "")
-                    match = re.fullmatch(r"([A-Z]{1,3}[0-9]+)\\+([A-Z]{1,3}[0-9]+)-([A-Z]{1,3}[0-9]+)", expression, re.I)
+                    match = re.fullmatch(r"([A-Z]{1,3}[0-9]+)\+([A-Z]{1,3}[0-9]+)-([A-Z]{1,3}[0-9]+)", expression, re.I)
                     if match:
                         a, b, c = (value_at(ref.upper()) for ref in match.groups())
                         result = a + b - c
                     else:
-                        match = re.fullmatch(r"([A-Z]{1,3}[0-9]+)\\*([A-Z]{1,3}[0-9]+)", expression, re.I)
+                        match = re.fullmatch(r"([A-Z]{1,3}[0-9]+)\*([A-Z]{1,3}[0-9]+)", expression, re.I)
                         if match:
                             a, b = (value_at(ref.upper()) for ref in match.groups())
                             result = a * b
                         else:
-                            match = re.fullmatch(r"SUM\\(([A-Z]{1,3}[0-9]+):([A-Z]{1,3}[0-9]+)\\)", expression, re.I)
+                            match = re.fullmatch(r"SUM\(([A-Z]{1,3}[0-9]+):([A-Z]{1,3}[0-9]+)\)", expression, re.I)
                             if not match:
                                 raise ValueError("Formula XLSX tidak didukung untuk cache: " + value)
                             from openpyxl.utils.cell import range_boundaries
