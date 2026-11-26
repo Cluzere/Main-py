@@ -1207,7 +1207,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
             "No | Item | Produk | Kategori | Harga | Stok | Status",
             1,
         )
-        with self.assertRaisesRegex(ValueError, "header|kolom|MASTER FINAL"):
+        with self.assertRaisesRegex(ValueError, "(?i)header|kolom|MASTER FINAL"):
             create_document_file("pdf", prompt, content)
 
     def test_master_final_pdf_rejects_section_with_only_one_paragraph(self):
