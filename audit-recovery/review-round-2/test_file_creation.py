@@ -644,5 +644,34 @@ Aktifkan autofilter dan freeze panes A2."""
             wb.close()
 
 
+
+    def test_xlsx_formula_like_user_text_is_preserved_as_literal_string(self):
+        from openpyxl import load_workbook
+
+        prompt = """Buat XLSX bernama TES_REDTEAM_CLOUZER.xlsx dengan worksheet Data Pegawai.
+Gunakan tepat 1 baris data dan 3 kolom.
+Nama|Umur|Catatan
+Intan|26|=1+1"""
+        content = "Nama|Umur|Catatan\nIntan|26|=1+1"
+        data, _, _ = create_document_file("xlsx", prompt, content)
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"], summary["sheet_name"]), (1, 3, "Data Pegawai"))
+
+        wb = load_workbook(io.BytesIO(data), data_only=False)
+        try:
+            ws = wb["Data Pegawai"]
+            self.assertEqual(ws["C2"].value, "=1+1")
+            self.assertEqual(ws["C2"].data_type, "s")
+        finally:
+            wb.close()
+
+        cached_wb = load_workbook(io.BytesIO(data), data_only=True)
+        try:
+            cached_ws = cached_wb["Data Pegawai"]
+            self.assertEqual(cached_ws["C2"].value, "=1+1")
+            self.assertEqual(cached_ws["C2"].data_type, "s")
+        finally:
+            cached_wb.close()
+
 if __name__ == "__main__":
     unittest.main()
