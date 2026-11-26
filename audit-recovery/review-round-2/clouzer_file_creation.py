@@ -1170,6 +1170,71 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
         result.update({"rows": len(rows) - 1, "columns": len(rows[0])})
     elif fmt == "json":
         json.loads(data.decode("utf-8-sig"))
+    elif fmt == "md":
+        if not data.decode("utf-8-sig").strip():
+            raise ValueError("Markdown kosong.")
+    elif fmt == "html":
+        from html.parser import HTMLParser
+        html_text = data.decode("utf-8-sig")
+        parser = HTMLParser(convert_charrefs=True)
+        parser.feed(html_text)
+        parser.close()
+        lowered = html_text.lower()
+        if not all(token in lowered for token in ("<!doctype html", "<html", "<head", "<body")):
+            raise ValueError("HTML harus memiliki doctype, html, head, dan body.")
+        if re.search(r"\b(?:tabel|table)\b", prompt, re.I) and "<table" not in lowered:
+            raise ValueError("HTML tidak memiliki elemen tabel asli yang diminta.")
+    elif fmt == "xml":
+        from defusedxml import ElementTree as SafeET
+        try:
+            SafeET.fromstring(data.decode("utf-8-sig"))
+        except Exception as exc:
+            raise ValueError("XML tidak valid: " + str(exc)[:180]) from exc
+    elif fmt == "yaml":
+        if not _yaml_is_valid(data.decode("utf-8-sig")):
+            raise ValueError("YAML kosong atau tidak valid.")
+    elif fmt == "rtf":
+        rtf_text = data.decode("utf-8-sig")
+        if not rtf_text.lstrip().startswith(r"{\rtf"):
+            raise ValueError("RTF tidak memiliki header RTF asli.")
+        depth = 0
+        escaped = False
+        for char in rtf_text:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth < 0:
+                    raise ValueError("Struktur grup RTF tidak seimbang.")
+        if depth != 0:
+            raise ValueError("Struktur grup RTF tidak seimbang.")
+    elif fmt == "odt":
+        from defusedxml import ElementTree as SafeET
+        with zipfile.ZipFile(io.BytesIO(data), "r") as archive:
+            infos = archive.infolist()
+            names = [info.filename for info in infos]
+            if not infos or names[0] != "mimetype" or infos[0].compress_type != zipfile.ZIP_STORED:
+                raise ValueError("ODT tidak memiliki mimetype pertama yang tidak dikompresi.")
+            if archive.read("mimetype") != b"application/vnd.oasis.opendocument.text":
+                raise ValueError("ODT bukan paket OpenDocument Text yang valid.")
+            if not {"content.xml", "styles.xml", "META-INF/manifest.xml"}.issubset(set(names)):
+                raise ValueError("Paket ODT kehilangan file struktur wajib.")
+            content_root = SafeET.fromstring(archive.read("content.xml"))
+            SafeET.fromstring(archive.read("styles.xml"))
+            SafeET.fromstring(archive.read("META-INF/manifest.xml"))
+            text_ns = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
+            table_ns = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}"
+            text_content = " ".join(node.text or "" for node in content_root.iter() if node.tag in {text_ns + "p", text_ns + "h"})
+            if not text_content.strip():
+                raise ValueError("ODT tidak memiliki teks dokumen.")
+            table_count = sum(1 for node in content_root.iter() if node.tag == table_ns + "table")
+            if re.search(r"\b(?:tabel|table)\b", prompt, re.I) and table_count < 1:
+                raise ValueError("ODT tidak memiliki tabel dokumen asli yang diminta.")
+            result["tables"] = table_count
     result["valid"] = True
     return result
 
@@ -1196,6 +1261,12 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         "zip": lambda: _make_zip(text, title, prompt),
         "csv": lambda: _make_csv(text, prompt),
         "json": lambda: _make_json(text),
+        "md": lambda: (_unfence_format_content(text).rstrip() + "\n").encode("utf-8"),
+        "html": lambda: (_unfence_format_content(text).rstrip() + "\n").encode("utf-8"),
+        "xml": lambda: (_unfence_format_content(text).rstrip() + "\n").encode("utf-8"),
+        "yaml": lambda: (_unfence_format_content(text).rstrip() + "\n").encode("utf-8"),
+        "rtf": lambda: _make_rtf(text, title),
+        "odt": lambda: _make_odt(text, title),
     }
     mime_types = {
         "txt": "text/plain; charset=utf-8",
@@ -1206,6 +1277,12 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         "zip": "application/zip",
         "csv": "text/csv; charset=utf-8",
         "json": "application/json; charset=utf-8",
+        "md": "text/markdown; charset=utf-8",
+        "html": "text/html; charset=utf-8",
+        "xml": "application/xml; charset=utf-8",
+        "yaml": "application/yaml; charset=utf-8",
+        "rtf": "application/rtf",
+        "odt": "application/vnd.oasis.opendocument.text",
     }
     data = builders[fmt]()
     if not data:
