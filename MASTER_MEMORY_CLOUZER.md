@@ -3023,4 +3023,44 @@ The follow-up Master Memory commit after the workflow addition is `e48338be49834
 - Reproduce the user's exact full prompt. Do not simplify away the wording that may trigger the bug.
 - Add paired regression tests (imperative-with-capability-wording vs genuine capability question), run the complete relevant CI suite, and confirm the actual downstream action.
 - This is a cross-project engineering rule, not merely a CLOUZER-specific workaround. Apply it to every bot/agent project maintained from this Master Memory.
+## 52.19 PDF MASTER FINAL quality repair and expanded acceptance validation — 26 November 2026
 
+Scope: repair the PDF generator used by the MASTER FINAL prompt, not the uploaded report itself. All changes remain on audit-recovery-gpt-2026-11-23. Production main.py, production branch main, and Wispbyte deployment/restart were not changed.
+
+### Findings and repairs
+1. The previous PDF renderer stripped Markdown bold and italic delimiters but rendered the text as ordinary text. It also did not render list markers as proper visual list formatting.
+2. Updated clouzer_file_creation.py paragraph rendering to use PyMuPDF HTML text boxes with explicit strong, em, and code styling, and to render ordered and bullet list markers. Markdown delimiters are not emitted as literal characters.
+3. Constrained the running page-header title to the available printable width. CI exposed a real edge case where a long header title could extend beyond the page boundary; the header now measures and truncates to fit.
+4. Strengthened PDF validation: verify A4 page dimensions when requested; enforce minimum page count; inspect selectable text layer; require bold/italic font spans when requested; check ordered/bullet list markers; verify CLOUZER is searchable in extracted text; check text span bounds against physical page dimensions; check the Kesimpulan heading appears with page content; count vector table row groups for a requested 10-product table; and require a repeated dark-blue table header on at least two pages when the prompt explicitly requires it.
+5. Added regression tests for actual bold/italic font flags, ordered and bullet list text, page geometry, A4/minimum-page/style validation, 10 product row groups, and repeated headers after a table is forced across pages.
+
+### Code and test commits
+- PDF renderer styles/lists fix: 63c4b8d1c48f2b14ad60660e3dc733847e1b9bf8
+- Style/list and page-geometry tests: 4ae941116246c9eacf9362332f6240b64de1fae7
+- Expanded PDF validator: e233ee65c7b7464272126dd474ec3ee69a279b5d
+- A4/minimum-page/style acceptance tests: 9f6012cc9a5719cc1859e44ba66e68e6c45de9e4
+- Physical page-boundary diagnosis: 6bf809f7f2e839807c40701851c5010545afd400
+- Running-header width fix: 8fac02d4d0e6c2a56c25a1d4657aa5cd1a84006b
+- 10-row and repeated-header validator: aec154a2ebac68e66a27b294ba2fa2cbdaae3f75
+- Forced multi-page table regression: 345ee2cc2d4e8b190d64967ec819174da95ce5a3
+- Latest test commit / branch HEAD at recording: 07e9464740889ee308be5eb18a202af61313fbff
+
+### CI evidence
+The intermediate failures were not hidden:
+- The first stronger page-boundary check caught a header text span extending beyond the right page edge. The failure was diagnosed from the exact span bounding box and repaired by constraining the running header title.
+- The first repeated-header test did not force the table to cross a page boundary. The fixture was lengthened so the table genuinely spans pages; this made the test validate the intended behavior rather than pass without exercising it.
+
+Final exact latest tested SHA 07e9464740889ee308be5eb18a202af61313fbff:
+1. CLOUZER multi-format file audit — PASS, 137 tests, OK: https://github.com/Cluzere/Main-py/actions/runs/45852408816
+2. Audit candidate syntax check — PASS: https://github.com/Cluzere/Main-py/actions/runs/45852408786
+3. Audit recovery candidate — PASS: https://github.com/Cluzere/Main-py/actions/runs/45852408872
+
+The multi-format workflow log explicitly confirms:
+- test_pdf_renders_markdown_bold_italic_and_real_list_markers — OK
+- test_pdf_text_geometry_stays_inside_page_bounds — OK
+- test_pdf_validator_counts_ten_product_rows_and_repeated_table_header — OK
+- test_pdf_validator_enforces_minimum_pages_a4_and_required_styles — OK
+- Ran 137 tests ... OK
+
+### Acceptance boundary — do not overclaim
+These results establish automated regression coverage and CI PASS for the audit candidate. They do NOT establish that the latest code is deployed to Wispbyte, that the MASTER FINAL prompt has been rerun live, that the resulting PDF has been independently visually inspected page-by-page, or that Discord attachment delivery succeeded. The next acceptance step is a live run using the exact MASTER FINAL prompt, followed by inspection of the actual PDF artifact and all page renders. Any visual defects found must be fixed and retested before calling the result fully accepted.
