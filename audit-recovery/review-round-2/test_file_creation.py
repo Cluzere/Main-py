@@ -1190,6 +1190,16 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertIn("LAPORAN PENGUJIAN GENERATOR PDF CLOUZER", extracted)
         self.assertIn("CLOUZER", extracted)
 
+    def test_master_final_pdf_rejects_wrong_table_header_schema(self):
+        prompt, content = self._master_final_pdf_fixture()
+        content = content.replace(
+            "No | Nama | Produk | Kategori | Harga | Stok | Status",
+            "No | Item | Produk | Kategori | Harga | Stok | Status",
+            1,
+        )
+        with self.assertRaisesRegex(ValueError, "header|kolom|MASTER FINAL"):
+            create_document_file("pdf", prompt, content)
+
     def test_master_final_pdf_rejects_section_with_only_one_paragraph(self):
         prompt, content = self._master_final_pdf_fixture()
         content = content.replace(
