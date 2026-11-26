@@ -193,6 +193,14 @@ _NUMERIC_XLSX_HEADER_RE = re.compile(
     r"(?:harga|price|biaya|cost|gaji|salary|salaries|upah|pendapatan|income|kompensasi|tunjangan|stok|stock|masuk|keluar|qty|kuantitas|jumlah|quantity|nomor|umur|usia|age|^no\.?$)",
     re.I,
 )
+def _can_parse_xlsx_number(value: object) -> bool:
+    try:
+        _xlsx_number_value(value)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
 def _xlsx_number_value(value: object):
     """Parse numeric Excel values without silently accepting ambiguous text."""
     if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -271,6 +279,31 @@ def _prompt_pipe_table(prompt: str) -> list[list[str]]:
     valid = [run for run in runs if len(run) >= 2 and len({len(row) for row in run}) == 1]
     return max(valid, key=len) if valid else []
 
+
+
+def _requested_xlsx_headers(prompt: str) -> list[str]:
+    """Extract a user-declared XLSX schema when the prompt has no literal source table."""
+    value = str(prompt or "")
+    if _prompt_pipe_table(value):
+        return []
+    match = re.search(
+        r"\b(?:\d{1,3}\s*)?(?:kolom|columns?)\s*[:：]?\s*([^\n.!?]+)",
+        value, re.I,
+    )
+    if not match:
+        match = re.search(r"\b(?:kolom|columns?)\s*[:：]\s*([^\n.!?]+)", value, re.I)
+    if not match:
+        return []
+    raw = match.group(1).strip().strip(" :;.")
+    raw = re.sub(r"^(?:yaitu|adalah|berisi|dengan)\s+", "", raw, flags=re.I)
+    parts = re.split(r"\s*(?:\||,|;|\band\b|\bdan\b)\s*", raw, flags=re.I)
+    headers = [item.strip().strip(" *_ -").strip(chr(96)) for item in parts]
+    headers = [item for item in headers if item]
+    if len(headers) < 2 or len(headers) > MAX_TABLE_COLUMNS:
+        return []
+    if any(len(item) > 80 or re.search(r"\b(?:wajib|harus|gunakan|format|tepat|baris|data|worksheet|sheet)\b", item, re.I) for item in headers):
+        return []
+    return headers
 
 
 def _known_stock_audit_fixture(prompt: str) -> list[list[str]]:
@@ -585,8 +618,34 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
             # Preserve the normal table and cell validation errors before the
             # final exact-source comparison below.
             _check_table(rows, prompt, "XLSX")
+    requested_headers = _requested_xlsx_headers(prompt)
+    if not expected_rows and requested_headers and rows:
+        requested_norm = [item.casefold() for item in requested_headers]
+        actual_norm = [str(item).strip().casefold() for item in rows[0]]
+        if len(actual_norm) != len(requested_norm):
+            raise ValueError(
+                f"XLSX memiliki {len(actual_norm)} kolom; prompt meminta {len(requested_norm)} kolom."
+            )
+        if actual_norm != requested_norm:
+            numeric_indexes = [
+                index for index, name in enumerate(requested_norm)
+                if _NUMERIC_XLSX_HEADER_RE.search(name)
+            ]
+            first_row_is_data = bool(numeric_indexes) and all(
+                index < len(rows[0]) and _can_parse_xlsx_number(rows[0][index])
+                for index in numeric_indexes
+            )
+            if first_row_is_data:
+                rows = [requested_headers] + rows
+            else:
+                raise ValueError(
+                    "Header XLSX tidak sesuai dengan kolom yang diminta: "
+                    + ", ".join(requested_headers)
+                )
     _check_table(rows, prompt, "XLSX")
     headers = [str(value).strip().casefold() for value in rows[0]]
+    if requested_headers and headers != [item.casefold() for item in requested_headers]:
+        raise ValueError("Header XLSX tidak sesuai dengan skema kolom yang diminta.")
     formula_specs = _xlsx_formula_specs(rows[0], prompt)
     for row_index, row in enumerate(rows):
         values = []
@@ -1038,6 +1097,12 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 raise ValueError(f"Worksheet bernama {ws.title}; prompt meminta {requested_sheet}.")
             expected_rows = _prompt_pipe_table(prompt)
             headers = [str(cell.value or "").strip().casefold() for cell in ws[1]]
+            requested_headers = _requested_xlsx_headers(prompt)
+            if requested_headers and headers != [item.casefold() for item in requested_headers]:
+                raise ValueError(
+                    "Header XLSX tidak sesuai dengan skema kolom yang diminta: "
+                    + ", ".join(requested_headers)
+                )
             formula_specs = _xlsx_formula_specs(expected_rows[0] if expected_rows else headers, prompt)
             canonical_rows = []
             for row_number, cells in enumerate(ws.iter_rows(values_only=False), 1):
