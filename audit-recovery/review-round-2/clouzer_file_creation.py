@@ -164,20 +164,20 @@ def _xlsx_number_value(value: object):
     """Parse numeric Excel values without silently accepting ambiguous text."""
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return value
-    raw = str(value or "").strip().replace("\\u00a0", "").replace(" ", "")
+    raw = str(value or "").strip().replace("\u00a0", "").replace(" ", "")
     if not raw:
         raise ValueError("Nilai angka XLSX kosong.")
     negative = raw.startswith("(") and raw.endswith(")")
     if negative:
         raw = raw[1:-1]
     raw = re.sub(r"(?i)^(?:rp|idr|rupiah)", "", raw)
-    raw = re.sub(r"[^0-9,.+\\-]", "", raw)
+    raw = re.sub(r"[^0-9,.+-]", "", raw)
     if not raw or not re.fullmatch(r"[+-]?[0-9][0-9,.]*", raw):
         raise ValueError("Nilai angka XLSX tidak valid: " + str(value))
     sign = ""
     if raw[:1] in "+-":
         sign, raw = raw[0], raw[1:]
-    if not raw or not re.search(r"\\d", raw):
+    if not raw or not re.search(r"\d", raw):
         raise ValueError("Nilai angka XLSX tidak valid: " + str(value))
     if "," in raw and "." in raw:
         decimal_sep = "," if raw.rfind(",") > raw.rfind(".") else "."
@@ -203,8 +203,6 @@ def _xlsx_number_value(value: object):
                 raise ValueError("Pemisah angka XLSX ambigu: " + str(value))
     parsed = float(sign + raw) if "." in raw else int(sign + raw)
     return -parsed if negative else parsed
-
-
 
 
 def _prompt_pipe_table(prompt: str) -> list[list[str]]:
