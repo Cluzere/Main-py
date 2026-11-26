@@ -324,5 +324,58 @@ No|Nama|Umur|Kota|Harga|Status
         summary = validate_document_file("xlsx", prompt, data)
         self.assertEqual((summary["rows"], summary["columns"]), (10, 6))
 
+
+    def test_xlsx_inventory_formula_dates_filter_and_exact_source(self):
+        from datetime import date, datetime
+        from openpyxl import load_workbook
+
+        prompt = """Buat file Excel (.xlsx) bernama **TES_INVENTARIS_GUDANG_02.xlsx**.
+Buat worksheet bernama **Inventaris** dengan data berikut:
+| Kode | Nama Barang | Kategori | Stok Awal | Barang Masuk | Barang Keluar | Stok Akhir | Harga Satuan | Tanggal Update | Status |
+|---|---|---|---:|---:|---:|---:|---:|---|---|
+| INV001 | Laptop Lenovo | Elektronik | 25 | 10 | 8 | 27 | 8500000 | 2026-11-20 | Tersedia |
+| INV002 | Mouse Wireless | Aksesoris | 100 | 50 | 35 | 115 | 125000 | 2026-11-21 | Tersedia |
+| INV003 | Keyboard Mechanical | Aksesoris | 40 | 0 | 12 | 28 | 450000 | 2026-11-21 | Tersedia |
+| INV004 | Monitor 24 Inch | Elektronik | 15 | 5 | 18 | 2 | 2100000 | 2026-11-22 | Menipis |
+| INV005 | Flashdisk 64GB | Penyimpanan | 80 | 20 | 90 | 10 | 95000 | 2026-11-22 | Menipis |
+| INV006 | SSD 1TB | Penyimpanan | 30 | 15 | 10 | 35 | 1250000 | 2026-11-23 | Tersedia |
+| INV007 | Printer Laser | Elektronik | 12 | 3 | 15 | 0 | 3200000 | 2026-11-24 | Habis |
+| INV008 | Webcam HD | Aksesoris | 45 | 10 | 20 | 35 | 375000 | 2026-11-24 | Tersedia |
+Stok Akhir harus menggunakan rumus Stok Awal + Barang Masuk - Barang Keluar, bukan angka ketik.
+Kolom Tanggal Update harus berupa tanggal Excel, bukan teks.
+Kolom Stok Awal, Barang Masuk, Barang Keluar, Stok Akhir, dan Harga Satuan harus berupa angka.
+Format header tebal dan berikan filter tabel.
+Harus tepat 8 baris data dan 10 kolom."""
+        content = """| Kode | Nama Barang | Kategori | Stok Awal | Barang Masuk | Barang Keluar | Stok Akhir | Harga Satuan | Tanggal Update | Status |
+|---|---|---|---:|---:|---:|---:|---:|---|---|
+| INV001 | Laptop Lenovo | Elektronik | 25 | 10 | 8 | 27 | 8500000 | 2026-11-20 | Tersedia |
+| INV002 | Mouse Wireless | Aksesoris | 100 | 50 | 35 | 115 | 125000 | 2026-11-21 | Tersedia |
+| INV003 | Keyboard Mechanical | Aksesoris | 40 | 0 | 12 | 28 | 450000 | 2026-11-21 | Tersedia |
+| INV004 | Monitor 24 Inch | Elektronik | 15 | 5 | 18 | 2 | 2100000 | 2026-11-22 | Menipis |
+| INV005 | Flashdisk 64GB | Penyimpanan | 80 | 20 | 90 | 10 | 95000 | 2026-11-22 | Menipis |
+| INV006 | SSD 1TB | Penyimpanan | 30 | 15 | 10 | 35 | 1250000 | 2026-11-23 | Tersedia |
+| INV007 | Printer Laser | Elektronik | 12 | 3 | 15 | 0 | 3200000 | 2026-11-24 | Habis |
+| INV008 | Webcam HD | Aksesoris | 45 | 10 | 20 | 35 | 375000 | 2026-11-24 | Tersedia |"""
+        data, filename, _ = create_document_file("xlsx", prompt, content)
+        self.assertEqual(filename, "TES_INVENTARIS_GUDANG_02.xlsx")
+        summary = validate_document_file("xlsx", prompt, data)
+        self.assertEqual((summary["rows"], summary["columns"], summary["sheet_name"]), (8, 10, "Inventaris"))
+
+        wb = load_workbook(io.BytesIO(data), data_only=False)
+        try:
+            ws = wb["Inventaris"]
+            self.assertEqual(ws.max_row, 9)
+            self.assertEqual(ws.max_column, 10)
+            self.assertEqual(ws.auto_filter.ref, "A1:J9")
+            self.assertTrue(ws["A1"].font.bold)
+            for row in range(2, 10):
+                self.assertEqual(ws.cell(row, 7).value, f"=D{row}+E{row}-F{row}")
+                for col in (4, 5, 6, 8):
+                    self.assertIsInstance(ws.cell(row, col).value, (int, float))
+                    self.assertNotIsInstance(ws.cell(row, col).value, bool)
+                self.assertIsInstance(ws.cell(row, 9).value, (date, datetime))
+        finally:
+            wb.close()
+
 if __name__ == "__main__":
     unittest.main()
