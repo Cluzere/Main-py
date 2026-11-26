@@ -378,6 +378,30 @@ Harus tepat 8 baris data dan 10 kolom."""
             wb.close()
 
 
+    def test_xlsx_parses_common_localized_date_formats_as_excel_dates(self):
+        from datetime import date
+        from openpyxl import load_workbook
+
+        prompt = "Buat XLSX dengan kolom Tanggal Update berupa tanggal Excel."
+        content = (
+            "Kode|Tanggal Update\\n"
+            "A|20/11/2026\\n"
+            "B|21-11-2026\\n"
+            "C|2026-11-22T00:00:00"
+        )
+        data, _, _ = create_document_file("xlsx", prompt, content)
+        result = validate_document_file("xlsx", prompt, data)
+        self.assertEqual(result["rows"], 3)
+        wb = load_workbook(io.BytesIO(data), data_only=False)
+        try:
+            ws = wb.active
+            self.assertEqual(ws["B2"].value, date(2026, 11, 20))
+            self.assertEqual(ws["B3"].value, date(2026, 11, 21))
+            self.assertEqual(ws["B4"].value, date(2026, 11, 22))
+        finally:
+            wb.close()
+
+
     def test_xlsx_formula_specs_accepts_indonesian_rumus_and_formula_wording(self):
         headers = ["Stok Awal", "Barang Masuk", "Barang Keluar", "Stok Akhir", "Harga Satuan", "Total Nilai Stok"]
         expected = {
