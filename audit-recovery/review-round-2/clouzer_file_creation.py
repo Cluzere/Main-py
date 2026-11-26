@@ -747,6 +747,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
     elif fmt == "xlsx":
         from openpyxl import load_workbook
         wb = load_workbook(io.BytesIO(data), read_only=False, data_only=False)
+        cached_wb = load_workbook(io.BytesIO(data), read_only=False, data_only=True)
         try:
             if not wb.sheetnames or wb.active.max_row > MAX_TABLE_ROWS + 1 or wb.active.max_column > MAX_TABLE_COLUMNS:
                 raise ValueError("XLSX melewati batas tabel atau tidak memiliki worksheet.")
@@ -754,6 +755,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                 if not any(cell.value is not None for row in wb[name].iter_rows() for cell in row):
                     raise ValueError(f"XLSX memiliki worksheet kosong: {name}.")
             ws = wb.active
+            cached_ws = cached_wb[ws.title]
             requested_sheet = _requested_sheet_title(prompt)
             if requested_sheet and ws.title != requested_sheet:
                 raise ValueError(f"Worksheet bernama {ws.title}; prompt meminta {requested_sheet}.")
@@ -813,6 +815,9 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
                             if any(not isinstance(item, (int, float)) or isinstance(item, bool) for item in source_values):
                                 raise ValueError(f"Sumber rumus nilai stok harus berupa angka pada baris {row_number}.")
                             calculated = source_values[0] * source_values[1]
+                        cached_value = cached_ws.cell(row_number, index + 1).value
+                        if not isinstance(cached_value, (int, float)) or isinstance(cached_value, bool) or cached_value != calculated:
+                            raise ValueError(f"Hasil formula XLSX pada {ws.cell(row_number, index + 1).coordinate} belum tersimpan atau tidak cocok di cache.")
                         if expected_rows and row_number - 1 < len(expected_rows):
                             expected_value = expected_rows[row_number - 1][index].strip()
                             if not re.fullmatch(r"[+-]?(?:0|[1-9]\d*)(?:\.\d+)?", expected_value) or calculated != float(expected_value):
@@ -856,6 +861,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
             data_row_count = len(canonical_rows) - 1 - bool(canonical_rows and _is_xlsx_total_row(canonical_rows[-1]))
             result.update({"rows": data_row_count, "columns": len(canonical_rows[0]), "sheets": len(wb.sheetnames), "sheet_name": ws.title})
         finally:
+            cached_wb.close()
             wb.close()
     elif fmt == "pptx":
         from pptx import Presentation
