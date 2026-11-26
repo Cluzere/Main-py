@@ -865,7 +865,7 @@ Rizky Saputra|24|Staf Layanan Pelanggan|5000000"""
 
         prompt = """Buat XLSX bernama TES_SCHEMA_RECOVERY.xlsx.
 Buat worksheet bernama Data Pegawai.
-Buat tepat 5 baris data dan 4 kolom: Nama, Umur, Jabatan, Gaji.
+Buat tepat 5 baris data dan 4 kolom Nama, Umur, Jabatan, Gaji.
 Umur dan Gaji wajib berupa angka Excel."""
         # Model returned five records but omitted the header row.
         content = """Andi Pratama|28|Staf Administrasi|5500000
