@@ -1990,3 +1990,75 @@ Keep these states separate:
 A success at one stage does not prove the next stage. CI PASS is not a live delivery PASS.
 
 All changes above are limited to the audit branch. Production root `main.py` must remain untouched; no merge, deployment, or restart is authorized by this memory update. User controls any Wispbyte restart and live retest.
+
+
+---
+
+## 42. XLSX ROW/COLUMN PARSER AUDIT HANDOFF (26 November 2026)
+
+### 42.1 User intent and scope
+
+- User explicitly asked to continue the XLSX diagnosis and preserve the findings/next-step plan in this GitHub master memory so another conversation can resume without repeating the investigation.
+- Scope remains the audit/recovery branch only. Do not touch production root `main.py`, merge to `main`, deploy, or restart Wispbyte without the user's explicit authorization.
+- Do not run repeated Discord XLSX retries while the parser/validator behavior is not understood. Use deterministic local regression tests first, then one controlled live retest after approval.
+
+### 42.2 Historical failure evidence supplied by the user
+
+The user supplied these actual failure messages from CLOUZER's Discord workflow (they are reported application outputs, not independently reproduced in this audit session):
+
+- `XLSX berisi 9 baris data; permintaan tepat 10.`
+- `XLSX berisi 11 baris data; permintaan tepat 9.`
+- `XLSX berisi 21 baris data; permintaan tepat 10.`
+- `XLSX berisi 40 baris data; permintaan tepat 21.`
+- `XLSX memiliki jumlah kolom yang tidak konsisten.`
+- Earlier user-supplied Wispbyte traceback also showed: `XLSX berisi 6 baris data; permintaan tepat 10`, `Data XLSX berbeda dari tabel sumber pada prompt`, and `Kolom Stok Akhir harus berupa angka pada baris 2`.
+
+Interpretation: these messages show inconsistent parser/validator outcomes across attempts. They do not, by themselves, prove retry-buffer accumulation or identify the exact runtime path. Treat retry-context contamination, stale prompt content, and buffer lifecycle as hypotheses until supported by code/log evidence.
+
+### 42.3 Historical candidate-code findings from the preceding chat
+
+An earlier read-only inspection of the candidate helper reported these concrete weaknesses in the then-inspected code:
+
+1. In `clouzer_file_creation.py`, around lines 281–296, non-table lines without a pipe or TAB were appended as one-cell rows instead of being ignored/excluded from the parsed table. This can create mixed row widths when explanatory prose surrounds a Markdown table.
+2. Around line 439, expected row count was inferred with a regex search over the prompt, taking the first matching number/phrase. If the prompt includes multiple row-count references or quoted prior errors, this can select the wrong target.
+3. Around line 444, row count was calculated as `len(rows) - 1`, excluding only the header and not classifying/excluding a trailing `TOTAL` row. Thus a header + 10 records + TOTAL can be misreported as 11 data rows.
+4. The earlier inspection reported formula handling for `Stok Akhir` but no equivalent formula specification for a derived `Total Nilai Stok` column; whether this is required depends on the exact test specification.
+
+Important version caveat: these are historical findings against the candidate snapshot inspected in that earlier turn. The master memory's section 41 records a later candidate correction commit `0fbd0a4e22a9a37226697829dd12ef11ea6762a4` and 23/23 regression tests passing. Therefore, re-fetch the current branch files and verify whether each weakness still exists before changing anything. Do not copy old line numbers or assume the bugs remain present.
+
+### 42.4 Recommended next work — inspect current candidate, then add focused tests
+
+1. Fetch the current branch head and current versions of:
+   - `audit-recovery/review-round-2/clouzer_file_creation.py`
+   - `audit-recovery/review-round-2/test_file_creation.py`
+   - `audit-recovery/review-round-2/revisi_audit_final_main.py`
+2. Confirm the current helper blob SHA and branch head. Do not assume the historical SHA from a previous conversation is still current.
+3. Trace the complete data path: prompt/source table → model response text → Markdown/TSV parser → parsed rows → expected-row determination → workbook builder → workbook validator → retry-context replay.
+4. Add tests (on audit branch only) for:
+   - Markdown table preceded/followed by headings, prose, bullets, and code fences; non-table prose must not become one-cell table rows.
+   - Exactly 1 header + N data rows + optional TOTAL; data count must exclude header and TOTAL explicitly.
+   - Multiple numbers/phrases such as "9 rows", "10 data rows", "12 worksheet rows", and quoted historical errors in one prompt; expected count must come from a deterministic structured rule or parsed source table, not the first regex match.
+   - Mixed pipe/TAB separators, blank lines, separator rows, escaped pipes, and malformed rows; report the precise offending line and width.
+   - Retry replay must use a stable source prompt and must not append prior model outputs or parser rows to a new attempt unless explicitly intended.
+   - Every attempt gets a unique attempt ID and logs source-message ID/hash, parsed row count, expected row count, row classifications, and retry-parent ID. Avoid logging secrets or unnecessary user content.
+5. Keep formula requirements explicit per test. For the inventory case, validate `Stok Akhir = Stok Awal + Barang Masuk - Barang Keluar`. Add `Total Nilai Stok = Stok Akhir * Harga Satuan` only when that column is part of the declared workbook specification; validate both formula strings and calculated cached values where the chosen calculation engine supports it.
+6. Run focused tests and the full candidate test suite. Record exact command, test count, result, commit SHA, and CI run URL.
+7. Only after local/CI PASS, request user approval for one controlled live Discord retest. Separately verify actual Discord attachment and actual Box destination. Do not equate generated workbook, validated workbook, Discord delivery, and Box upload.
+
+### 42.5 Correct acceptance model
+
+For a workbook with 10 inventory records and a TOTAL row:
+- Header: worksheet row 1.
+- Data records: worksheet rows 2–11 (10 unique expected item IDs).
+- TOTAL: worksheet row 12 (summary, not a data record).
+- Total worksheet rows: 12.
+- Expected column count: exactly the declared table width (10 columns for the earlier 10-column inventory test; if a later test adds a derived total-value column, update the declared width rather than silently assuming 10).
+
+Do not conflate `data_rows`, `summary_rows`, and `worksheet_rows`. Validate each independently. The inventory test data and total `189,575,000` remain as specified in the preceding handoff; do not alter source records to satisfy a faulty validator.
+
+### 42.6 Current status at handoff
+
+- Section 41 records the later fix commit `0fbd0a4e22a9a37226697829dd12ef11ea6762a4`, GitHub Actions run `45726016226` SUCCESS, and 23/23 focused tests PASS. That is candidate CI evidence only.
+- Historical parser/validator findings above still need to be checked against the latest branch snapshot; do not describe them as unresolved current defects until revalidated.
+- Live Discord attachment delivery and Box upload remain separate acceptance checks and must be verified from actual artifacts/destinations.
+- Production `main.py` remains protected; no production modification, merge, deployment, or restart is authorized by this handoff.
