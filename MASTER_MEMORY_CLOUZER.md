@@ -3121,3 +3121,29 @@ File: audit-recovery/review-round-2/test_file_creation.py
 5. Verify the actual PDF attachment in Discord and the resulting Box artifact independently. Keep file creation, validation, Discord delivery, Box upload, and user download as separate evidence states.
 
 **Current status:** validator and regression tests have been added to the audit branch; automated execution, live PDF generation, visual inspection, Discord delivery, and Box replacement remain unverified. Production remains untouched.
+
+
+## 52.21 Fresh content audit of Box artifact Tes_PDF_Final.pdf — 26 November 2026
+
+The current Box file was reopened with the Box content reader in this turn:
+- File name: Tes_PDF_Final.pdf
+- Box file ID: 2616990550824
+- Box URL: https://account.box.com/file/2616990550824
+
+### Facts confirmed by extracted PDF text
+- The extraction contains page markers 1 through 8: the artifact is an eight-page PDF, not an unknown page count.
+- The report title is present.
+- All five required main sections are present: Pendahuluan, Tujuan Pengujian, Metode Pengujian, Hasil Pengujian, and Kesimpulan.
+- Each main section contains at least two substantive paragraphs.
+- The product table contains the seven headings No, Nama, Produk, Kategori, Harga, Stok, Status and ten numbered product rows.
+- The extracted text contains repeated occurrences of CLOUZER, confirming a searchable text representation in the extracted PDF content.
+- The table and all ten product rows appear on page 4. The table does not continue onto another page in this artifact, so repeated-header behavior is not applicable to this specific table instance.
+- Kesimpulan begins on page 7 and continues with one additional paragraph on page 8.
+
+### Content defect and acceptance status
+The report is still not an accepted final test report. It reads primarily as a test plan/procedure and marks nearly every criterion NOT VERIFIED, including facts now directly confirmed by extraction such as the eight-page count, five section headings, ten product rows/seven columns, and the presence of extracted searchable text. It does not present a completed evidence-based result matrix for the criteria that can already be checked. The document therefore needs content revision, not merely more formatting.
+
+### What remains unverified
+Text extraction does not establish the actual visual rendering of every page. Bold/italic appearance, exact colors, table borders, alternating fills, clipping, collisions, margins, page balance, and the last-page composition remain NOT VERIFIED until the page renders are visually inspected. Interactive selection/copy/paste, reader search, Discord attachment delivery, and successful download/reopen are also not proven by this text extraction.
+
+The current Box artifact was not overwritten or replaced. No new PDF was generated or delivered in this session. The file remains a source artifact for the next staging run and final comparison.
