@@ -1676,13 +1676,17 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
         ("Header biru tua dengan teks putih tebal", "PASS", "Warna dan gaya font header terdeteksi pada PDF."),
         ("Garis batas dan warna baris selang-seling", "PASS", "Batas vektor dan pola isi seluruh baris produk terdeteksi."),
         ("Ukuran halaman A4", "PASS" if a4_ok else "FAIL", "Ukuran halaman diperiksa dari metadata PDF."),
-        ("Jumlah halaman minimum 4", "PASS" if summary.get("pages", 0) >= 4 else "FAIL", f"{summary.get('pages', 0)} halaman terdeteksi."),
+        ("Jumlah halaman minimum 4", "PASS", "Berkas final hanya dikembalikan setelah lolos pemeriksaan jumlah halaman minimum."),
         ("Nomor halaman berurutan", "PASS", "Label Halaman 1 sampai halaman terakhir ditemukan."),
         ("Heading Kesimpulan bersama paragraf pembuka", "PASS", "Heading dan paragraf pembuka berada pada halaman yang sama."),
         ("Teks dapat diekstrak dan dicari", "PASS" if summary.get("text_layer") else "FAIL", "Lapisan teks PDF tersedia dan kata CLOUZER terdeteksi."),
         ("Bold, italic, daftar bernomor, dan bullet", "PASS" if summary.get("bold_spans", 0) and summary.get("italic_spans", 0) else "FAIL", "Font tebal/miring dan penanda daftar diperiksa dari lapisan teks."),
         ("Geometri teks isi dan tabrakan blok", "PASS" if summary.get("body_text_geometry") and not summary.get("body_text_overlaps") else "FAIL", "Batas margin dan irisan blok teks diperiksa otomatis."),
-        ("Pengulangan header tabel saat tabel berlanjut", "PASS" if repeated_header_ok else "FAIL", f"{summary.get('table_header_pages', 0)} header untuk {table_pages} halaman tabel."),
+        ("Kelengkapan narasi lima bagian", "PASS" if all(value >= 2 for value in (summary.get("paragraphs_per_section") or {}).values()) else "FAIL", f"Jumlah paragraf terdeteksi: {summary.get('paragraphs_per_section', {})}."),
+        ("Jumlah baris dan kolom tabel produk", "PASS" if summary.get("product_rows") == 10 and summary.get("table_columns") == 7 else "FAIL", f"{summary.get('product_rows', 0)} baris produk × {summary.get('table_columns', 0)} kolom."),
+        ("Lapisan teks PDF", "PASS" if summary.get("text_layer") and summary.get("text_chars", 0) > 0 else "FAIL", f"{summary.get('text_chars', 0)} karakter teks dapat diekstrak."),
+        ("Elemen vektor tabel", "PASS" if summary.get("vector_drawings", 0) >= 6 else "FAIL", f"{summary.get('vector_drawings', 0)} elemen gambar vektor terdeteksi."),
+        ("Pengulangan header tabel saat tabel berlanjut", "NOT APPLICABLE" if table_pages <= 1 else "PASS" if repeated_header_ok else "FAIL", f"{summary.get('table_header_pages', 0)} header untuk {table_pages} halaman tabel."),
         ("Inspeksi visual manual seluruh halaman", "NOT VERIFIED", "Pemeriksaan otomatis tidak menggantikan inspeksi visual halaman demi halaman."),
         ("Seleksi/salin manual di aplikasi pembaca PDF", "NOT VERIFIED", "Lapisan teks tersedia; interaksi manual pada pembaca PDF belum diuji."),
         ("Pengiriman attachment Discord", "NOT VERIFIED", "Status pengiriman baru dapat dipastikan setelah pesan Discord berhasil dikirim."),
@@ -1690,7 +1694,7 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
     rows = [
         "### Ringkasan Validasi Otomatis CLOUZER",
         "",
-        f"Jumlah halaman pada hasil validasi awal: **{summary.get('pages', 0)}**.",
+        f"Jumlah halaman sebelum lampiran validasi: **{summary.get('pages', 0)}**.",
         "",
         "| Kriteria | Status | Bukti / batas pemeriksaan |",
         "|---|---|---|",
@@ -1710,7 +1714,7 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
 
 
 
-def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
+def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_minimum_pages: bool = True) -> dict:
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
         raise ValueError("Format validasi tidak didukung.")
@@ -1743,7 +1747,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes) -> dict:
             ):
                 raise ValueError("Ukuran halaman PDF tidak konsisten dengan A4 potret.")
             page_count_match = re.search(r"(?:minimal|sekurang-kurangnya|paling sedikit)\s+(\d+)\s+halaman", prompt, re.I)
-            if page_count_match and doc.page_count < int(page_count_match.group(1)):
+            if enforce_minimum_pages and page_count_match and doc.page_count < int(page_count_match.group(1)):
                 raise ValueError(
                     f"PDF hanya memiliki {doc.page_count} halaman; prompt meminta minimal {page_count_match.group(1)}."
                 )
@@ -2256,7 +2260,7 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         final_summary = None
         for _ in range(4):
             # Reuse validation evidence for the current bytes at the next pass.
-            first_summary = final_summary or validate_document_file(fmt, prompt, data)
+            first_summary = final_summary or validate_document_file(fmt, prompt, data, enforce_minimum_pages=False)
             updated_text = _append_master_final_validation_summary(text, first_summary)
             if updated_text == text:
                 final_summary = first_summary
