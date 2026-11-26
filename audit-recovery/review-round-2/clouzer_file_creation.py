@@ -17,6 +17,12 @@ _FORMAT_PATTERNS = {
     "zip": re.compile(r"(?<![a-z0-9])(?:\.zip|zip|arsip zip)(?![a-z0-9])", re.I),
     "csv": re.compile(r"(?<![a-z0-9])(?:\.csv|csv|comma[- ]separated values)(?![a-z0-9])", re.I),
     "json": re.compile(r"(?<![a-z0-9])(?:\.json|json)(?![a-z0-9])", re.I),
+    "md": re.compile(r"(?<![a-z0-9])(?:\.md|markdown|md)(?![a-z0-9])", re.I),
+    "html": re.compile(r"(?<![a-z0-9])(?:\.html?|html?|halaman html)(?![a-z0-9])", re.I),
+    "xml": re.compile(r"(?<![a-z0-9])(?:\.xml|xml)(?![a-z0-9])", re.I),
+    "yaml": re.compile(r"(?<![a-z0-9])(?:\.yaml|\.yml|yaml|yml)(?![a-z0-9])", re.I),
+    "rtf": re.compile(r"(?<![a-z0-9])(?:\.rtf|rtf|rich text format)(?![a-z0-9])", re.I),
+    "odt": re.compile(r"(?<![a-z0-9])(?:\.odt|odt|opendocument)(?![a-z0-9])", re.I),
 }
 _CREATE_RE = re.compile(r"\b(?:buatkan|bikinkan|bikin|buat|jadikan|simpan|ekspor|export|generate|create|susun)\b", re.I)
 _EXPLICIT_ACTION_RE = re.compile(r"\b(?:buatkan|bikinkan|tolong buat|tolong bikin|buat file|bikin file|jadikan file|simpan sebagai|export ke)\b", re.I)
