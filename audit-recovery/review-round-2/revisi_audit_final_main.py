@@ -5270,11 +5270,11 @@ class ClouzerBot(commands.Bot):
                             retry_messages.append({
                                 "role": "user",
                                 "content": (
-                                    "[PERBAIKAN STRUKTUR FILE - PENGULANGAN INTERNAL]\\n"
-                                    "Respons sebelumnya gagal divalidasi: " + str(build_exc)[:240] + "\\n"
+                                    "[PERBAIKAN STRUKTUR FILE - PENGULANGAN INTERNAL]\n"
+                                    "Respons sebelumnya gagal divalidasi: " + str(build_exc)[:240] + "\n"
                                     "Susun ulang berdasarkan permintaan asli pengguna. "
                                     + retry_instructions.get(requested_file_format, "Keluarkan isi dokumen lengkap dan valid.")
-                                    + "\\nPertahankan seluruh fakta dan nilai sumber. Jangan menambahkan data, jangan melakukan web search, dan jangan memanggil tool."
+                                    + "\nPertahankan seluruh fakta dan nilai sumber. Jangan menambahkan data, jangan melakukan web search, dan jangan memanggil tool."
                                 ),
                             })
                             retry_reply, retry_function_calls = await self.run_responses_ai(
