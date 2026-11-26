@@ -1202,5 +1202,17 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
 
 
 
+
+    def test_pdf_conditional_repeated_header_is_not_required_when_table_fits_one_page(self):
+        prompt = "Buat PDF dengan tabel 10 produk. Ulangi header jika tabel berlanjut ke halaman berikutnya."
+        rows = ["No | Produk | Status", "--- | --- | ---"]
+        rows.extend(f"{i} | Produk {i} | PASS" for i in range(1, 11))
+        data, _, _ = create_document_file("pdf", prompt, "\\n".join(rows))
+        summary = validate_document_file("pdf", prompt, data)
+        self.assertEqual(summary["table_header_pages"], 1)
+        self.assertEqual(summary["pages"], 1)
+
+
+
 if __name__ == "__main__":
     unittest.main()
