@@ -130,7 +130,20 @@ def _xlsx_formula_specs(headers: list[str], prompt: str) -> dict[int, tuple[str,
 
 
 def _is_xlsx_total_row(row: list[str]) -> bool:
-    return bool(row and str(row[0]).strip().casefold() in {"total", "jumlah"})
+    """Recognize summary rows whose TOTAL label may sit beside an empty No cell.
+
+    Do not classify an ordinary record as a total merely because a later
+    descriptive cell contains the word "Total": when the first cell is
+    populated, only an explicit TOTAL/JUMLAH in that first cell qualifies.
+    """
+    if not row:
+        return False
+    first = str(row[0] or "").strip().casefold()
+    if first in {"total", "jumlah"}:
+        return True
+    if first:
+        return False
+    return any(str(value or "").strip().casefold() in {"total", "jumlah"} for value in row[1:3])
 
 
 def _xlsx_date_value(value: str):
