@@ -3340,3 +3340,24 @@ Branch: `audit-recovery-gpt-2026-11-23`.
 - The next staging step is to ask the user to reset/restart Wispbyte so its startup command fetches the current audit branch head. Then run the exact MASTER FINAL prompt once, inspect the actual PDF and every rendered page, verify Discord attachment delivery, and record CPU/time. Do not call the live PDF perfect/accepted until those separate evidence steps pass.
 
 **Agent handoff warning:** CI green means the code/test suite passes; it does not prove the live Wispbyte PDF is accepted. Ask for Wispbyte reset only after the exact branch head is confirmed. Never touch production.
+
+
+## 52.26 Final pre-staging review and concise-narrative improvement — 26 November 2026
+
+- Continued review confirmed that the only change between previously tested code SHA `4a04103734908cb1ac47c11fa2780759c88effe2` and the later documentation-only SHA `01fc6487b47bca2e7a6e4ec492526503cc38d89a` was this master-memory file; no runtime code changed in that interval.
+- A final prompt-quality improvement was then applied to the PDF generator:
+  - AI narrative output is now limited to two substantive paragraphs of approximately 45–60 words per section, down from 75–95 words. The backend still appends two distinct fixed explanatory paragraphs per section, so the final PDF retains four paragraphs per section and satisfies the original minimum-two-paragraph requirement with more substantial content.
+  - The AI instruction now explicitly forbids asserting unmeasured PASS/FAIL outcomes, actual page counts, durations, or actual findings. Only the backend validator may report measured automated results; visual inspection, manual text selection/copy, and Discord delivery remain explicitly unverified until proven.
+  - Updated regression assertions cover the shorter word budget and evidence-only claim guard.
+- Latest code/test branch HEAD: `3d247ac8afa81507534adf377015072b006b7823`.
+  - PDF helper blob: `724a0c5254d59ceb5f712cec0e725d7aa20e782e`.
+  - Test file blob: `faf07c6de3b93db55299d8659acca9ea8bdb6356`.
+- All three GitHub Actions workflows completed SUCCESS on that exact code/test SHA:
+  1. Audit recovery candidate, run `45886196979`: https://github.com/Cluzere/Main-py/actions/runs/45886196979 — 148 tests passed.
+  2. CLOUZER multi-format file audit, run `45886196866`: https://github.com/Cluzere/Main-py/actions/runs/45886196866 — 148 tests passed.
+  3. Audit candidate syntax check, run `45886196854`: https://github.com/Cluzere/Main-py/actions/runs/45886196854 — compile/security checks passed; document tests 148, archive tests 72, existing audit regressions 93 passed.
+- The shorter narrative regression and final MASTER FINAL PDF 4-page validation both passed in CI. The full candidate suite and security checks also passed.
+- This is still CI evidence only. It does not prove that the actual Wispbyte/Cloudflare AI response will parse, that the live PDF will render perfectly, that Discord will deliver the attachment, or that Wispbyte CPU will remain below its stop threshold.
+- Current branch head was confirmed as `3d247ac8afa81507534adf377015072b006b7823`. The Wispbyte startup command already fetches the branch head dynamically, so the next staging reset will pull this exact commit.
+- Production `main` and production `main.py` remain untouched. PR #6 remains unmerged. Do not merge, deploy, or restart production.
+- **Next user action:** staging Wispbyte reset/restart is now appropriate. Ask the user to reset Wispbyte only (not production), then run exactly one MASTER FINAL PDF request. Capture the complete generation log, elapsed time, CPU average/peak if available, final page count, validation matrix, and whether Discord actually attached the PDF. Afterward inspect the actual PDF pages visually and verify searchable/selectable text before claiming acceptance.
