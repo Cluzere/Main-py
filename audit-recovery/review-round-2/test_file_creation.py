@@ -1177,9 +1177,11 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         data, _, _ = create_document_file("pdf", prompt, content)
         doc = pymupdf.open(stream=data, filetype="pdf")
         try:
+            from clouzer_file_creation import _extract_pdf_cell_text_from_words
             compared_cells = 0
             for page in doc:
                 shared_textpage = page.get_textpage()
+                page_words = page.get_text("words")
                 grouped = {}
                 for drawing in page.get_drawings():
                     rect = drawing.get("rect")
@@ -1198,9 +1200,14 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
                         )
                         legacy = page.get_textbox(rect)
                         cached = shared_textpage.extractTextbox(rect)
+                        word_cached = _extract_pdf_cell_text_from_words(page_words, rect, pymupdf)
                         self.assertEqual(
                             cached, legacy,
                             "Cached TextPage extraction must preserve exact cell text and ordering.",
+                        )
+                        self.assertEqual(
+                            word_cached, legacy,
+                            "Page-level word extraction must preserve exact cell text and ordering.",
                         )
                         compared_cells += 1
             self.assertGreaterEqual(compared_cells, 77)
