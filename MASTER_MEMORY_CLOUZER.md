@@ -3,7 +3,7 @@
 **Terakhir dirapikan:** 28 November 2026  
 **Repository:** `Cluzere/Main-py`  
 **Branch kerja kandidat:** `audit-recovery-gpt-2026-11-23`  
-**HEAD branch saat restrukturisasi dimulai:** `14fc65ba87bbd3a6da4ce6fa7e798a803222b0cf`  
+**HEAD branch setelah perbaikan test dan workflow:** `c8f2d188f089b196cd8942e5c9613dfe070ed17a`  
 **Commit kode PPTX terbaru yang diketahui:** `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`  
 **File induk:** `MASTER_MEMORY_CLOUZER.md`
 
@@ -135,11 +135,13 @@
 
 ## B3. Snapshot Git terakhir sebelum restrukturisasi Master Memory
 
-- Branch HEAD saat pemeriksaan: `14fc65ba87bbd3a6da4ce6fa7e798a803222b0cf`.
-- Commit HEAD tersebut adalah pembaruan dokumentasi Master Memory sebelumnya; parent-nya adalah commit kode PPTX `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
-- Commit kode PPTX `54cc3b8dc43550e08cc9caa97feb2d52747fec2f` adalah commit sumber terakhir yang tercatat untuk patch full-bleed PPTX di §52.52 arsip.
+- Branch HEAD terakhir setelah perbaikan test dan workflow: `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
+- Commit kode PPTX terakhir: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
+- Commit perbaikan regression test PPTX: `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
+- Commit filter workflow multi-format: `e8a0b29826daea2f47814a12cfc013bab427b0e3`.
+- Commit filter workflow audit-recovery: `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
 - Branch HEAD bukan bukti deployment. Status Wispbyte runtime harus dikonfirmasi dari log startup.
-- Detail blob SHA dan commit perubahan file kandidat tercatat di Bagian G, khususnya §52.52.
+- Detail blob SHA dan commit perubahan file kandidat tercatat di Bagian C dan G3.
 
 ## B4. Status produksi dan deployment
 
@@ -193,7 +195,9 @@ Bagian ini hanya mencatat apa yang diubah pada kode kandidat. Hasil pengujian ti
 - Koreksi properti fill: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
 - Helper blob: `f6af7ccc86e637321bb074e710b19b864f6fb081`.
 - Main candidate blob: `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6`.
-- Test blob: `b49eb5d5f5cab5e5ec0106ca9f44f8880df82b90`.
+- Test blob sebelum perbaikan: `b49eb5d5f5cab5e5ec0106ca9f44f8880df82b90`.
+- Test blob final setelah blank-layout title lookup: `d907fd0990856ed0f951c802d7eb202733ea8cb2`.
+- Commit perbaikan test: `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
 
 ## C2. Pengembangan kandidat sebelumnya
 
@@ -205,33 +209,69 @@ Riwayat pengembangan lintas format (retry/refusal recovery, XLSX parser/schema, 
 
 Bagian ini mencatat status tes, workflow, dan bukti verifikasi. Jangan menyimpulkan PASS hanya dari commit.
 
-## D1. Status terbaru PPTX patch
+## D1. Status terbaru PPTX patch — CI PASS
 
-- Commit kode terbaru yang diuji/dirujuk: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
-- Pemeriksaan GitHub sebelumnya pada SHA ini mengembalikan combined status kosong dan workflow-run lookup kosong.
-- Oleh sebab itu regression tests PPTX yang baru ditambahkan **belum terbukti lulus** pada SHA tersebut.
-- Belum ada bukti live Cloudflare/Lucid Origin generation setelah patch ini.
+**Commit kandidat yang diuji:** `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`  
+**Commit kode PPTX yang menjadi dasar:** `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`
+
+- Run `46058253311` — CLOUZER multi-format file audit: **SUCCESS**, 167 tests.
+  https://github.com/Cluzere/Main-py/actions/runs/46058253311
+- Run `46058253368` — Audit recovery candidate: **SUCCESS**, 167 tests.
+  https://github.com/Cluzere/Main-py/actions/runs/46058253368
+- Run `46058253339` — Audit candidate syntax check: **SUCCESS**; dependency consistency, compile, pip-audit, Bandit, document tests, ZIP fixture checksum, archive regression, dan existing audit regression steps seluruhnya sukses. Log menunjukkan 91, 93, dan 167 tests pada tahap suite yang berbeda.
+  https://github.com/Cluzere/Main-py/actions/runs/46058253339
+
+**Kesimpulan:** regression test blank-layout title sudah diperbaiki dan seluruh tiga workflow yang terpicu pada exact candidate test SHA `6acc7cc...` berakhir SUCCESS.
+
+Batas bukti:
+- Belum ada bukti live Cloudflare/Lucid Origin background generation setelah patch.
 - Belum ada bukti post-patch Wispbyte runtime, Discord attachment, Box artifact baru, rendered slide review, atau end-to-end acceptance.
-- Jangan menyebut patch PPTX ini CI PASS sampai workflow terkait benar-benar selesai pada SHA yang relevan.
+- Jadi **CI PASS**, tetapi **live PPTX acceptance NOT VERIFIED**.
 
-## D2. Workflow files yang ditemukan di branch kandidat
+## D2. Audit isi dan trigger workflow kandidat
 
-Empat file terdaftar pada `.github/workflows/` saat snapshot:
-1. `audit-candidate-check.yml`
-2. `audit-recovery.yml`
-3. `clouzer-multiformat-audit.yml`
-4. `staging-smoke-test.yml`
+Empat workflow diperiksa langsung dari branch kandidat:
 
-Daftar nama ini belum merupakan audit isi workflow. Pemeriksaan trigger, branch filters, jobs, permissions, secrets, concurrency, timeout, dan langkah tes harus dilakukan pada tahap workflow audit setelah restrukturisasi ini tersimpan.
+1. **`audit-candidate-check.yml`**
+   - Trigger: push pada branch kandidat dan `audit-7z-diagnostics-fix`, dibatasi path ke candidate entrypoint/helper, workflow ini, test archive, dan `test_*.py`; tersedia juga `workflow_dispatch`.
+   - Job: dependency install + `pip check`, `py_compile`, `pip-audit --strict`, Bandit medium/high, document tests, fetch ZIP fixture dari production main dengan SHA-256 pin, archive regression tests, dan existing round-2 tests.
+   - Kelebihan: cakupan pemeriksaan luas dan ada integrity pin untuk fixture ZIP.
+   - Catatan: workflow ini berjalan pada branch tambahan `audit-7z-diagnostics-fix` juga; hasil branch itu bukan bukti branch kandidat CLOUZER.
+
+2. **`audit-recovery.yml`**
+   - Trigger: push pada branch kandidat, path candidate entrypoint/helper, seluruh `audit-recovery/review-round-2/test_*.py`, dan workflow itu sendiri; juga `workflow_dispatch`.
+   - Job: compile, Bandit high-severity, dependency install, seluruh `test_*.py`.
+   - Perbaikan trigger pada commit `c8f2d188...`: dua nama file tes eksplisit diganti wildcard agar file test baru tidak luput dari trigger.
+   - Tidak menjalankan `pip-audit`; itu tercakup pada audit-candidate-check.
+
+3. **`clouzer-multiformat-audit.yml`**
+   - Trigger awal terlalu luas: setiap push ke branch kandidat, termasuk perubahan dokumentasi Master Memory. Ini memicu test suite untuk commit dokumentasi `e4974d45...`.
+   - Diperbaiki pada commit `e8a0b298...`: push trigger kini memakai path filter untuk candidate entrypoint/helper, seluruh test modules, dan perubahan file workflow; `workflow_dispatch` tetap tersedia.
+   - Job: compile, Bandit high-severity, dependency install, full candidate regression suite.
+   - Run `46058439175` pada exact SHA `e8a0b298...`: **SUCCESS**.
+     https://github.com/Cluzere/Main-py/actions/runs/46058439175
+
+4. **`staging-smoke-test.yml`**
+   - Manual trigger saja (`workflow_dispatch`).
+   - Membutuhkan GitHub secrets `STAGING_DISCORD_BOT_TOKEN` dan `STAGING_XINGCHI_API_KEY`.
+   - Menguji Discord bot authentication dan Xingchi Responses API; bukan full bot startup, file generation, Discord attachment, atau Box end-to-end acceptance.
+   - Timeout job 3 menit; panggilan provider diberi timeout 120 detik.
+   - Belum dijalankan; jangan menyebut staging smoke test PASS.
+
+### Hasil verifikasi trigger setelah perbaikan
+
+- Run `46058635228` — Audit recovery candidate pada exact SHA `c8f2d188...`: **SUCCESS**.
+  https://github.com/Cluzere/Main-py/actions/runs/46058635228
+- Run `46058635238` — CLOUZER multi-format file audit pada exact SHA `c8f2d188...`: **SUCCESS**.
+  https://github.com/Cluzere/Main-py/actions/runs/46058635238
 
 ## D3. Bukti CI historis
 
 - Banyak workflow pada commit sebelumnya tercatat lulus untuk XLSX, PDF, DOCX, dan PPTX. Detail run URL, commit SHA, job, test count, dan log tetap berada di arsip Bagian G.
-- Hasil hijau historis tidak otomatis berlaku untuk patch PPTX terbaru atau commit baru.
-- Khusus PPTX terbaru §52.52: status adalah **NOT VERIFIED**, bukan PASS.
-- Setiap kegagalan workflow berikutnya wajib ditangani mengikuti Bagian A2 sampai semua checks wajib terminal dan lulus, atau ada blocker eksternal yang dibuktikan.
+- Hasil hijau historis tidak otomatis berlaku untuk patch atau commit baru.
+- Untuk patch PPTX terakhir, status CI sudah PASS seperti D1; live PPTX acceptance tetap NOT VERIFIED.
+- Setiap kegagalan workflow berikutnya wajib ditangani mengikuti Bagian A2 sampai semua checks wajib terminal dan lulus.
 
----
 
 # E. KANDIDAT — HASIL YANG SUDAH TERBUKTI
 
@@ -255,25 +295,27 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 
 ## E3. Batas hasil terbaru
 
-**PPTX full-bleed patch terbaru: NOT VERIFIED.** Kode telah diubah dan commit ada, tetapi CI, background generation live, render visual, dan Discord delivery belum dibuktikan.
+**PPTX full-bleed patch terbaru: CI PASS; live acceptance NOT VERIFIED.** Kode dan regression suite lulus pada exact SHA yang tercatat di D1. Background generation live, render visual, Discord delivery, dan Wispbyte runtime belum dibuktikan.
 
 ---
 
 # F. KANDIDAT — PLANNING / PEKERJAAN BERIKUTNYA
 
-Urutan ini adalah pekerjaan yang belum selesai pada snapshot terakhir. Jangan menganggapnya sudah dilakukan.
+CI kandidat untuk patch terbaru sudah hijau. Sisa pekerjaan beralih ke live acceptance dan tata kelola repository.
 
-1. **Audit workflow GitHub secara menyeluruh** pada empat file di D2: baca isi setiap YAML, event triggers, branch filters, jobs/dependencies, permissions, secrets, concurrency/cancel behavior, timeout, test commands, artifact handling, dan apakah workflow yang diharapkan benar-benar terpicu untuk candidate branch/commit.
-2. Periksa GitHub Actions run aktual pada branch/commit kandidat terbaru setelah restrukturisasi Master Memory tersimpan. Pantau setiap run relevan sampai terminal sesuai Bagian A2.
-3. Jalankan/konfirmasi syntax check, focused PPTX tests, full candidate suite, dan security checks untuk exact code SHA yang diuji. Jangan menyebut PASS jika workflow belum selesai atau commit mismatch.
-4. Jika workflow/test gagal, periksa job logs dan perbaiki akar masalah di branch kandidat. Push correction dan tunggu workflow baru sampai selesai. Ulangi sampai lulus atau blocker eksternal terbukti.
-5. Setelah CI wajib hijau, pengguna dapat melakukan restart/reset candidate Wispbyte sendiri. Sebelum live test, cocokkan startup log dengan exact branch HEAD.
-6. Jalankan satu controlled 5-slide PPTX test: pastikan lima background generation calls berbeda, lima image 16:9 tertanam full-bleed, teks native editable, tidak ada prompt visual/Markdown bocor, dan hasil render semua slide layak.
-7. Inspeksi raw PPTX package dan render setiap slide. Periksa ukuran 8 MB, relasi media, gambar, z-order, teks, contrast, clipping, dan konsistensi.
-8. Verifikasi Discord attachment delivery secara terpisah. Simpan artefak revisi sebagai file Box baru; jangan overwrite file asli.
-9. Perbarui Bagian C–F setelah hasil nyata tersedia, lalu catat detail kronologis di Bagian G.
+1. **Live staging PPTX acceptance:** setelah pengguna mengizinkan dan menjalankan restart/reset candidate Wispbyte, cocokkan startup log dengan exact branch HEAD `c8f2d188...`.
+2. Jalankan satu controlled 5-slide PPTX test: pastikan lima background generation calls berbeda, lima image 16:9 tertanam full-bleed, teks native editable, tidak ada prompt visual/Markdown bocor, dan hasil render semua slide layak.
+3. Inspeksi raw PPTX package dan render setiap slide. Periksa ukuran 8 MB, relasi media, gambar, z-order, teks, contrast, clipping, dan konsistensi.
+4. Verifikasi Discord attachment delivery secara terpisah. Simpan artefak revisi sebagai file Box baru; jangan overwrite file asli.
+5. Evaluasi pengaktifan branch protection / required status checks untuk branch utama dan kebijakan PR. API branch saat pemeriksaan menunjukkan branch kandidat tidak protected; jangan mengubah repository settings tanpa izin yang sesuai.
+6. Tinjau apakah perlu menambahkan `timeout-minutes` dan concurrency policy pada workflow CI panjang. Belum diubah karena belum ada kebutuhan yang disetujui.
+7. Workflow `staging-smoke-test.yml` belum dijalankan; jalankan hanya bila staging secrets tersedia dan pengguna meminta smoke test.
+8. Perbarui Bagian C–F setelah bukti live tersedia, lalu catat detail kronologis di Bagian G.
 
 **Tidak ada izin dalam planning ini untuk menyentuh production `main.py`, merge PR #6, atau melakukan restart/deploy oleh asisten.**
+
+
+---
 
 ---
 
@@ -5113,3 +5155,68 @@ This instruction applies to all future Box uploads and file-review requests, acr
 ## G2. Penutup arsip
 
 Akhir dokumen arsip asli. Jangan menafsirkan rencana historis sebagai pekerjaan yang sudah dilakukan; cocokkan dengan Bagian C–F dan commit terbaru.
+
+
+---
+
+## G3. Catatan restrukturisasi Master Memory, perbaikan regression test, dan audit workflow — 28 November 2026
+
+### G3.1 Restrukturisasi Master Memory
+
+- File kanonis: `MASTER_MEMORY_CLOUZER.md`, branch `audit-recovery-gpt-2026-11-23`.
+- Restrukturisasi diminta pengguna agar semua aturan permanen terpusat dan catatan kandidat dipisah menjadi pengembangan, pengujian, hasil, dan planning.
+- Commit restrukturisasi awal: `e4974d4550ff358617fc9ddcdcd87e1dacd15b00`.
+- Blob hasil restrukturisasi awal: `e311d776181b0638966f2ea690892cf1febd23bb`.
+- Struktur baru: Bagian A aturan induk; B kondisi proyek; C pengembangan kandidat; D pengujian/CI/workflow; E hasil; F planning; G arsip kronologis.
+- Arsip asli 4.822 baris dipertahankan seluruhnya sebagai G1. Tidak ada riwayat lama yang dibuang.
+
+### G3.2 Workflow gagal setelah commit dokumentasi dan akar masalah
+
+- Commit dokumentasi `e4974d4550ff358617fc9ddcdcd87e1dacd15b00` memicu `CLOUZER multi-format file audit` karena workflow awal berjalan pada setiap push branch kandidat.
+- Run `46058023593`: FAILURE, 167 tests dijalankan, satu error.
+  https://github.com/Cluzere/Main-py/actions/runs/46058023593
+- Akar masalah: test `test_pptx_uses_each_slide_chunk_title_instead_of_repeating_deck_title` mengakses `slide.shapes.title.text`, padahal generator PPTX memakai blank slide layout dengan title sebagai native textbox. Properti `slide.shapes.title` bernilai None.
+- Tes PPTX background full-bleed dan editable text pada run tersebut lulus; error berada di assertion lama.
+
+### G3.3 Perbaikan test dan siklus CI
+
+- Commit pertama perbaikan test: `92fd8ff6679173908c7f5c5cb564c328b3d66cf2`; test diubah untuk mencari title textbox berdasarkan posisi, tetapi import `Inches` belum ditambahkan.
+- Run `46058209003`, `46058209073`, dan `46058209088` gagal dengan `NameError: name 'Inches' is not defined`.
+  - https://github.com/Cluzere/Main-py/actions/runs/46058209003
+  - https://github.com/Cluzere/Main-py/actions/runs/46058209073
+  - https://github.com/Cluzere/Main-py/actions/runs/46058209088
+- Koreksi kedua menambahkan `from pptx.util import Inches` di dalam test.
+- Commit final test: `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
+- Test blob final: `d907fd0990856ed0f951c802d7eb202733ea8cb2`.
+- Tiga workflow pada exact SHA `6acc7cc...` lulus:
+  - `46058253311` multi-format, 167 tests — SUCCESS.
+  - `46058253368` audit recovery, 167 tests — SUCCESS.
+  - `46058253339` audit candidate check — SUCCESS; compile, pip check, pip-audit, Bandit, document tests, ZIP fixture checksum, archive tests, dan regression suite sukses.
+- Kegagalan awal dan koreksi dipertahankan sebagai bukti siklus diagnose → fix → rerun → pass.
+
+### G3.4 Perbaikan workflow trigger
+
+1. `clouzer-multiformat-audit.yml` awalnya berjalan pada setiap push branch kandidat, termasuk perubahan dokumentasi.
+   - Commit filter: `e8a0b29826daea2f47814a12cfc013bab427b0e3`.
+   - Blob workflow: `9d84687faaeefaac93d76d355d03718c9d600ab2`.
+   - Path filter kini mencakup candidate entrypoint/helper, seluruh candidate test modules, dan perubahan workflow YAML; `workflow_dispatch` tetap tersedia.
+   - Run `46058439175` pada exact SHA `e8a0b298...`: SUCCESS.
+     https://github.com/Cluzere/Main-py/actions/runs/46058439175
+2. `audit-recovery.yml` awalnya hanya memantau dua nama file test eksplisit.
+   - Diganti wildcard `audit-recovery/review-round-2/test_*.py` agar test module baru ikut memicu workflow.
+   - Commit: `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
+   - Blob workflow: `ceec98617659e6fb2f05bd22c513689c5c574c43`.
+   - Run `46058635228` audit recovery pada exact SHA `c8f2d188...`: SUCCESS.
+   - Run `46058635238` multi-format pada exact SHA `c8f2d188...`: SUCCESS.
+3. Keempat workflow sudah dibaca; audit isi dan trigger diringkas di Bagian D2. `staging-smoke-test.yml` masih manual-only dan belum dijalankan.
+
+### G3.5 Status akhir
+
+- Branch HEAD: `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
+- Latest PPTX source code commit: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
+- Latest PPTX test correction commit: `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
+- Latest workflow commits: `e8a0b29826daea2f47814a12cfc013bab427b0e3` dan `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
+- Candidate CI checks yang relevan sudah terminal SUCCESS.
+- Live PPTX generation/render/Discord delivery dan candidate Wispbyte runtime identity tetap NOT VERIFIED.
+- Production `main.py`, production branch `main`, PR #6 merge, dan Wispbyte restart/deploy tidak disentuh.
+
