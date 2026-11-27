@@ -18,12 +18,30 @@ class FileCreationTests(unittest.TestCase):
                 self.assertIn("generator dokumen lokal", instruction)
                 self.assertIn("TIDAK perlu", instruction)
                 self.assertIn("jangan pernah menjawab", instruction.lower())
-        pdf_instruction = build_file_generation_system_instruction("pdf")
-        self.assertIn("backend memakai template deterministik", pdf_instruction)
-        self.assertIn("tepat dua paragraf naratif", pdf_instruction)
-        self.assertIn("45-60 kata per paragraf", pdf_instruction)
-        self.assertIn("jangan menyatakan hasil lulus/gagal", pdf_instruction)
-        self.assertIn("jangan mengklaim pemeriksaan visual manual", pdf_instruction.lower())
+        pdf_instruction = build_file_generation_system_instruction("pdf", "Buat PDF minimal 100 halaman tentang teknologi.")
+        self.assertIn("PDF umum", pdf_instruction)
+        self.assertIn("jumlah halaman minimum", pdf_instruction)
+        self.assertNotIn("backend memakai template deterministik", pdf_instruction)
+        self.assertNotIn("tepat dua paragraf naratif", pdf_instruction)
+
+        master_prompt = """Buat laporan berjudul LAPORAN PENGUJIAN GENERATOR PDF CLOUZER.
+Buat tabel berisi 10 produk.
+Bagian: Pendahuluan, Tujuan Pengujian, Metode Pengujian, Hasil Pengujian, Kesimpulan."""
+        master_instruction = build_file_generation_system_instruction("pdf", master_prompt)
+        self.assertIn("backend memakai template deterministik", master_instruction)
+        self.assertIn("tepat dua paragraf naratif", master_instruction)
+        self.assertIn("45-60 kata per paragraf", master_instruction)
+        self.assertIn("jangan menyatakan hasil lulus/gagal", master_instruction)
+        self.assertIn("jangan mengklaim pemeriksaan visual manual", master_instruction.lower())
+
+        from clouzer_file_creation import build_pdf_retry_instruction
+        retry = build_pdf_retry_instruction(
+            "Buat PDF minimal 100 halaman tentang teknologi.",
+            "PDF hanya memiliki 2 halaman; prompt meminta minimal 100.",
+        )
+        self.assertIn("minimal 100 halaman aktual", retry)
+        self.assertIn("Jangan membatasi dokumen menjadi lima bagian pendek", retry)
+        self.assertIn("jangan mengarang data", retry.lower())
         with self.assertRaises(ValueError):
             build_file_generation_system_instruction("exe")
 
