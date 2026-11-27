@@ -3538,3 +3538,70 @@ All six Box preview page images were inspected:
 - Discord attachment delivery/download: NOT VERIFIED.
 - CPU throttling: FAIL / unresolved; quota 35000 100000 and throttling events observed.
 - Do not mark the overall MASTER FINAL acceptance as PASS. Investigate the validation summary false negatives and Markdown rendering, then regression-test; do not modify production. Keep PR #6 draft/unmerged.
+
+## 52.30 Candidate PDF validation appendix correctness repair and CI verification — 27 November 2026
+
+### Scope and user correction
+- Work was confined to the audit candidate branch `audit-recovery-gpt-2026-11-23`.
+- User clarified that the matching PDF in Box was uploaded manually by the user. Do not claim the assistant uploaded it or that an unavailable Box integration independently verified that upload.
+- Box and Discord connectors remain unavailable per the user's prior instruction. Do not retry them or claim direct Box/Discord actions unless the user says they are working again.
+- Production `main.py`, production branch `main`, and production runtime were not modified, deployed, or restarted. PR #6 remains draft and unmerged.
+
+### Root cause
+The MASTER FINAL PDF flow built its validation appendix from a deliberately lightweight baseline validation result (`deep_inspection=False`). That result only contained basic text/page facts and intentionally omitted:
+- deep paragraph counts per section,
+- measured product row and column counts,
+- vector drawing count,
+- bold and italic span counts,
+- body geometry and overlap results.
+
+The appendix builder nevertheless read these missing fields as zero or empty dictionaries and rendered false FAIL statuses such as 0 rows × 0 columns and `{}` paragraph counts. It also wrapped status text in Markdown bold markers inside a table, while the PDF table renderer does not parse inline Markdown in cells, leaving literal `**PASS**` / `**FAIL**` in the PDF.
+
+### Candidate fixes
+- Changed the baseline inspection for MASTER FINAL to run the deep validator against the rendered report body before building the appendix. This supplies actual paragraph/table/style/vector/geometry measurements to the summary builder.
+- Added explicit `numbered_list` and `bullet_list` booleans from extracted PDF text; the summary's combined formatting/list criterion now requires bold spans, italic spans, numbered list evidence, and bullet evidence.
+- Removed raw Markdown bold markers around PASS/FAIL values in summary table cells.
+- Renamed the vector row to `Elemen vektor PDF` and clarified that table-cell borders are validated separately; the total drawing count is not mislabeled as table-only geometry.
+- Shortened the three manual-verification row labels/evidence while retaining all three NOT VERIFIED statuses: manual visual inspection, PDF-reader select/copy, and Discord attachment delivery.
+- Added a compact style for the validation-summary table. The header reserves sufficient height and data rows retain a conservative line-height so text-fit checks remain fail-closed; no clipping check was weakened.
+- Regression tests now assert measured summary fields, plain PASS/FAIL cells, accurate row labels, and final-page density without imposing an invalid fixed maximum page count across different narrative lengths.
+
+### Candidate commits
+- `0d5b559d5fc2e6177bdeeae3c70c5b2c900e724e` — build appendix from deep baseline.
+- `d66474c5f196e3f7de2d0ad006809527a7ec3e5d` — correct numbered-list detection regex.
+- `1b8715a5c2155cf41357d368eb55d2794d48e3cc` — test measured appendix fields.
+- `024879c1dbcefc1a4d6720cc12812d6db569093c` — compact manual-verification rows.
+- `c039fadd9057e41cfd87ea932a6f3dc7b9400a68` — test concise labels and pagination.
+- `d83abb22bd3ba85162053cee0a4af50c03d98392` — initial compact summary table style.
+- `a3b12e2bda53594b5f2f8d06ae93a52f5e405c3b` — update manual verification label.
+- `a4a5e75da8b0aea30d4620ade26002c36e255862` — reserve adequate compact header height.
+- `f353bac9f1f67882f59bbfdaa19a57c48119b07e` — preserve safe appendix cell text height.
+- `5910e96dd5417765cb79891cf606a550653291db` — remove invalid universal five-page cap from test.
+- `e052adaebc9e3229d741c8519f6c12c4c93d5dd3` — latest candidate head; update concise Discord label assertion.
+
+### CI terminal evidence — exact latest head `e052ada...`
+All three workflows completed successfully:
+1. CLOUZER multi-format file audit — run `45961432428`: SUCCESS; 153 tests.
+   https://github.com/Cluzere/Main-py/actions/runs/45961432428
+2. Audit recovery candidate — run `45961432642`: SUCCESS; 153 tests.
+   https://github.com/Cluzere/Main-py/actions/runs/45961432642
+3. Audit candidate syntax check — run `45961432416`: SUCCESS; logs include 153 document/file tests, 77 archive tests, and 93 existing audit regression tests.
+   https://github.com/Cluzere/Main-py/actions/runs/45961432416
+
+Intermediate candidate CI runs failed while iterating on stale test labels, insufficient compact-table cell/header height, and an invalid fixed page-count assertion. Those were corrected; only the final exact SHA above is the accepted CI result. The compact layout must not be described as visually accepted from CI alone.
+
+### Current acceptance state and remaining boundaries
+- Source-level appendix false-negative cause: corrected in candidate code.
+- Raw Markdown status markers: removed in candidate summary builder.
+- Numbered/bullet evidence: explicitly measured and gated.
+- Compact appendix cell/header text-fit regression: passing in final CI.
+- Candidate syntax, document/file tests, archive tests, and audit regression tests: PASS on exact latest head.
+- New PDF has not yet been generated on Wispbyte staging after these changes; runtime visual inspection of the regenerated artifact remains pending.
+- User-uploaded Box artifact is not claimed as a newly generated or independently re-inspected assistant artifact.
+- Discord attachment send/download remains NOT VERIFIED.
+- Manual PDF-reader selection/copy remains NOT VERIFIED.
+- Wispbyte CPU quota throttling remains unresolved from the previous live run.
+- PR #6 remains DRAFT and UNMERGED. Do not merge, deploy, restart production, or touch production `main.py` without explicit user authorization.
+
+**Status:** candidate code and regression tests corrected; all three CI workflows PASS on `e052adaebc9e3229d741c8519f6c12c4c93d5dd3`. Overall end-to-end MASTER FINAL acceptance is not complete until the user restarts only the staging/audit service, generates the new PDF, and supplies the resulting runtime/artifact evidence.
+
