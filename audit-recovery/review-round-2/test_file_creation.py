@@ -1307,6 +1307,18 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
 
 
 
+    def test_pdf_page_number_start_supports_appended_appendix_pages(self):
+        import pymupdf
+        from clouzer_file_creation import _make_pdf
+        data = _make_pdf(
+            "### Lampiran Validasi\n\nRingkasan pengujian terukur.",
+            "Laporan CLOUZER",
+            page_number_start=4,
+        )
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            self.assertEqual(doc.page_count, 1)
+            self.assertIn("Halaman 4", doc[0].get_text())
+
     def test_pdf_splits_oversized_paragraph_without_orphaning_following_heading(self):
         import pymupdf
         from clouzer_file_creation import _make_pdf
