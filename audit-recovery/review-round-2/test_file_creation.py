@@ -172,7 +172,7 @@ Jangan mengklaim berhasil jika file belum benar-benar dibuat dan dikirim."""
         data, filename, mime = create_document_file("docx", prompt, content)
         doc = Document(io.BytesIO(data))
         paragraphs = doc.paragraphs
-        all_text = "\\n".join(p.text for p in paragraphs)
+        all_text = "\n".join(p.text for p in paragraphs)
         self.assertTrue(filename.endswith(".docx"))
         self.assertIn("application/vnd.openxmlformats-officedocument.wordprocessingml.document", mime)
         self.assertEqual(all_text.count("LAPORAN PENGUJIAN CLOUZER"), 1)
