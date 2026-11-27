@@ -3972,3 +3972,67 @@ Status: DOCX failure recorded and candidate code remediation plus regression tes
 - Runtime boundary: these are candidate CI results, not a live Discord artifact test. The user restarted Wispbyte before this new patch was committed; therefore the newly committed Markdown fix is not yet proven loaded by the runtime. A further user-initiated Wispbyte restart is required before the next live DOCX test. This session has no Wispbyte panel restart control.
 - Production `main.py`, production branch `main`, and production runtime remain untouched. PR #6 remains draft and unmerged. No deploy, merge, Discord delivery, or live DOCX PASS is claimed.
 - Next verification: after the user restarts Wispbyte to load the updated candidate branch, run the short DOCX prompt once and inspect the actual Discord attachment for native headings, native `w:tbl`, native list numbering, correct cell values, one title, valid package, and successful attachment download.
+
+
+---
+
+## 52.38 DOCX live artifact acceptance and next-session handoff — 27 November 2026
+
+### Scope and provenance
+- User asked to inspect the newly uploaded Box artifact `TES_DOCX_CLOUZER_ULANG.docx`, generated after the DOCX parser/fallback fixes.
+- The artifact was located through the connected Box workflow, downloaded, and inspected from its actual DOCX bytes using `python-docx` and direct OOXML ZIP/XML inspection. This is not a verdict based only on Box preview text.
+- Box link reported for the artifact: https://account.box.com/file/2618595298889.
+- The artifact is a genuine DOCX/OOXML ZIP package. ZIP integrity check returned no corrupt member; `word/document.xml` exists.
+- Box presence/user upload does not by itself prove CLOUZER automatic Box upload or Discord attachment delivery. No independent Discord message/attachment receipt or download evidence was supplied in this inspection.
+
+### DOCX acceptance results
+File: `TES_DOCX_CLOUZER_ULANG.docx`
+
+- [x] Genuine DOCX package opens with python-docx; ZIP package integrity check passed.
+- [x] Exactly one title: `LAPORAN PENGUJIAN CLOUZER`.
+- [x] Three actual Word heading paragraphs exist: `Identitas`, `Data Pengujian`, and `Kesimpulan` (Heading 2 styles). The document title is a Word Heading 1.
+- [x] Each requested section contains a substantive paragraph.
+- [x] Exactly one native Word table exists in `word/document.xml` (`w:tbl`), with 4 rows × 5 columns (header + three data rows).
+- [x] The five requested headers and three records were confirmed in the native table: Andi / 25 / Admin / Normal; Budi / 30 / Manager / `=1+1`; Citra / 27 / Staff / `+SUM(1,1)`.
+- [x] Formula-like values are retained as literal text in the table cells, not treated as spreadsheet formulas.
+- [x] Three numbered-list paragraphs use Word's `List Number` paragraph style, whose style definition references Word numbering (`numPr`); this is native Word list formatting, not manually typed numeric prefixes.
+- [x] No duplicate report title was found.
+- **Quality defect / cleanup note:** the table data is also repeated once as tab-delimited plain text paragraphs after the main report/list. The native table is intact and correct; this is redundant content, not a missing/corrupt table.
+- Artifact verdict: **PASS for the requested DOCX native structure and core content; PARTIAL only for presentation cleanliness because of the redundant plain-text copy.** If a clean final deliverable is required, remove only the redundant tab-delimited copy while preserving the native table and all required content. Do not weaken validation to hide this duplication.
+
+### Overall completed artifact tests to carry forward
+The following are separate artifact-level results already recorded in §§52.35–52.37 and the live inspections; do not repeat the same tests without a new defect:
+- **PDF — PASS / FROZEN** for the defined report content, formatting, native/vector table, pagination, searchable/selectable text-layer criteria, and visual-layout inspection. PDF reader interaction and Discord delivery remain separate evidence gates where not independently captured. Do not reopen PDF work absent a new PDF-specific defect.
+- **XLSX — PASS** for the inspected live workbook: valid workbook, exact `Data Pegawai` sheet, 11 × 6 shape, expected headers and 10 records, numeric columns, and formula-like strings preserved as text. This is limited to the inspected artifact and criteria; it does not mean every XLSX feature is universally covered.
+- **ZIP — PASS** for the inspected live archive-creation artifact: valid ZIP/CRC, exact three members and paths, correct UTF-8 contents, nested directory retained, and no unsafe member paths. This was archive creation/output validation only; hostile ZIP extraction/security behavior (traversal, symlink, decompression bomb, etc.) remains untested.
+- **DOCX — PASS for core native structure/content; cleanup PARTIAL** as detailed above.
+- Keep Discord attachment creation/send/receipt/download and automatic Box upload as distinct stages. A Box artifact uploaded by the user is not proof of CLOUZER's own Box upload or Discord send.
+
+### DOCX bug history and final candidate state
+- Earlier live attempts failed with `ValueError: DOCX diminta memiliki tabel Word asli, tetapi tidak ditemukan.` even after Wispbyte restart.
+- User-supplied Wispbyte startup log proved the configured startup fetched branch `audit-recovery-gpt-2026-11-23`, reset to commit `2017399`, and launched `audit-recovery/review-round-2/revisi_audit_final_main.py`. The same runtime then failed twice in `validate_document_file()` at `clouzer_file_creation.py:2290`; this ruled out the old-branch/restart explanation for that attempt.
+- Candidate remediation history includes HTML/Markdown mixed parsing, native Word table/list conversion, recovery of an explicitly specified table from the user's prompt when the model omits it, and a regex-escaping correction.
+- Latest specifically identified code correction: commit `804d1964d26be1812e1ef647f96754d510c3d7fb` (`Fix DOCX prompt-table recovery regex escaping`). The diff corrected over-escaped regex patterns for the Indonesian `kolom ... dan data:` prompt and bullet-row extraction.
+- CI was reported green for the earlier candidate series, including a focused DOCX regression, but do not assume the later regex correction has its own green CI unless verified against its exact commit/workflow runs.
+- The actual Box artifact inspection now proves the tested DOCX output has native table/heading/list structure. This artifact result is stronger live artifact evidence than CI alone, but it does not prove every DOCX prompt variation or Discord delivery path.
+
+### Next-session plan — priority order
+1. **Close DOCX presentation cleanup only if useful:** inspect the DOCX assembly path that appends/re-emits prompt table text after the native table. Add a regression asserting the same source table is not emitted again as ordinary tab-delimited paragraphs. Preserve the native table, literal cell values, headings, and native list. Do not delete legitimate prose or weaken structural validation.
+2. **Verify exact candidate CI for the current branch head**, including the regex fix commit `804d1964d26be1812e1ef647f96754d510c3d7fb`. Run/fetch all relevant candidate workflows and inspect job conclusions/logs. If a workflow fails, fix the actual failure on the audit branch and rerun until green; record exact SHA and URLs.
+3. **Do not ask for another live DOCX generation until code/CI is ready.** The current uploaded artifact already proves core DOCX structure; avoid wasting the user's Discord free-text quota with repeated identical tests.
+4. If a clean DOCX retest is required after a cleanup patch, ask the user for one controlled run of the same short prompt, then inspect the new artifact's OOXML structure and confirm no duplicate tab-delimited table copy.
+5. **Next broader format target after DOCX closeout:** PPTX live artifact quality/structure and delivery, then CSV/JSON format-specific acceptance if not already covered by a matching raw artifact. Before testing, reconcile the exact existing Master Memory checklist to avoid duplicating completed tests.
+6. **Separate reliability workstream:** retry/context persistence, SSE interruption and provider rate-limit backoff, and stage-by-stage file outcome tracking. Do not mix this with format-specific acceptance unless a reproducible failure connects them.
+7. Keep Box integration runtime, Discord attachment send/receipt/download, and Box upload provenance as separate tests. Do not infer one from another.
+
+### Protected boundaries and handoff rules
+- Repository: `Cluzere/Main-py`; audit branch: `audit-recovery-gpt-2026-11-23`.
+- Candidate entrypoint: `audit-recovery/review-round-2/revisi_audit_final_main.py`; helper: `audit-recovery/review-round-2/clouzer_file_creation.py`; tests: `audit-recovery/review-round-2/test_file_creation.py`.
+- Production root `main.py`, production branch `main`, and production runtime must remain untouched unless the user explicitly authorizes a production change.
+- PR #6 remains draft/unmerged unless the user explicitly authorizes a merge.
+- User controls Wispbyte restart/live retest. The assistant does not have direct Wispbyte panel access.
+- Before any Wispbyte restart request, identify the exact audit-branch commit the startup command will fetch. Do not claim deployed until the user's startup log confirms the exact HEAD.
+- Do not claim Discord attachment delivery or automatic Box upload without direct evidence.
+- Preserve this append-only history. For future Master Memory updates, fetch the latest branch copy and blob SHA first, append a new section, commit to the audit branch, then fetch again to verify the saved text and commit.
+
+**Handoff summary:** PDF, XLSX, and ZIP creation artifacts have passed their defined inspected acceptance criteria; DOCX native structure and content now pass on the inspected Box artifact, with one redundant plain-text copy of the table to clean up. Next work is to verify CI for the latest DOCX regex fix, optionally remove that duplicate safely, then move to the next uncompleted format (PPTX/CSV/JSON as confirmed by the checklist) and keep delivery/reliability tests separate. Production remains protected.
