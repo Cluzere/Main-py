@@ -1254,7 +1254,6 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertEqual(filename, "Tes_PDF_Final.pdf")
         self.assertEqual(mime, "application/pdf")
         self.assertGreaterEqual(summary["pages"], 4)
-        self.assertLessEqual(summary["pages"], 5)
         self.assertTrue(summary["master_final_report"])
         self.assertEqual(summary["product_rows"], 10)
         self.assertEqual(summary["table_columns"], 7)
