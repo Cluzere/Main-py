@@ -1980,7 +1980,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
             result["text_layer"] = True
             result["bold_spans"] = sum(bool(flag & 16) for flag in flags)
             result["italic_spans"] = sum(bool(flag & 2) for flag in flags)
-            result["numbered_list"] = bool(re.search(r"(?m)^\\s*1[.)]\\s+", extracted))
+            result["numbered_list"] = bool(re.search(r"(?m)^\s*1[.)]\s+", extracted))
             result["bullet_list"] = bool(re.search(r"[•▪◦]", extracted))
             result["within_page_bounds"] = True
             logging.warning("[PDF-VALIDATION-STAGE] total_pdf_validation_seconds=%.3f", time.perf_counter() - _validation_total_started)
