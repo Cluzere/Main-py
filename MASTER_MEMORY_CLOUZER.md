@@ -5605,33 +5605,12 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Box OAuth listener aktif hanya membuktikan listener mulai; bukan bukti operasi upload file otomatis CLOUZER → Box berhasil.
 - Resource tracker aktif dan path CSV tercatat; isi/hasil analisis CSV belum diperiksa.
 
-### HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
 
-**Tujuan sesi penerima:** lanjutkan proyek CLOUZER dari status di bawah tanpa meminta pengguna mengulang konteks yang sudah ada.
+## 52.59 Penerimaan handoff dan pembacaan penuh Master Memory — 28 November 2026
 
-**Langkah pertama wajib:**
-1. Fetch ulang branch audit-recovery-gpt-2026-11-23 dan baca seluruh Bagian A–F serta blok handoff ini.
-2. Rekonsiliasikan status startup terbaru ke Bagian C–F bila diperlukan. Setelah handoff benar-benar dibaca, pindahkan fakta penting ke bagian permanen (saat ini sudah dicatat pada §52.57–§52.58 dan F), hapus hanya blok HANDOFF AKTIF — UNTUK SESI BERIKUTNYA, tambahkan catatan penerimaan/pembersihan di Bagian G, commit, fetch ulang, dan verifikasi. Jangan hapus sebelum dibaca.
-3. Lanjutkan dengan audit read-only penggunaan fitz/PyMuPDF di kandidat. Jangan patch sebelum izin pengguna.
-
-**Konteks dan bukti terbaru:**
-- Repo: Cluzere/Main-py; branch: audit-recovery-gpt-2026-11-23.
-- Master Memory: MASTER_MEMORY_CLOUZER.md.
-- Candidate checkout Wispbyte: /home/container/clouzer-audit.
-- Entry point: audit-recovery/review-round-2/revisi_audit_final_main.py.
-- Startup command yang sudah ada dipakai untuk clone/fetch/reset, instalasi dependency, lalu menjalankan entrypoint kandidat. Jangan mengubah command tanpa alasan dan persetujuan.
-- Log terbaru: checkout short SHA 620ef73; Python 3.11.18; pip 24.0 sejalan dengan interpreter; pip check PASS; 11/11 imports PASS; bot mencapai ONLINE; Box OAuth listener mulai pada port 15497; resource tracker aktif.
-- Warning tersisa: API fitz deprecated; audit pemakaian sebelum memutuskan perubahan.
-- Message Content Intent reminder: pesan standar/non-error yang normal; bukan indikator kegagalan Wispbyte, bukan bukti bot mati, dan bukan temuan yang perlu ditindaklanjuti. Jangan mengangkatnya sebagai peringatan atau meminta pengecekan ulang tanpa gejala konkret.
-- Penegasan pengguna: pengujian pip/dependency tidak berarti bot tidak aktif. Log membuktikan proses diagnostik selesai, entry point kandidat berjalan, dan bot mencapai `[ONLINE]`. Baris `[CHECK] Pastikan Message Content Intent juga aktif di Discord Developer Portal` adalah pengingat standar yang normal, bukan error/peringatan Wispbyte dan bukan bukti bot gagal bekerja; jangan mempermasalahkannya atau mengulang pengecekan Intent tanpa gejala konkret baru. Batas bukti tetap: ONLINE bukan bukti semua fitur end-to-end. Pengguna menyatakan ini pesan terakhir sesi.
-- Planning besar yang tetap terbuka: live PPTX visual acceptance; pembuktian upload otomatis CLOUZER → Box; verifikasi Discord attachment delivery; pemeriksaan CI pada exact commit kode terbaru; audit workflow hardening. Status semuanya tetap mengikuti Bagian D–F dan bukti terbaru.
-
-**Larangan/otorisasi:**
-- Jangan menyentuh production /home/container/main.py atau production branch main.
-- Jangan merge PR #6.
-- Jangan mengubah Startup Wispbyte, restart, atau deploy; pengguna mengendalikan panel dan tindakan tersebut.
-- Jangan mengubah kode kandidat tanpa izin eksplisit. Pemeriksaan statis/read-only boleh dilakukan.
-- Jangan mengklaim fitur end-to-end PASS hanya karena bot mencapai ONLINE.
-- Jangan bertanya ulang fakta yang sudah ada di Master Memory; tanyakan hanya jika ada informasi baru yang benar-benar diperlukan.
-
-**Status akhir sesi ini:** Master Memory diperbarui dan handoff aktif dibuat di branch kandidat; tidak ada perubahan runtime atau kode bot. Verifikasi commit dan fetch ulang harus dilakukan sebelum menyatakan handoff tersimpan.
+- Sesi penerima melakukan fetch langsung dari GitHub untuk `MASTER_MEMORY_CLOUZER.md` pada branch `audit-recovery-gpt-2026-11-23`, lalu membaca seluruh isi file dari baris 1 sampai 5638 (538.726 karakter; blob sebelum pembersihan `9d96d55258c2916bb557a21e18ae2e0e2eb01fe0`). Pembacaan mencakup seluruh Bagian A–F, arsip Bagian G, serta blok handoff aktif paling akhir.
+- Aturan A0.12–A0.14 telah dijalankan: handoff dibaca dan direkonsiliasikan dengan aturan dan status permanen. Fakta terbaru tentang diagnostik Wispbyte, Python 3.11.18/pip 24.0, `pip check` PASS, 11/11 import PASS, startup kandidat mencapai `[ONLINE]`, resource tracker, Box OAuth listener, warning `fitz` deprecated, serta penegasan bahwa reminder Message Content Intent adalah pesan standar/non-error telah tercatat pada §52.57–§52.58 dan Bagian F. Tidak ada fakta baru dari handoff yang perlu dipindahkan lagi.
+- Blok sementara `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` yang berada di akhir §52.58 dibersihkan setelah dibaca. Tidak ada bagian historis lain, aturan A, bukti permanen, kode bot, konfigurasi Wispbyte, atau production yang diubah.
+- Hasil ini adalah pembaruan dokumentasi saja. Tidak ada perubahan pada `/home/container/main.py`, production branch `main`, file kandidat, PR #6, startup command, deployment, atau restart Wispbyte.
+- Langkah lanjutan yang masih berlaku: audit statis read-only penggunaan API `fitz`/PyMuPDF pada kandidat; jangan patch tanpa izin. Live PPTX visual acceptance, upload otomatis CLOUZER→Box, Discord attachment delivery, serta verifikasi runtime terhadap SHA kode kandidat terbaru tetap mengikuti status NOT VERIFIED di Bagian D–F.
+- Verifikasi akhir wajib dilakukan setelah commit: fetch ulang file dan pastikan blok handoff sementara sudah tidak ada, catatan §52.59 tetap ada, serta blob SHA dan commit SHA baru tercatat.
