@@ -3718,3 +3718,36 @@ Intermediate candidate CI runs failed while iterating on stale test labels, insu
 - PR #6 remains DRAFT and UNMERGED. No production branch/file/runtime changes, deployment, or restart occurred.
 
 **Status:** one real workflow defect corrected and committed; candidate workflow triggers appear correctly scoped. Actual latest-head Actions run results and staging secret smoke test remain unverified because the available connector cannot list push-triggered runs or dispatch workflow_dispatch.
+
+
+## 52.34 Latest pagination CI failure diagnosis, test correction, and green verification — 27 November 2026
+
+### Failed run diagnosis
+- Actual push-triggered runs were retrieved from GitHub Actions REST run history (not the commit helper that filters to PR-triggered runs).
+- Strict four-page assertion introduced in §52.32 was invalid for the long-content MASTER FINAL fixture. On exact candidate output, report body occupied six pages and appendix made seven total pages. CI failed at `summary["pages"] == 7` against an arbitrary cap of four.
+- The short-content fixture was measured separately: report body occupied four pages and appendix made a fifth page. This matches the observed user Box artifact structure (four report pages plus a one-page appendix), rather than a four-page total PDF.
+- A further test assertion initially failed because the short-fixture test joined page text with a literal backslash-n and used an over-escaped whitespace regex. The page-count parser consequently returned None. This was corrected to join with an actual newline and use the normal whitespace regex.
+
+### Corrections
+- Long-content fixture now enforces its measured upper bound: at most six report pages and seven pages total. This avoids imposing a false universal four-page cap on a deliberately longer fixture while retaining the existing per-page minimum text, full-content, page-number, geometry, and appendix checks.
+- Short-content fixture now explicitly enforces at most four report pages plus one validation appendix page (five pages total), and checks the appendix's recorded report-page count is at most four.
+- Short-fixture extracted text is joined with actual newline characters before the page-count and NOT VERIFIED assertions.
+- The pagination helper change from §52.32 remains unchanged; no clipping/geometry validation was weakened.
+- Final test correction commit: `17b2e77daf63331f40353df68b88026f33fc6f02`; test blob `79db1f4795ef7b0772ddd5c60157ef19326cc4e0`.
+
+### Exact latest candidate CI — commit `17b2e77...`
+All three push-triggered candidate workflows completed SUCCESS:
+1. Audit candidate syntax check — run `45967938729`: SUCCESS. Includes dependency consistency, compile, pip-audit, Bandit, 153 document/file tests, original ZIP fixture SHA-256 verification, 77 archive tests, and existing audit regression suite.
+   https://github.com/Cluzere/Main-py/actions/runs/45967938729
+2. CLOUZER multi-format file audit — run `45967938829`: SUCCESS; full candidate regression suite.
+   https://github.com/Cluzere/Main-py/actions/runs/45967938829
+3. Audit recovery candidate — run `45967938694`: SUCCESS; focused candidate regressions and security scan.
+   https://github.com/Cluzere/Main-py/actions/runs/45967938694
+- Earlier runs at `f9a995d...`, `1a44f10...`, `7dc35d...`, `239f51c...`, and intermediate pagination test commits failed because of the invalid four-page assertion and/or short-fixture page-count parsing. These are superseded by the green exact-head runs above; do not hide the failures, but do not treat them as current state.
+
+### Separate staging smoke-test workflow
+- `.github/workflows/staging-smoke-test.yml` was corrected in commits `7dc35d558ccbe76c20e39fe1a704029b7fd6004c` and `239f51cd2de23d5a0641ef12a569e4cab586b0f9` to use Xingchi Responses API, 120-second timeout, OpenCode headers, and correct credential-redaction regexes.
+- This workflow is `workflow_dispatch` only and was NOT run. The available GitHub connector has no workflow-dispatch write action. Required repository secrets `STAGING_DISCORD_BOT_TOKEN` and `STAGING_XINGCHI_API_KEY` were not accessed. Do not claim live staging Discord/provider authentication passed.
+- PR #6 remains DRAFT and UNMERGED. Production `main.py`, production branch `main`, and runtime remain untouched. No deploy or restart was performed.
+
+**Status:** all three automated candidate CI workflows PASS on exact code/test commit `17b2e77daf63331f40353df68b88026f33fc6f02`. The manual staging credential/API smoke test remains NOT RUN. The four-page total constraint was corrected to evidence-based fixture limits; the real user artifact still requires a fresh Wispbyte render to verify actual pagination after the helper adjustment.
