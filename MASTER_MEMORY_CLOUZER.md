@@ -489,18 +489,17 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 
 # F. KANDIDAT — PLANNING / PEKERJAAN BERIKUTNYA
 
-**KOREKSI STATUS TERBARU — 28 November 2026:** prioritas diagnostik environment Wispbyte yang sebelumnya tertulis belum diverifikasi kini selesai berdasarkan log startup yang dikirim pengguna. pip dan /usr/local/bin/python terbukti memakai instalasi Python 3.11 yang sama; pip check PASS; 11/11 import PASS; entry point kandidat mencapai pesan [ONLINE]. Jangan ulangi permintaan diagnostik ini. Warning fitz deprecated tetap perlu audit terpisah. Runtime identity yang terbukti hanya checkout pada run ini ke short SHA 620ef73 (commit dokumentasi); jangan samakan dengan SHA kode kandidat atau klaim patch PPTX terbaru sudah live.
+**KOREKSI STATUS TERBARU — 28 November 2026:** diagnostik environment Wispbyte selesai PASS berdasarkan log aktual: pip dan /usr/local/bin/python memakai instalasi Python 3.11 yang sama; pip check PASS; 11/11 import PASS; kandidat mencapai pesan [ONLINE]; Box OAuth callback listener aktif pada 0.0.0.0:15497; resource tracker aktif. Jangan ulangi diagnostik environment ini. Warning fitz deprecated perlu audit terpisah. Pengguna menegaskan jangan menanyakan kembali hal dasar Message Content Intent; pengguna sudah berhasil melakukan pengecekan/pengumpulan data bot sebelumnya. Jangan mengasumsikan intent nonaktif hanya karena ada reminder generik di log. Runtime identity yang terbukti hanya checkout pada run ini ke short SHA 620ef73 (commit dokumentasi); jangan samakan dengan SHA kode kandidat atau klaim patch PPTX terbaru sudah live.
 
 **Status planning per 28 November 2026:** pekerjaan berikut belum dinyatakan selesai hanya karena tercatat di sini. Status CI pada commit PPTX terakhir yang diketahui `54cc3b8...` belum terverifikasi; penambahan test/patch bukan bukti test lulus. Live PPTX, Box upload otomatis, Discord delivery, dan identitas runtime Wispbyte juga belum lulus acceptance.
 
-1. **Validasi environment dependency Wispbyte (prioritas pertama; jangan ubah startup command).**
-   - Gunakan command asli yang disimpan di B2A sebagai baseline. Dugaan URL Markdown sudah ditarik karena restart Wispbyte dilaporkan berjalan dan tidak ada bukti literal Markdown pada panel.
-   - Penggunaan `pip` memang disengaja untuk memasang dependency sebelum menjalankan kandidat. Fokus pemeriksaan adalah memastikan executable `pip` dan `/usr/local/bin/python` memakai environment yang sama, bukan menghapus `pip`.
-   - Minta/baca output `pip --version`, `/usr/local/bin/python -m pip --version`, `/usr/local/bin/python -m pip check`, dan import-test modul kandidat. Belum ada hasil output yang membuktikan pemeriksaan tersebut lulus.
-   - Bedakan requirements eksternal Wispbyte dari `requirements-audit.txt` di repository. Catat paket tambahan `requests`, `defusedxml`, dan `py7zr` yang dipasang oleh perintah kedua; periksa redundansi dan resolusi versi sebelum menyederhanakan command.
-   - Saat pengguna memberi izin dan melakukan restart candidate untuk kebutuhan tes, periksa log startup terbaru dan catat SHA yang benar-benar di-fetch serta proses yang berjalan.
-   - Per 28 November 2026, command Startup diagnostik lengkap sementara telah disusun untuk mempertahankan clone/fetch/reset, kedua tahap instalasi dependency, dan entrypoint asli; diagnostik disisipkan setelah instalasi dan sebelum entrypoint. Pemeriksaan sintaks lokal dengan `bash -n` **PASS**. Ini hanya membuktikan sintaks shell, bukan eksekusi atau kompatibilitas Startup Wispbyte. Command belum dipasang dan belum dijalankan; menunggu tinjauan/persetujuan pengguna.
-   - Bedakan SHA branch HEAD, SHA commit kode, dan SHA proses runtime. Commit dokumentasi Master Memory tidak otomatis membuktikan kode baru sudah live.
+1. **Audit warning kompatibilitas PyMuPDF (fitz) — prioritas berikutnya.**
+   - Startup aktual menunjukkan import fitz berhasil tetapi mengeluarkan warning bahwa API fitz deprecated dan akan dihapus di masa depan; log menyarankan import pymupdf.
+   - Audit pemakaian fitz pada kandidat dan dependensi terkait secara read-only terlebih dahulu. Identifikasi apakah hanya import alias atau ada API yang juga deprecated.
+   - Jangan mengganti import/dependency atau mengubah kode sebelum akar dampak dipahami dan pengguna memberi izin perbaikan. Jika diizinkan, patch hanya branch kandidat, tambah tes regresi, jalankan workflow relevan sampai terminal, lalu verifikasi.
+   - Diagnostik pip, pip check, dan 11 import sebelumnya sudah PASS; jangan mengulangnya tanpa perubahan dependency atau bukti regresi.
+   - Runtime pada log ini checkout branch ke short SHA 620ef73, yaitu commit dokumentasi; itu bukan bukti bahwa commit kode kandidat terbaru atau patch PPTX tertentu sedang berjalan. Cocokkan SHA checkout dengan commit kode saat retest berikutnya.
+   - Startup command tidak perlu diubah untuk memperbaiki warning ini. Restart Wispbyte tetap hanya oleh pengguna dan hanya bila dibutuhkan setelah patch kandidat siap.
 
 2. **Selesaikan live acceptance PPTX visual.**
    - Setelah candidate runtime terkonfirmasi memakai patch yang benar, jalankan tes terkontrol lima slide.
@@ -5577,3 +5576,61 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - **Verdict:** environment/dependency diagnostic **PASS**; startup kandidat pada run yang dikirim pengguna **PASS sampai pesan ONLINE**. Ini bukan bukti CI PASS, bukan bukti semua fitur bot berfungsi end-to-end, bukan bukti Discord intent sudah aktif, bukan bukti upload Box otomatis, dan bukan bukti PPTX visual acceptance/Discord attachment delivery. Jangan menyebut uptime berkelanjutan setelah log tersebut.
 - Log bertanggal `2026-11-27 23:21:59` pada timestamp aplikasi; panel startup menampilkan urutan server marked offline → starting → running. Jangan menebak zona waktu dari timestamp aplikasi.
 - Catatan warning `fitz`: jangan mengubah kode atau dependency hanya berdasarkan warning ini. Audit penggunaan API PyMuPDF terlebih dahulu dan lakukan patch hanya dengan izin pengguna.
+
+---
+
+## 52.58 Hasil startup Wispbyte diagnostik dan handoff sesi — 28 November 2026
+
+### Bukti startup aktual dari pengguna
+- Pengguna mengirim output startup lengkap pada sesi ini. Server melewati status offline → starting → selesai menarik Docker image → Python 3.11.18 → running.
+- Checkout /home/container/clouzer-audit menggunakan branch audit-recovery-gpt-2026-11-23; git fetch dan reset --hard FETCH_HEAD berhasil. Checkout berhenti pada short SHA 620ef73, commit dokumentasi docs(memory): record diagnostic startup draft status.
+- Instalasi dari /home/container/requirements.txt dan instalasi paket eksplisit tambahan selesai; seluruh paket dilaporkan sudah tersedia. Tidak ada error instalasi yang terlihat.
+- pip berada di /usr/local/bin/pip, versi 24.0 pada Python 3.11.18. /usr/local/bin/python -m pip --version melaporkan pip dan site-packages yang sama. Interpreter: /usr/local/bin/python, sys.prefix=/usr/local, sys.base_prefix=/usr/local.
+- /usr/local/bin/python -m pip check menghasilkan No broken requirements found., exit 0.
+- Semua 11 import berhasil: discord, aiohttp, PIL, dotenv, requests, defusedxml, py7zr, fitz, docx, pptx, openpyxl.
+- Satu warning: API fitz deprecated dan akan dihapus pada masa depan; disarankan memakai import pymupdf. Import tetap PASS, sehingga ini warning kompatibilitas, bukan kegagalan startup.
+- Kandidat berjalan setelah diagnostik. Log menunjukkan resource tracker aktif, CSV di /home/container/clouzer-audit/audit-recovery/review-round-2/resource_trace.csv, Box OAuth callback listener mulai di 0.0.0.0:15497, dan [ONLINE] Clouzer AI Bot aktif. Cloudflare AI dilaporkan OK dengan 3 akun; log mencantumkan model Gen/Edit/Audio dan dukungan pembaca multi-format.
+- Log terakhir menampilkan reminder generik untuk memastikan Message Content Intent di Discord Developer Portal. Pengguna menegaskan tidak perlu ditanya ulang hal dasar tersebut: ia sudah dapat mengecek dan mendata bot sebelumnya. Jangan menyimpulkan intent tidak aktif dari reminder generik dan jangan mengajukan pertanyaan berulang tentangnya.
+- Verdict: dependency/environment diagnostics PASS; startup candidate pada run ini PASS sampai ONLINE. Ini tidak membuktikan seluruh fitur end-to-end, CI, Box upload otomatis, PPTX visual acceptance, atau Discord attachment delivery. Jangan klaim uptime berkelanjutan.
+- Timestamp aplikasi pada log: 2026-11-27 23:21:59; jangan menebak zona waktu.
+
+### Koreksi prioritas dan keputusan
+- Validasi mismatch pip/interpreter, pip check, dan import test sudah selesai. Hapus dari daftar pekerjaan tertunda; jangan minta pengguna menjalankannya lagi tanpa alasan baru.
+- Pekerjaan teknis berikutnya yang masuk akal adalah audit statis warning PyMuPDF/fitz, bukan mengubah startup command dan bukan meminta pemeriksaan Message Content Intent.
+- Tidak ada perubahan kode, konfigurasi Startup, production, atau deployment dalam sesi ini.
+
+### Status bukti runtime
+- SHA yang benar-benar checkout pada log: 620ef73 (dokumentasi). Jangan samakan dengan SHA kode kandidat terbaru.
+- Runtime mencapai pesan ONLINE, tetapi belum ada verifikasi bahwa kode kandidat terbaru tertentu atau patch PPTX terbaru sedang berjalan.
+- Box OAuth listener aktif hanya membuktikan listener mulai; bukan bukti operasi upload file otomatis CLOUZER → Box berhasil.
+- Resource tracker aktif dan path CSV tercatat; isi/hasil analisis CSV belum diperiksa.
+
+### HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
+
+**Tujuan sesi penerima:** lanjutkan proyek CLOUZER dari status di bawah tanpa meminta pengguna mengulang konteks yang sudah ada.
+
+**Langkah pertama wajib:**
+1. Fetch ulang branch audit-recovery-gpt-2026-11-23 dan baca seluruh Bagian A–F serta blok handoff ini.
+2. Rekonsiliasikan status startup terbaru ke Bagian C–F bila diperlukan. Setelah handoff benar-benar dibaca, pindahkan fakta penting ke bagian permanen (saat ini sudah dicatat pada §52.57–§52.58 dan F), hapus hanya blok HANDOFF AKTIF — UNTUK SESI BERIKUTNYA, tambahkan catatan penerimaan/pembersihan di Bagian G, commit, fetch ulang, dan verifikasi. Jangan hapus sebelum dibaca.
+3. Lanjutkan dengan audit read-only penggunaan fitz/PyMuPDF di kandidat. Jangan patch sebelum izin pengguna.
+
+**Konteks dan bukti terbaru:**
+- Repo: Cluzere/Main-py; branch: audit-recovery-gpt-2026-11-23.
+- Master Memory: MASTER_MEMORY_CLOUZER.md.
+- Candidate checkout Wispbyte: /home/container/clouzer-audit.
+- Entry point: audit-recovery/review-round-2/revisi_audit_final_main.py.
+- Startup command yang sudah ada dipakai untuk clone/fetch/reset, instalasi dependency, lalu menjalankan entrypoint kandidat. Jangan mengubah command tanpa alasan dan persetujuan.
+- Log terbaru: checkout short SHA 620ef73; Python 3.11.18; pip 24.0 sejalan dengan interpreter; pip check PASS; 11/11 imports PASS; bot mencapai ONLINE; Box OAuth listener mulai pada port 15497; resource tracker aktif.
+- Warning tersisa: API fitz deprecated; audit pemakaian sebelum memutuskan perubahan.
+- Message Content Intent: jangan tanya ulang atau menganggap nonaktif dari reminder generik; pengguna menyatakan sudah bisa mengecek/mendata bot.
+- Planning besar yang tetap terbuka: live PPTX visual acceptance; pembuktian upload otomatis CLOUZER → Box; verifikasi Discord attachment delivery; pemeriksaan CI pada exact commit kode terbaru; audit workflow hardening. Status semuanya tetap mengikuti Bagian D–F dan bukti terbaru.
+
+**Larangan/otorisasi:**
+- Jangan menyentuh production /home/container/main.py atau production branch main.
+- Jangan merge PR #6.
+- Jangan mengubah Startup Wispbyte, restart, atau deploy; pengguna mengendalikan panel dan tindakan tersebut.
+- Jangan mengubah kode kandidat tanpa izin eksplisit. Pemeriksaan statis/read-only boleh dilakukan.
+- Jangan mengklaim fitur end-to-end PASS hanya karena bot mencapai ONLINE.
+- Jangan bertanya ulang fakta yang sudah ada di Master Memory; tanyakan hanya jika ada informasi baru yang benar-benar diperlukan.
+
+**Status akhir sesi ini:** Master Memory diperbarui dan handoff aktif dibuat di branch kandidat; tidak ada perubahan runtime atau kode bot. Verifikasi commit dan fetch ulang harus dilakukan sebelum menyatakan handoff tersimpan.
