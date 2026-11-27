@@ -3487,3 +3487,54 @@ All three workflows reached terminal success on exact SHA b2da87a653c7fb3c56be3b
 5. Record the controlled Wispbyte before/after benchmark. Do not call the performance issue fully accepted until staging and delivery evidence are complete.
 
 **Status at this entry:** candidate code and regression test committed; all three CI workflows PASS on exact final SHA; CI fixture cell/style timing is about 0.005–0.008 s; Wispbyte live performance retest, Discord attachment receipt/download, and artifact acceptance remain NOT VERIFIED. PR #6 remains draft/unmerged. Production remains untouched.
+
+
+## 52.29 Wispbyte staging retest and actual Box PDF inspection — 27 November 2026
+
+### Runtime candidate and startup
+User supplied Wispbyte startup logs after restarting the staging/audit service. The repository was fetched/reset to branch audit-recovery-gpt-2026-11-23 and HEAD was 49f956b (docs(memory): record PDF word extraction optimization and CI results). This is a documentation-only descendant of code/test SHA b2da87a653c7fb3c56be3b1fff923314532a3b29; therefore the optimized code from that SHA was present. Python 3.11.18 started the candidate script at audit-recovery/review-round-2/revisi_audit_final_main.py. Dependencies were already installed. Bot reported online. This is user-supplied staging evidence, not independent access to Wispbyte.
+
+### Live PDF performance result
+The user supplied a run for the MASTER FINAL prompt:
+- Responses API completed in 23.728 s; separate upstream model/API latency.
+- Baseline PDF render: 9.190 s, 1,191,296 bytes.
+- Baseline validation: 0.401 s.
+- Appendix render/merge: 2.709 s, 1,224,784 bytes.
+- Six-page final PDF.
+- Final deep validation: 1.002 s; total PDF validation stage: 0.999 s.
+- Page-level deep scan: 79 records, 77 table cells.
+- Deep scan substages: TextPage setup 0.090 s; text record extraction 0.001 s; drawing grouping 0.002 s; table row grouping 0.000 s; cell_text_and_style 0.077 s; page records/table scan 0.177 s.
+- Compared with §52.27 Wispbyte cell_text_and_style 10.470 s, same runtime class and same reported 77-cell workload now measured 0.077 s (about 136x lower). The full deep-validation time is 1.002 s versus the earlier 12.751 s. Treat as strong same-host staging evidence; exact PDF prompt/output may not be byte-identical, so do not overstate it as a perfectly controlled benchmark.
+- CPU throttling remains a significant independent problem: quota shown as 35000 100000; resource alerts around 33–37% one-core CPU, 9–13 throttle events per interval, cumulative throttled use grew to 8,863,594 microseconds. RSS peaked around 143 MB. This contrasts with the earlier 100000 quota and confirms throttling was present during this run. Do not claim CPU throttling is fixed.
+- Baseline render and appendix merge remain expensive under the reduced quota (9.190 s and 2.709 s). The optimized cell extraction is no longer the dominant PDF validation hotspot.
+
+### Actual Box artifact located and inspected
+Box search for Tes_PDF_Final found the newest matching artifact:
+- Name: Tes_PDF_Final (4).pdf
+- Box file ID: 2618278242873
+- Size: 1,224,784 bytes
+- SHA-1: 547d177b3c01b4630070a69d9be31537ec549e31
+- Created/modified: 2026-11-27T07:31:45Z
+- Folder: CLOUZER_BUANGAN_UPLOAD/Tes 10 file
+- Box URL: https://account.box.com/file/2618278242873
+- Box extracted text confirms six pages, searchable text layer, title, all five required headings, 10 product rows and 7 columns in the body table, and CLOUZER text.
+
+All six Box preview page images were inspected:
+- Pages 1–3 contain the report body. Page 3 visibly has a ten-row, seven-column product table with dark-blue header, white bold header text, cell borders, alternating row fills, and wrapped content. Conclusion heading and its opening paragraphs are together on page 3.
+- Page 4 contains only two short conclusion paragraphs and has excessive whitespace.
+- Page 5 contains the automated validation summary table. Its status cells visibly show literal Markdown markers such as **PASS** and **FAIL**, so Markdown was not rendered correctly in this appendix table.
+- Page 6 contains only two validation-summary rows and has excessive whitespace.
+- The validation appendix contradicts the visible report body: it reports 0 product rows × 0 columns and 0 vector table elements even though the page 3 product table is visibly rendered; it also reports bold/italic/list checks as FAIL despite visible bold and italic styling in report text and a numbered/bulleted list on page 2. The paragraph count appears as {}. These are validator/reporting false negatives or data-binding/report construction defects requiring investigation; do not dismiss them as merely visual.
+- The report itself is cautious about unverified manual selection and Discord attachment delivery. Box existence proves a Box artifact exists, not that Discord delivered an attachment.
+- Manual select/copy interaction inside a PDF reader remains NOT VERIFIED; extracted text proves a text layer exists but not a manual interaction.
+- No separate evidence in supplied logs confirms the Discord attachment was successfully sent or downloaded.
+
+### Acceptance status and next actions
+- PDF cell extraction performance: PASS on staging evidence (0.077 s for 77 cells).
+- Deep validation: PASS as to completion/time, but the validation appendix contains false negatives/inconsistent counts and must not be accepted as accurate.
+- PDF artifact: generated and found in Box; not accepted overall because the report summary has literal Markdown and contradictory validator results, plus sparse pages 4 and 6.
+- Visual inspection: completed for all six pages, with defects listed above.
+- Searchable text layer: PASS based on extracted text and CLOUZER occurrence; manual reader selection: NOT VERIFIED.
+- Discord attachment delivery/download: NOT VERIFIED.
+- CPU throttling: FAIL / unresolved; quota 35000 100000 and throttling events observed.
+- Do not mark the overall MASTER FINAL acceptance as PASS. Investigate the validation summary false negatives and Markdown rendering, then regression-test; do not modify production. Keep PR #6 draft/unmerged.
