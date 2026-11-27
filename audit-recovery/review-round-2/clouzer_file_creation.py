@@ -1,7 +1,7 @@
 """Pembuatan lampiran dokumen CLOUZER yang dibatasi dan tanpa akses filesystem bebas."""
 from __future__ import annotations
 import datetime as _datetime
-import io, json, re, textwrap, time, zipfile
+import io, json, logging, re, textwrap, time, zipfile
 
 MAX_GENERATED_FILE_BYTES = 8 * 1024 * 1024
 MAX_GENERATED_TEXT_CHARS = 400_000
@@ -1738,7 +1738,7 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
 
 
 
-def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_minimum_pages: bool = True) -> dict:
+def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_minimum_pages: bool = True, deep_inspection: bool = True) -> dict:
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
         raise ValueError("Format validasi tidak didukung.")
@@ -1775,6 +1775,26 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
                 raise ValueError(
                     f"PDF hanya memiliki {doc.page_count} halaman; prompt meminta minimal {page_count_match.group(1)}."
                 )
+
+            # MASTER FINAL uses two builds so its backend evidence appendix can
+            # describe the baseline. Do not run the expensive geometry/drawing
+            # inspection twice: the final bytes receive the complete validator
+            # below. The baseline pass only gathers cheap facts needed to build
+            # the appendix; it is never returned or attached to Discord.
+            if _is_master_final_pdf_prompt(prompt) and not deep_inspection:
+                page_body_chars = [
+                    len(re.sub(r"\\s+", "", re.sub(r"(?i)\\bHalaman\\s+\\d+\\b", "", page_text)))
+                    for page_text in page_texts
+                ]
+                result.update({
+                    "page_body_chars": page_body_chars,
+                    "last_page_text_chars": page_body_chars[-1] if page_body_chars else 0,
+                    "table_content_pages": 0,
+                    "table_header_pages": 0,
+                    "text_layer": True,
+                    "valid": True,
+                })
+                return result
 
             spans = []
             for page_index, (page, page_dict) in enumerate(zip(doc, page_dicts), 1):
@@ -2297,7 +2317,11 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         "rtf": "application/rtf",
         "odt": "application/vnd.oasis.opendocument.text",
     }
+    is_master_final_pdf = fmt == "pdf" and _is_master_final_pdf_prompt(prompt)
+    stage_started = time.perf_counter()
     data = builders[fmt]()
+    if is_master_final_pdf:
+        logging.warning("[PDF-STAGE] baseline_render_seconds=%.3f bytes=%d", time.perf_counter() - stage_started, len(data or b""))
     if not data:
         raise RuntimeError("File hasil pembuatan kosong.")
     if len(data) > MAX_GENERATED_FILE_BYTES:
@@ -2310,16 +2334,22 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         # The baseline page count is explicitly labeled as pre-appendix data;
         # the embedded minimum-page PASS is valid only because this function
         # returns a file after the final-byte validator accepts it.
+        stage_started = time.perf_counter()
         baseline_summary = validate_document_file(
-            fmt, prompt, data, enforce_minimum_pages=False
+            fmt, prompt, data, enforce_minimum_pages=False, deep_inspection=False
         )
+        logging.warning("[PDF-STAGE] baseline_validation_seconds=%.3f", time.perf_counter() - stage_started)
         text = _append_master_final_validation_summary(text, baseline_summary)
+        stage_started = time.perf_counter()
         data = builders[fmt]()
+        logging.warning("[PDF-STAGE] final_render_seconds=%.3f bytes=%d", time.perf_counter() - stage_started, len(data or b""))
         if not data:
             raise RuntimeError("PDF MASTER FINAL kosong setelah ringkasan validasi disisipkan.")
         if len(data) > MAX_GENERATED_FILE_BYTES:
             raise RuntimeError("PDF MASTER FINAL melebihi batas aman 8 MB setelah validasi.")
-        final_summary = validate_document_file(fmt, prompt, data, enforce_minimum_pages=True)
+        stage_started = time.perf_counter()
+        final_summary = validate_document_file(fmt, prompt, data, enforce_minimum_pages=True, deep_inspection=True)
+        logging.warning("[PDF-STAGE] final_deep_validation_seconds=%.3f pages=%s bytes=%d", time.perf_counter() - stage_started, final_summary.get("pages") if isinstance(final_summary, dict) else None, len(data))
         if not final_summary or not final_summary.get("valid"):
             raise RuntimeError("Validasi akhir PDF MASTER FINAL tidak menghasilkan status valid.")
     else:
