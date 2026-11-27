@@ -493,6 +493,15 @@ Dua regression test baru ditambahkan ke `test_file_creation.py`:
 **Batas bukti:** CI membuktikan deteksi prompt eksplisit dan urutan fail-closed di source serta suite kandidat lulus. CI tidak membuktikan Cloudflare Lucid Origin live call, visual assets berhasil dibuat, Wispbyte memuat candidate commit, PPTX akhir berisi gambar, atau Discord attachment terkirim.
 
 
+
+## D4. PDF continuation regex patch — exact candidate SHA CI PASS (28 November 2026)
+
+- Candidate code commit tested: `57bb1a85c62b874a637f4f384e56a0bf85033818` — “Correct regexes for long PDF continuation detection”.
+- Run [46083328390 — Audit recovery candidate](https://github.com/Cluzere/Main-py/actions/runs/46083328390): completed / SUCCESS. Job `final-candidate-syntax-regressions-and-attachment-audit`; compile, high-severity Bandit, dependency installation, and focused regression tests all SUCCESS.
+- Run [46083328441 — CLOUZER multi-format file audit](https://github.com/Cluzere/Main-py/actions/runs/46083328441): completed / SUCCESS. Job `candidate-syntax-and-file-tests`; compile, high-severity Bandit, dependency installation, and complete candidate regression suite all SUCCESS.
+- Both runs target the same exact SHA `57bb1a85c62b874a637f4f384e56a0bf85033818`; no failed steps reported.
+- Scope: candidate syntax/security/regression CI PASS. This does **not** prove Wispbyte startup/runtime or live PDF generation/Discord delivery. The manual-only `staging-smoke-test.yml` was not part of these push-triggered runs; do not count it as passed. The separate `audit-candidate-check.yml` was not shown among these latest SHA runs.
+
 # E. KANDIDAT — HASIL YANG SUDAH TERBUKTI
 
 Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rinci tetap di Bagian G.
