@@ -99,7 +99,6 @@ def detect_requested_file_format(prompt: str) -> str | None:
 
 def build_file_generation_system_instruction(format_name: str) -> str:
     """Explain the local file-generation architecture to the model for file requests."""
-    _validation_total_started = time.perf_counter()
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
         raise ValueError("Format file tidak didukung.")
@@ -1781,6 +1780,7 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
 
 
 def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_minimum_pages: bool = True, deep_inspection: bool = True) -> dict:
+    _validation_total_started = time.perf_counter()
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
         raise ValueError("Format validasi tidak didukung.")
