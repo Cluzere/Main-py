@@ -5353,8 +5353,12 @@ class ClouzerBot(commands.Bot):
                             retry_source_content = resolve_document_source(
                                 requested_file_format, clean_content, reply_text, model_refused=retry_refused,
                             )
-                            generated_bytes, generated_name, generated_mime = create_document_file(
-                                requested_file_format, clean_content, retry_source_content,
+                            # Keep the retry path off Discord's gateway loop as well.
+                            generated_bytes, generated_name, generated_mime = await asyncio.to_thread(
+                                create_document_file,
+                                requested_file_format,
+                                clean_content,
+                                retry_source_content,
                             )
                         # create_document_file performs final format-specific validation
                         # before returning. Re-running the same full validation here is
