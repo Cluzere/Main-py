@@ -4347,3 +4347,45 @@ Do not mark the fix as PASS until the regression test actually runs and the newl
 
 ### Handoff
 The current actionable finding is a confirmed bug in CLOUZER's candidate PPTX generator: later slide headings were not promoted from plain-text first lines, causing the deck title to repeat. A candidate-only fix and five-slide regression test have been committed. Runtime test, fresh artifact inspection, Discord delivery verification, and Wispbyte fetch/restart confirmation remain outstanding. The next step is candidate Wispbyte startup-log confirmation followed by the focused five-slide regression/live test—not Canva work.
+
+
+---
+
+## 52.45 PPTX regression assertion correction and exact-HEAD GitHub Actions green closeout — 27 November 2026
+
+### Failure diagnosis
+- The first full workflow attempt on candidate commit `9efdf0e1d010c21255e44bb308c66bf3dd0db748` failed one test: `test_pptx_uses_each_slide_chunk_title_instead_of_repeating_deck_title`.
+- Syntax compilation and Bandit security scan were successful. The failure occurred in the test assertion `self.assertNotIn(expected_title, body_text)`.
+- The fixture intentionally included body prose `Isi khusus untuk <slide title>.`, so the assertion incorrectly rejected a legitimate mention of the title inside a sentence. The intended invariant is that the exact slide title must not appear as a standalone duplicate title line in the body placeholder.
+- This was a test assertion defect, not evidence that the candidate PPTX title-selection helper was broken.
+
+### Candidate-only correction
+- Updated only `audit-recovery/review-round-2/test_file_creation.py`.
+- The regression now splits body text into non-empty lines and asserts that the exact expected title is not equal to any standalone body line. It continues to assert that the intended body prose remains present.
+- Commit: `527268de10170b29d00c894b5317c5f0ad8b37e2`.
+- The candidate helper `clouzer_file_creation.py` was not changed in this correction.
+- Production root `main.py`, production branch `main`, PR merge state, and Wispbyte runtime were not changed.
+
+### Exact-HEAD GitHub Actions evidence
+Branch HEAD verified as `527268de10170b29d00c894b5317c5f0ad8b37e2`. All three workflows triggered by this commit completed `completed / success`:
+
+1. **Audit candidate syntax check** — run `46038392517`: https://github.com/Cluzere/Main-py/actions/runs/46038392517
+   - Dependency consistency, candidate compilation, dependency vulnerability audit, Bandit, document tests, original ZIP fixture verification, archive regressions, and existing audit regressions all succeeded.
+   - Logs report 87 document tests, 93 archive regression tests, and 163 audit regression tests.
+2. **Audit recovery candidate** — run `46038392604`: https://github.com/Cluzere/Main-py/actions/runs/46038392604
+   - Compile, high-severity Bandit scan, dependency installation, and focused/full candidate regression step succeeded.
+   - Logs report 163 tests; the PPTX title regression explicitly reports `ok`.
+3. **CLOUZER multi-format file audit** — run `46038392605`: https://github.com/Cluzere/Main-py/actions/runs/46038392605
+   - Compile, high-severity Bandit scan, dependency installation, and complete candidate regression suite succeeded.
+   - Logs report 163 tests; the PPTX title regression explicitly reports `ok`.
+
+### Current verdict and strict boundaries
+- Latest three GitHub Actions workflows on exact branch HEAD `527268de10170b29d00c894b5317c5f0ad8b37e2`: **ALL GREEN**.
+- PPTX five-slide title-selection regression in CI: **PASS**.
+- Syntax/compile and security scans: **PASS**.
+- This does **not** yet prove a fresh live PPTX artifact, visual rendering, Discord attachment delivery, or Wispbyte runtime revision.
+- User has authorized correcting workflow failures until green; no Wispbyte restart/deployment was performed. Continue to require separate explicit authorization before restarting Wispbyte.
+- Next acceptance gate remains candidate runtime startup-log confirmation, one controlled live PPTX generation, raw PPTX package/content/render inspection, and separate Discord delivery verification.
+- Preserve original Box artifact `clouzer_test.pptx`; do not overwrite it. Do not modify production `main.py`, merge PR #6, or deploy production.
+
+**Handoff:** The red workflow was caused by an over-broad test assertion that rejected a legitimate title mention in body prose. The assertion was narrowed to reject only a standalone duplicate title line. All three latest GitHub Actions workflows are green on candidate HEAD `527268de10170b29d00c894b5317c5f0ad8b37e2`, and the PPTX regression now passes in CI. Live artifact and runtime acceptance remain open.
