@@ -734,7 +734,33 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
     finally:
         doc.close()
 
-def _make_docx(content: str, title: str) -> bytes:
+def _docx_table_from_explicit_prompt(prompt: str) -> list[list[str]]:
+    """Extract a user-authored DOCX schema and pipe-delimited rows as authoritative data."""
+    value = str(prompt or "")
+    header_match = re.search(
+        r"\\bkolom\\s+(.+?)\\s+dan\\s+data\\s*:",
+        value, re.I | re.S,
+    )
+    if not header_match:
+        return []
+    headers = [item.strip(" \\t,;:.") for item in re.split(r"\\s*,\\s*", header_match.group(1).strip())]
+    if len(headers) < 2 or len(headers) > MAX_TABLE_COLUMNS or any(not item for item in headers):
+        return []
+    rows = [headers]
+    for line in value[header_match.end():].splitlines():
+        match = re.match(r"^\\s*[-*]\\s*(.+?)\\s*$", line)
+        if not match:
+            continue
+        raw = match.group(1).strip()
+        if "|" not in raw:
+            continue
+        cells = [cell.strip() for cell in raw.strip("|").split("|")]
+        if len(cells) == len(headers):
+            rows.append(cells)
+    return rows if len(rows) > 1 else []
+
+
+def _make_docx(content: str, title: str, prompt: str = "") -> bytes:
     try:
         from docx import Document
     except ImportError as exc:
@@ -1099,6 +1125,24 @@ def _make_docx(content: str, title: str) -> bytes:
                 index += 1
 
             flush_paragraph()
+    # Recover a complete table explicitly supplied by the user when the
+    # model omits or flattens it. Never invent rows or weaken validation.
+    explicit_rows = _docx_table_from_explicit_prompt(prompt)
+    if explicit_rows and not document.tables:
+        table = document.add_table(rows=0, cols=len(explicit_rows[0]))
+        try:
+            table.style = "Table Grid"
+        except KeyError:
+            pass
+        for row_index, source_row in enumerate(explicit_rows):
+            cells = table.add_row().cells
+            for column_index, cell_value in enumerate(source_row):
+                paragraph = cells[column_index].paragraphs[0]
+                paragraph.clear()
+                run = paragraph.add_run(str(cell_value))
+                if row_index == 0:
+                    run.bold = True
+
     output = io.BytesIO()
     document.save(output)
     return output.getvalue()
@@ -2780,7 +2824,7 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
     builders = {
         "txt": lambda: text.encode("utf-8"),
         "pdf": lambda: _make_pdf(text, title),
-        "docx": lambda: _make_docx(text, title),
+        "docx": lambda: _make_docx(text, title, prompt),
         "xlsx": lambda: _make_xlsx(text, prompt),
         "pptx": lambda: _make_pptx(text, title),
         "zip": lambda: _make_zip(text, title, prompt),
