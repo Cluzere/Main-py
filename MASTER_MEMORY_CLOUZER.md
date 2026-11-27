@@ -3751,3 +3751,92 @@ All three push-triggered candidate workflows completed SUCCESS:
 - PR #6 remains DRAFT and UNMERGED. Production `main.py`, production branch `main`, and runtime remain untouched. No deploy or restart was performed.
 
 **Status:** all three automated candidate CI workflows PASS on exact code/test commit `17b2e77daf63331f40353df68b88026f33fc6f02`. The manual staging credential/API smoke test remains NOT RUN. The four-page total constraint was corrected to evidence-based fixture limits; the real user artifact still requires a fresh Wispbyte render to verify actual pagination after the helper adjustment.
+
+---
+
+## 52.35 Final PDF artifact acceptance and next non-PDF test plan — 27 November 2026
+
+### Artifact reviewed
+- Artifact: `Tes_PDF_Final (6).pdf` (the user manually uploaded this file to Box).
+- This review is strictly about the PDF artifact's content, formatting, structure, pagination, and visual layout. PDF-reader selection/copy interaction and Discord attachment delivery are separate tool/workflow capabilities and are intentionally excluded from this PDF acceptance verdict.
+- The original acceptance prompt requires five report sections (Pendahuluan, Tujuan Pengujian, Metode Pengujian, Hasil Pengujian, Kesimpulan), at least two non-repetitive Indonesian paragraphs per section, formatted text and lists, a 10-row × 7-column product table, A4 layout, at least four pages, consistent margins/page numbers, no clipping/overlap/blank pages/excessive whitespace, conclusion heading kept with its opening paragraph, and a searchable text-based PDF containing “CLOUZER”.
+
+### PDF-specific checklist — latest artifact
+- [x] Five required report sections are present and in the requested order.
+- [x] Each required section meets the minimum two-paragraph requirement.
+- [x] Main title, headings/subheadings, paragraphs, bold, italic, numbered list, and bullet list are rendered as formatting rather than raw Markdown.
+- [x] Product table contains 10 data rows and all seven requested columns: No, Nama, Produk, Kategori, Harga, Stok, Status.
+- [x] Product-table header uses dark blue fill with bold white text.
+- [x] Cell borders, alternating row fills, proportional column widths, and wrapped cell text are present.
+- [x] A4 page dimensions.
+- [x] Four pages total; meets the prompt's minimum of four pages. Do not reinterpret this requirement as four report-body pages plus appendix.
+- [x] Margins and page numbering are consistent across the four pages.
+- [x] All four pages were visually inspected; no clipped, overlapping, out-of-margin, or blank-page defect was observed.
+- [x] No excessive whitespace that materially harms the document layout was observed.
+- [x] “Kesimpulan” heading remains with its opening paragraph; it is not stranded at the bottom of a page.
+- [x] PDF has an extractable/searchable text layer; “CLOUZER” is present in extracted text.
+- [x] The validation appendix is consistent with the PDF-specific checks described above; the earlier false-negative appendix defects recorded in §52.29/§52.30 are not present in this reviewed artifact, according to the artifact review in this conversation.
+- [x] Repeated table header: NOT APPLICABLE because the product table does not continue onto another page.
+- [x] Overall PDF content/format/layout/visual acceptance: **PASS**.
+
+### Explicit scope exclusions — not PDF acceptance criteria
+- PDF-reader manual selection/copy interaction: not part of this PDF quality verdict; no claim is made here.
+- Discord attachment send, receipt, and download: not part of this PDF quality verdict; no claim is made here.
+- Box provenance: the user manually uploaded the reviewed artifact. Do not attribute this upload to CLOUZER or to the assistant.
+- Filename note: the Box display name includes the suffix “(6)”; this is a storage naming detail, not a PDF content/layout failure.
+
+### PDF performance closeout
+- The earlier `cell_text_and_style` hotspot was reduced from 10.470 seconds to approximately 0.077–0.089 seconds in user-supplied Wispbyte logs for scans covering 77 table cells (§52.27 and §52.31). Treat this as a strong measured improvement, not a byte-identical controlled benchmark.
+- Latest supplied Wispbyte run showed final deep validation around 1.218 seconds, with 77 table cells. The validation completed without a logged exception.
+- CPU quota/throttling was still observed in the earlier Wispbyte captures. This remains a hosting/runtime observation, not a PDF artifact acceptance failure.
+- **PDF scope is now frozen.** Do not continue speculative PDF code/layout optimization or reopen PDF work without a newly demonstrated, reproducible PDF-specific defect. Do not weaken validation.
+
+### Consolidated checklist state from the existing audit record
+- [x] Candidate PDF cell/style extraction performance optimization implemented and measured (§52.27, §52.31).
+- [x] Candidate validation-appendix false-negative and Markdown-status rendering defects repaired in code and regression tests (§52.30).
+- [x] Pagination regression assertions corrected to evidence-based fixture limits; all three candidate CI workflows passed on exact commit `17b2e77daf63331f40353df68b88026f33fc6f02` (§52.34).
+- [x] Latest supplied Wispbyte run completed PDF generation and deep validation (§52.31).
+- [x] Final Box artifact `Tes_PDF_Final (6).pdf` reviewed and accepted for PDF-specific criteria (this section).
+- [ ] Do not mark manual PDF-reader selection/copy as tested here; it is explicitly outside this PDF verdict.
+- [ ] Do not mark Discord attachment delivery as tested here; it is explicitly outside this PDF verdict.
+- [ ] CPU throttling remains a separate hosting item to monitor; no PDF code change is currently justified by it.
+- [ ] Staging credential/provider smoke workflow remains unrun unless separately executed and evidenced (§52.34).
+
+### Next test plan — proceed beyond PDF
+Priority order; all code changes and CI work remain candidate-branch-only:
+
+1. **XLSX live acceptance (highest priority).**
+   - Re-run one live candidate test using an explicit source table and exact worksheet name `Data Pegawai`.
+   - Include formula-like literal values such as `=1+1`, `+SUM(1,1)`, `@SUM(1,1)`, and `-1+1` in a normal text/note column.
+   - Inspect the resulting XLSX binary: exact sheet name, exact header/row/column counts, source-value fidelity, numeric cell types, and formula-like values stored as strings rather than formulas.
+   - Keep artifact content correctness distinct from which component created/uploaded/sent the file. Existing live XLSX failures and manual-upload provenance remain recorded in §§48–51.
+
+2. **ZIP refusal versus archive-writer behavior.**
+   - Reproduce the prior user-facing ZIP refusal with a fully specified small archive request.
+   - Inspect runtime evidence to determine whether the model refused before content, whether a tool/function call occurred, and whether the archive packager was reached.
+   - Do not patch the ZIP writer unless evidence shows the writer was actually invoked and failed.
+   - If a ZIP is produced, inspect exact root members, file contents, valid JSON/CSV, and path-traversal safety.
+
+3. **Retry and interrupted-stream reliability.**
+   - Exercise retry after a model refusal and after an SSE interruption/rate-limit response.
+   - Verify the original prompt/format/source-message context is retained, incomplete content is never packaged as success, backoff is bounded, and retry state clears only after the relevant operation actually succeeds.
+   - Preserve the already-working TXT/DOCX paths.
+
+4. **Remaining multi-format live coverage.**
+   - Test DOCX, PDF (closed unless a new PDF-specific defect appears), XLSX, PPTX, CSV, JSON, and ZIP individually where not already evidenced.
+   - Reconcile the historical checklist before claiming a format-wide PASS; a passing artifact proves only the criteria inspected for that artifact.
+   - Capture exact prompt, runtime commit, artifact metadata, and relevant logs for every live test.
+
+5. **Candidate CI and staging smoke test.**
+   - Run relevant candidate regressions after each code patch, then all candidate CI workflows; verify terminal results and exact commit SHA.
+   - The `staging-smoke-test.yml` workflow uses Xingchi Responses API but is manual-dispatch only and was not run in §52.34. Run it only through an authorized mechanism with the required repository secrets already configured; never expose secret values.
+   - Keep PR #6 draft/unmerged unless the user explicitly authorizes a merge decision.
+
+### Safety and provenance boundaries
+- Repository: `Cluzere/Main-py`; branch: `audit-recovery-gpt-2026-11-23`.
+- Production root `main.py`, production branch `main`, and production runtime remain protected; no production edits, deploys, or restarts are authorized by this update.
+- Wispbyte startup has historically fetched the audit branch. Any candidate-branch commit may therefore be picked up on a later user-initiated restart; state this before requesting a restart.
+- Box and Discord actions are not inferred from artifact presence or pipeline text. Keep tool execution, artifact inspection, upload provenance, and message delivery as distinct evidence categories.
+- Do not merge PR #6.
+
+**Status:** latest reviewed PDF artifact is **PASS for PDF-specific content, formatting, table, pagination, text-layer, and visual-layout criteria**. PDF work is frozen. The next active engineering target is live XLSX acceptance, followed by ZIP refusal diagnosis and retry/SSE reliability. No code was changed in this documentation update.
