@@ -1474,45 +1474,63 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         table_cells_by_page[page_index] = [cell["rect"] for _, cells in page_rows for cell in cells]
         all_table_cells.extend(cell for _, cells in page_rows for cell in cells)
 
+        # Extract each page's text spans once. Repeated get_textbox(rect) calls
+        # re-run PyMuPDF's text-layout traversal for every table cell.
+        page_spans = [
+            span
+            for block in page_dicts[page_index]["blocks"] if "lines" in block
+            for line in block["lines"]
+            for span in line["spans"]
+            if str(span.get("text", "")).strip()
+        ]
+
+        def cell_text(cell):
+            rect = cell["rect"]
+            inner = pymupdf.Rect(
+                rect.x0 + 1, rect.y0 + 1, rect.x1 - 1, rect.y1 - 1
+            )
+            selected = []
+            for span in page_spans:
+                bbox = span.get("bbox")
+                if not bbox:
+                    continue
+                center = pymupdf.Point(
+                    (bbox[0] + bbox[2]) / 2,
+                    (bbox[1] + bbox[3]) / 2,
+                )
+                if inner.contains(center):
+                    selected.append((bbox[1], bbox[0], str(span.get("text", ""))))
+            selected.sort(key=lambda item: (round(item[0], 1), item[1]))
+            return " ".join(item[2] for item in selected).strip()
+
         header_index = None
         for row_index, (_, cells) in enumerate(page_rows):
-            values = [
-                normalized(page.get_textbox(pymupdf.Rect(
-                    cell["rect"].x0 + 1, cell["rect"].y0 + 1,
-                    cell["rect"].x1 - 1, cell["rect"].y1 - 1,
-                )))
-                for cell in cells
-            ]
+            values = [normalized(cell_text(cell)) for cell in cells]
             if tuple(values) == tuple(item.casefold() for item in _MASTER_FINAL_COLUMNS):
                 header_index = row_index
                 header_pages += 1
                 header_fill_ok = all(close_color(cell["fill"], navy) for cell in cells)
                 white_bold_spans = 0
-                for block in page_dicts[page_index]["blocks"]:
-                    if "lines" not in block:
+                for span in page_spans:
+                    bbox = span.get("bbox")
+                    if not bbox or span.get("color") != 0xFFFFFF or not span.get("flags", 0) & 16:
                         continue
-                    for line in block["lines"]:
-                        for span in line["spans"]:
-                            if span.get("color") == 0xFFFFFF and span.get("flags", 0) & 16 and any(
-                                cell["rect"].contains(pymupdf.Point(
-                                    (span["bbox"][0] + span["bbox"][2]) / 2,
-                                    (span["bbox"][1] + span["bbox"][3]) / 2,
-                                )) for cell in cells
-                            ):
-                                white_bold_spans += 1
+                    center = pymupdf.Point(
+                        (bbox[0] + bbox[2]) / 2,
+                        (bbox[1] + bbox[3]) / 2,
+                    )
+                    if any(cell["rect"].contains(center) for cell in cells):
+                        white_bold_spans += 1
                 header_style_checks.append(header_fill_ok and white_bold_spans >= 7)
                 break
         if header_index is not None:
             page_data = []
             for _, cells in page_rows[header_index + 1:]:
                 values = [
-                    re.sub(r"\s+", " ", page.get_textbox(pymupdf.Rect(
-                        cell["rect"].x0 + 1, cell["rect"].y0 + 1,
-                        cell["rect"].x1 - 1, cell["rect"].y1 - 1,
-                    ))).strip()
+                    re.sub(r"\\s+", " ", cell_text(cell)).strip()
                     for cell in cells
                 ]
-                if values and re.fullmatch(r"\d{1,2}", values[0]):
+                if values and re.fullmatch(r"\\d{1,2}", values[0]):
                     page_data.append((values, cells))
             data_rows.extend(values for values, _ in page_data)
             data_row_fills.extend(cells[0]["fill"] for _, cells in page_data)
