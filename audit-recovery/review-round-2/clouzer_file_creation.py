@@ -123,7 +123,14 @@ def build_file_generation_system_instruction(format_name: str) -> str:
             "Kesimpulan. Pisahkan setiap paragraf dengan satu baris kosong. "
             "Jangan menambah heading lain, jangan menulis NOT VERIFIED, jangan menyatakan hasil lulus/gagal, jumlah halaman, durasi, atau temuan aktual yang belum diberikan oleh backend, dan jangan mengklaim pemeriksaan visual manual, "
             "seleksi/salin manual, atau pengiriman Discord berhasil. Backend akan menyusun bagian non-naratif dan validasi."
-            if fmt == "pdf" else ""
+            if fmt == "pdf" else
+            " Untuk PPTX, keluarkan konten bersih yang siap ditampilkan sebagai teks editable PowerPoint. "
+            "Pisahkan setiap slide dengan baris persis --- SLIDE ---. Baris pertama setiap bagian adalah judul slide. "
+            "Gunakan teks biasa atau bullet sederhana; JANGAN gunakan Markdown heading, bold, italic, tabel Markdown, "
+            "code fence, instruksi desain, arahan visual, deskripsi gambar, prompt gambar, atau label seperti 'Arahan visual:'. "
+            "Jangan menulis instruksi generator gambar sebagai materi slide. Batasi tiap slide pada judul dan 3-6 poin ringkas. "
+            "Visual/background akan dibuat terpisah oleh backend dan tidak perlu dijelaskan di isi slide."
+            if fmt == "pptx" else ""
         )
     )
 
@@ -1533,15 +1540,49 @@ def _make_xlsx(content: str, prompt: str) -> bytes:
     workbook.save(output)
     return _populate_xlsx_formula_caches(output.getvalue())
 
+def _clean_pptx_line(value: str) -> str:
+    """Remove Markdown and visual-production notes before slide rendering."""
+    line = str(value or "").strip()
+    if not line:
+        return ""
+    if re.match(
+        r"^(?:ara(?:han)?\s+visual|visual(?:\s+brief|\s+direction)?|"
+        r"ilustrasi\s+visual|deskripsi\s+visual|prompt\s+gambar|"
+        r"gambar\s+yang\s+digunakan|image\s+prompt)\s*[:：-]",
+        line, re.I,
+    ):
+        return ""
+    if re.match(r"^(?:\x60{3}|~~~)", line):
+        return ""
+    if re.fullmatch(r"\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?", line):
+        return ""
+    line = re.sub(r"^\s{0,3}#{1,6}\s*", "", line)
+    line = re.sub(r"^\s*(?:[-*+]\s+|\d+[.)]\s+)", "• ", line)
+    line = re.sub(r"\[([^\]]+)\]\((?:https?://)?[^)]+\)", r"\1", line)
+    line = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
+    line = re.sub(r"(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)", r"\1", line)
+    line = re.sub(r"__(.+?)__", r"\1", line)
+    line = line.replace(chr(96), "")
+    line = re.sub(r"\s+", " ", line).strip()
+    if line in {"---", "***", "___"}:
+        return ""
+    return line
+
+
 def _make_pptx(content: str, title: str) -> bytes:
     try:
         from pptx import Presentation
         from pptx.util import Inches, Pt
+        from pptx.dml.color import RGBColor
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.enum.text import MSO_ANCHOR
     except ImportError as exc:
         raise RuntimeError("python-pptx belum terpasang; PPTX tidak bisa dibuat.") from exc
     presentation = Presentation()
     presentation.slide_width = Inches(13.333)
     presentation.slide_height = Inches(7.5)
+    presentation.core_properties.title = str(title or "Presentasi CLOUZER")[:200]
+    presentation.core_properties.author = "CLOUZER"
     chunks = re.split(r"\n\s*---\s*SLIDE\s*---\s*\n", content, flags=re.I)
     if len(chunks) == 1:
         paragraphs = [part.strip() for part in content.splitlines() if part.strip()]
@@ -1549,31 +1590,78 @@ def _make_pptx(content: str, title: str) -> bytes:
             chunks = ["\n".join(paragraphs[index:index + 8]) for index in range(0, len(paragraphs), 8)]
     if len(chunks) > 100:
         raise ValueError("PPTX melebihi batas 100 slide.")
+    navy = RGBColor(8, 16, 38)
+    panel = RGBColor(11, 24, 54)
+    cyan = RGBColor(48, 220, 239)
+    violet = RGBColor(139, 92, 246)
+    white = RGBColor(244, 248, 255)
     for index, chunk in enumerate(chunks):
-        lines = [line.strip() for line in chunk.splitlines() if line.strip()]
-        # Each slide chunk begins with its own title. Promote that first
-        # non-empty line for every slide, not only slide 1 / Markdown headings.
-        # Otherwise later slides inherit the deck title and their real titles
-        # are incorrectly rendered as body text.
-        slide_title = title if index == 0 else f"{title} — {index + 1}"
+        lines = []
+        for raw_line in chunk.splitlines():
+            cleaned = _clean_pptx_line(raw_line)
+            if cleaned:
+                lines.append(cleaned)
+        slide_title = str(title or f"Slide {index + 1}")
         if lines:
-            first = re.sub(r"^\s{0,3}#{1,6}\s*", "", lines[0]).strip()
-            if first:
-                slide_title, lines = first, lines[1:]
-        slide = presentation.slides.add_slide(presentation.slide_layouts[1])
-        slide.shapes.title.text = slide_title
-        body = slide.placeholders[1].text_frame
+            slide_title = lines.pop(0)[:180]
+        slide = presentation.slides.add_slide(presentation.slide_layouts[6])
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb = navy
+
+        # Branded fallback background: navy panel, cyan/violet accent and geometry.
+        panel_shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(8.25), Inches(7.5))
+        panel_shape.fill.solid()
+        panel_shape.fill.fore_color.rgb = panel
+        panel_shape.line.fill.background()
+        accent = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0.62), Inches(0.72), Inches(0.075), Inches(5.9))
+        accent.fill.solid()
+        accent.fill.fore_color.rgb = cyan if index % 2 == 0 else violet
+        accent.line.fill.background()
+        orb = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(11.25), Inches(0.55), Inches(1.2), Inches(1.2))
+        orb.fill.solid()
+        orb.fill.fore_color.rgb = violet if index % 2 == 0 else cyan
+        orb.fill.transparency = 35
+        orb.line.fill.background()
+
+        title_box = slide.shapes.add_textbox(Inches(0.95), Inches(0.72), Inches(6.85), Inches(1.35))
+        title_frame = title_box.text_frame
+        title_frame.clear()
+        title_frame.word_wrap = True
+        title_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+        title_paragraph = title_frame.paragraphs[0]
+        title_paragraph.text = slide_title
+        title_paragraph.font.name = "Aptos Display"
+        title_paragraph.font.size = Pt(30 if len(slide_title) < 48 else 25)
+        title_paragraph.font.bold = True
+        title_paragraph.font.color.rgb = white
+
+        body_box = slide.shapes.add_textbox(Inches(1.0), Inches(2.25), Inches(6.9), Inches(4.45))
+        body = body_box.text_frame
         body.clear()
         body.word_wrap = True
+        body.margin_left = Inches(0.04)
+        body.margin_right = Inches(0.08)
+        body.margin_top = Inches(0.06)
+        body.margin_bottom = Inches(0.04)
+        body.vertical_anchor = MSO_ANCHOR.TOP
+        if not lines:
+            lines = ["Materi slide ini belum memiliki uraian."]
         for line_index, line in enumerate(lines):
             paragraph = body.paragraphs[0] if line_index == 0 else body.add_paragraph()
             paragraph.text = line
-            paragraph.font.size = Pt(18)
+            paragraph.font.name = "Aptos"
+            paragraph.font.size = Pt(19 if len(lines) <= 5 else 17)
+            paragraph.font.color.rgb = white
+            paragraph.space_after = Pt(13)
             paragraph.level = 0
+
+        footer = slide.shapes.add_textbox(Inches(0.95), Inches(7.02), Inches(6.8), Inches(0.24))
+        footer.text_frame.text = f"CLOUZER  •  {index + 1:02d}"
+        footer.text_frame.paragraphs[0].font.size = Pt(9)
+        footer.text_frame.paragraphs[0].font.color.rgb = RGBColor(147, 166, 196)
     output = io.BytesIO()
     presentation.save(output)
     return output.getvalue()
-
 
 def extract_pptx_visual_briefs(data: bytes) -> list[dict[str, str]]:
     """Extract editable slide text as context for slide-specific visual prompts."""
@@ -1609,11 +1697,10 @@ def extract_pptx_visual_briefs(data: bytes) -> list[dict[str, str]]:
 
 
 def embed_pptx_visuals(data: bytes, image_assets: list[bytes]) -> bytes:
-    """Embed generated visuals while preserving native editable PowerPoint text."""
+    """Embed slide-specific artwork as full-bleed backgrounds behind editable text."""
     try:
         from pptx import Presentation
-        from pptx.util import Inches
-        from PIL import Image
+        from PIL import Image, ImageEnhance, ImageOps, ImageDraw
     except ImportError as exc:
         raise RuntimeError("python-pptx dan Pillow wajib tersedia untuk visual PPTX.") from exc
     if not isinstance(data, (bytes, bytearray)) or not data:
@@ -1621,36 +1708,50 @@ def embed_pptx_visuals(data: bytes, image_assets: list[bytes]) -> bytes:
     if not isinstance(image_assets, list) or not image_assets or len(image_assets) > 100:
         raise ValueError("Daftar aset visual PPTX kosong atau melewati batas.")
     presentation = Presentation(io.BytesIO(data))
-    if not presentation.slides or len(image_assets) > len(presentation.slides):
-        raise ValueError("Jumlah aset visual tidak sesuai dengan jumlah slide.")
+    if not presentation.slides or len(image_assets) != len(presentation.slides):
+        raise ValueError("Setiap slide wajib memiliki tepat satu aset background visual.")
+    slide_w, slide_h = presentation.slide_width, presentation.slide_height
     for index, raw_image in enumerate(image_assets):
         if not isinstance(raw_image, (bytes, bytearray)) or not raw_image or len(raw_image) > 12 * 1024 * 1024:
             raise ValueError(f"Aset visual slide {index + 1} kosong atau terlalu besar.")
         try:
-            with Image.open(io.BytesIO(raw_image)) as probe:
-                probe.verify()
+            with Image.open(io.BytesIO(raw_image)) as source:
+                source.load()
+                image = ImageOps.fit(source.convert("RGB"), (1600, 900), method=Image.Resampling.LANCZOS)
+            image = ImageEnhance.Brightness(image).enhance(0.72)
+            overlay = Image.new("RGBA", image.size, (5, 12, 31, 42))
+            gradient = Image.new("RGBA", image.size, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(gradient)
+            for x in range(1050):
+                alpha = int(188 * (1 - x / 1050))
+                draw.line((x, 0, x, 900), fill=(5, 13, 34, max(0, alpha)))
+            image = Image.alpha_composite(image.convert("RGBA"), overlay)
+            image = Image.alpha_composite(image, gradient).convert("RGB")
+            processed = io.BytesIO()
+            image.save(processed, format="JPEG", quality=88, optimize=True)
+            processed.seek(0)
         except Exception as exc:
-            raise ValueError(f"Aset visual slide {index + 1} bukan gambar valid.") from exc
+            raise ValueError(f"Aset background slide {index + 1} bukan gambar valid.") from exc
         slide = presentation.slides[index]
-        for shape in slide.shapes:
-            if not getattr(shape, "is_placeholder", False):
-                continue
-            try:
-                if shape.placeholder_format.idx == 1 and getattr(shape, "has_text_frame", False):
-                    shape.left, shape.top = Inches(0.65), Inches(1.55)
-                    shape.width, shape.height = Inches(7.15), Inches(5.35)
-            except Exception:
-                continue
-        slide.shapes.add_picture(io.BytesIO(bytes(raw_image)), Inches(8.05), Inches(1.85), width=Inches(4.65))
+        picture = slide.shapes.add_picture(processed, 0, 0, width=slide_w, height=slide_h)
+        # Move background behind every editable text/decorative shape.
+        slide.shapes._spTree.remove(picture._element)
+        slide.shapes._spTree.insert(2, picture._element)
     output = io.BytesIO()
     presentation.save(output)
     result = output.getvalue()
     if not result or len(result) > MAX_GENERATED_FILE_BYTES:
         raise RuntimeError("PPTX visual kosong atau melewati batas 8 MB.")
     check = Presentation(io.BytesIO(result))
-    for index in range(len(image_assets)):
-        if not any(getattr(shape, "shape_type", None) == 13 for shape in check.slides[index].shapes):
-            raise RuntimeError(f"Visual slide {index + 1} tidak ditemukan setelah penyimpanan.")
+    for index, slide in enumerate(check.slides):
+        pictures = [shape for shape in slide.shapes if getattr(shape, "shape_type", None) == 13]
+        if len(pictures) != 1:
+            raise RuntimeError(f"Slide {index + 1} harus memiliki tepat satu gambar background.")
+        background = pictures[0]
+        if background.left != 0 or background.top != 0 or background.width != slide_w or background.height != slide_h:
+            raise RuntimeError(f"Background slide {index + 1} tidak memenuhi ukuran penuh slide.")
+        if not any(getattr(shape, "has_text_frame", False) and shape.text.strip() for shape in slide.shapes):
+            raise RuntimeError(f"Teks editable slide {index + 1} hilang setelah penyisipan background.")
     return result
 
 def _unfence(value: str) -> str:
