@@ -547,11 +547,20 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
         total = sum(weights)
         widths = [content_width * weight / total for weight in weights]
         widths[-1] = content_width - sum(widths[:-1])
-        pad_x, pad_y, font_size = 6, 5, (8.2 if columns <= 5 else 7.2)
+        is_validation_summary = (
+            columns == 3
+            and normalized[0][0].casefold() == "kriteria"
+            and normalized[0][1].casefold() == "status"
+        )
+        pad_x, pad_y, font_size = (
+            (4, 2.5, 7.0) if is_validation_summary
+            else (6, 5, (8.2 if columns <= 5 else 7.2))
+        )
+        row_line_factor = 1.4 if is_validation_summary else 1.6
         inner_widths = [max(18, width - 2 * pad_x) for width in widths]
         header_lines = [wrap_cell(value, "hebo", font_size, inner_widths[i])
                         for i, value in enumerate(normalized[0])]
-        header_height = max(len(lines) for lines in header_lines) * (font_size * 1.6) + 2 * pad_y
+        header_height = max(len(lines) for lines in header_lines) * (font_size * row_line_factor) + 2 * pad_y
 
         def header():
             nonlocal y
@@ -575,7 +584,7 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
         for row_index, row in enumerate(normalized[1:], 1):
             cell_lines = [wrap_cell(value, "helv", font_size, inner_widths[i])
                           for i, value in enumerate(row)]
-            row_height = max(len(lines) for lines in cell_lines) * (font_size * 1.6) + 2 * pad_y
+            row_height = max(len(lines) for lines in cell_lines) * (font_size * row_line_factor) + 2 * pad_y
             if y + row_height > bottom:
                 new_page()
                 header()
