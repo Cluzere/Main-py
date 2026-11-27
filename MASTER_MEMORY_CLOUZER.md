@@ -277,6 +277,30 @@ Empat workflow diperiksa langsung dari branch kandidat:
 - Run `46058635238` — CLOUZER multi-format file audit pada exact SHA `c8f2d188...`: **SUCCESS**.
   https://github.com/Cluzere/Main-py/actions/runs/46058635238
 
+### D2.1 Pemeriksaan kualitas workflow dan batas cakupan
+
+- Blob workflow saat diperiksa:
+  - `audit-candidate-check.yml`: `d4e326058efe43efca2e0fdbdc1acaea40cf7ed6`.
+  - `audit-recovery.yml`: `ceec98617659e6fb2f05bd22c513689c5c574c43`.
+  - `clouzer-multiformat-audit.yml`: `9d84687faaeefaac93d76d355d03718c9d600ab2`.
+  - `staging-smoke-test.yml`: `af44a2feadf96b6cb8436128852b42dda1ed8b92`.
+- Semua empat YAML dibaca langsung dari branch kandidat; bukan hanya disimpulkan dari nama workflow.
+- Dua workflow yang terpicu pada commit workflow terbaru `c8f2d188...` telah mencapai terminal SUCCESS:
+  - Run `46058635228`: satu job `final-candidate-syntax-regressions-and-attachment-audit`, SUCCESS, tidak ada failed step.
+  - Run `46058635238`: satu job `candidate-syntax-and-file-tests`, SUCCESS, tidak ada failed step.
+- Tiga workflow yang terpicu pada exact test-fix commit `6acc7cc...` juga terminal SUCCESS:
+  - Run `46058253339`: job `compile`, SUCCESS, tidak ada failed step.
+  - Run `46058253311`: job `candidate-syntax-and-file-tests`, SUCCESS, tidak ada failed step.
+  - Run `46058253368`: job `final-candidate-syntax-regressions-and-attachment-audit`, SUCCESS, tidak ada failed step.
+- Commit dokumentasi Master Memory tidak memicu ulang semua workflow karena push triggers menggunakan path filters. Itu perilaku yang diharapkan; tidak ada perubahan kode kandidat pada commit dokumentasi tersebut.
+- **Hardening yang belum dilakukan (bukan CI failure):**
+  1. `audit-candidate-check.yml` belum mendeklarasikan `permissions: contents: read` secara eksplisit; effective token permissions saat ini bergantung pada repository/org defaults. Tambahkan explicit least-privilege permission bila workflow ini nanti diubah.
+  2. `audit-candidate-check.yml` masih memiliki branch trigger `audit-7z-diagnostics-fix` selain branch kandidat CLOUZER. Pastikan branch tambahan itu memang sengaja berbagi workflow sebelum mengubah filter.
+  3. `staging-smoke-test.yml` memeriksa keberadaan secrets, Discord bot authentication, dan HTTP 200/dictionary response dari Xingchi Responses API. Namun ia belum memvalidasi bahwa isi output benar-benar sama dengan `STAGING_OK`; status smoke test tetap terbatas dan tidak membuktikan full bot startup, file generation, Discord attachment, atau Box.
+  4. Workflow CI utama belum menetapkan `timeout-minutes` dan concurrency group eksplisit. Ini bukan kegagalan run yang sudah lulus, tetapi dapat dipertimbangkan untuk kontrol antrean dan waktu eksekusi.
+  5. Action menggunakan major-version tags `actions/checkout@v4` dan `actions/setup-python@v5`, bukan commit-SHA pinning. Catat sebagai hardening supply-chain opsional; jangan ubah tanpa menilai kebijakan repository.
+- Tidak ada workflow YAML yang diubah selama pemeriksaan kualitas ini. Temuan di atas adalah review/hardening backlog, bukan alasan untuk membatalkan CI PASS yang telah terbukti.
+
 ## D3. Bukti CI historis
 
 - Banyak workflow pada commit sebelumnya tercatat lulus untuk XLSX, PDF, DOCX, dan PPTX. Detail run URL, commit SHA, job, test count, dan log tetap berada di arsip Bagian G.
@@ -320,7 +344,7 @@ CI kandidat untuk patch terbaru sudah hijau. Sisa pekerjaan beralih ke live acce
 3. Inspeksi raw PPTX package dan render setiap slide. Periksa ukuran 8 MB, relasi media, gambar, z-order, teks, contrast, clipping, dan konsistensi.
 4. Verifikasi Discord attachment delivery secara terpisah. Simpan artefak revisi sebagai file Box baru; jangan overwrite file asli.
 5. Evaluasi pengaktifan branch protection / required status checks untuk branch utama dan kebijakan PR. API branch saat pemeriksaan menunjukkan branch kandidat tidak protected; jangan mengubah repository settings tanpa izin yang sesuai.
-6. Tinjau apakah perlu menambahkan `timeout-minutes` dan concurrency policy pada workflow CI panjang. Belum diubah karena belum ada kebutuhan yang disetujui.
+6. Tinjau hardening workflow berdasarkan D2.1: explicit `permissions: contents: read` pada `audit-candidate-check.yml`, konfirmasi branch trigger `audit-7z-diagnostics-fix`, validasi isi respons `STAGING_OK`, timeout/concurrency, dan action SHA pinning. Ini backlog hardening, bukan CI failure; jangan mengubah tanpa kebutuhan/otorisasi yang sesuai.
 7. Workflow `staging-smoke-test.yml` belum dijalankan; jalankan hanya bila staging secrets tersedia dan pengguna meminta smoke test.
 8. Perbarui Bagian C–F setelah bukti live tersedia, lalu catat detail kronologis di Bagian G.
 
