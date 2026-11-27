@@ -1614,5 +1614,53 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         ]
         self.assertIsNone(_first_body_text_overlap(records))
 
+
+    def test_docx_recovers_explicit_user_table_when_model_html_omits_it(self):
+        prompt = """Buat file `TES_DOCX_CLOUZER_ULANG.docx` dengan ketentuan:
+
+1. Judul: LAPORAN PENGUJIAN CLOUZER.
+2. Buat 3 heading Word: Identitas, Data Pengujian, Kesimpulan.
+3. Buat paragraf singkat pada setiap bagian.
+4. Buat tabel Word asli dengan kolom No, Nama, Umur, Jabatan, Catatan dan data:
+   - 1 | Andi | 25 | Admin | Normal
+   - 2 | Budi | 30 | Manager | =1+1
+   - 3 | Citra | 27 | Staff | +SUM(1,1)
+5. Buat daftar bernomor otomatis sebanyak 3 poin.
+6. Judul hanya boleh muncul satu kali.
+7. Jangan gunakan HTML atau tabel Markdown sebagai pengganti struktur Word.
+8. Hasil wajib DOCX asli dan dikirim sebagai attachment Discord yang bisa diunduh.
+
+Jangan mengklaim berhasil jika file gagal dibuat atau dikirim."""
+        # Reproduce the failure mode: model emits HTML structure and prose,
+        # but omits the explicit data table supplied in the original prompt.
+        model_content = (
+            "<h1>LAPORAN PENGUJIAN CLOUZER</h1>"
+            "<h2>Identitas</h2><p>Dokumen ini mencatat identitas pengujian.</p>"
+            "<h2>Data Pengujian</h2><p>Data pegawai disajikan pada tabel.</p>"
+            "<h2>Kesimpulan</h2><p>Pengujian memerlukan validasi struktur.</p>"
+            "<ol><li>Periksa struktur.</li><li>Periksa isi.</li><li>Periksa hasil.</li></ol>"
+        )
+        data, filename, mime = create_document_file("docx", prompt, model_content)
+        from docx import Document
+        document = Document(io.BytesIO(data))
+        self.assertEqual(filename, "TES_DOCX_CLOUZER_ULANG.docx")
+        self.assertEqual(mime, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        self.assertEqual(len(document.tables), 1)
+        table = document.tables[0]
+        self.assertEqual((len(table.rows), len(table.columns)), (4, 5))
+        values = [[cell.text for cell in row.cells] for row in table.rows]
+        self.assertEqual(values[0], ["No", "Nama", "Umur", "Jabatan", "Catatan"])
+        self.assertEqual(values[1], ["1", "Andi", "25", "Admin", "Normal"])
+        self.assertEqual(values[2], ["2", "Budi", "30", "Manager", "=1+1"])
+        self.assertEqual(values[3], ["3", "Citra", "27", "Staff", "+SUM(1,1)"])
+        self.assertEqual(sum(p.style.name.startswith("Heading") for p in document.paragraphs), 3)
+        self.assertEqual(sum(p.style.name.casefold().startswith("list number") for p in document.paragraphs), 3)
+        all_text = "\\n".join(p.text for p in document.paragraphs)
+        self.assertEqual(all_text.count("LAPORAN PENGUJIAN CLOUZER"), 1)
+        summary = validate_document_file("docx", prompt, data)
+        self.assertEqual(summary["tables"], 1)
+        self.assertEqual(summary["headings"], 4)  # title plus three section headings
+        self.assertEqual(summary["numbered_lists"], 3)
+
 if __name__ == "__main__":
     unittest.main()
