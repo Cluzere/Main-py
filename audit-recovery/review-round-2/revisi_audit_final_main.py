@@ -5338,10 +5338,9 @@ class ClouzerBot(commands.Bot):
                                 clean_content,
                                 file_source_content,
                             )
-                            if requested_file_format == "pptx" and (
-                                pptx_visual_followup
-                                or re.search(r"\b(?:visual|gambar|ilustrasi|foto|image|picture)\b", clean_content, re.I)
-                            ):
+                            if requested_file_format == "pptx":
+                                # PPTX dibuat dengan visual secara default; jangan bergantung pada
+                                # kata "gambar/visual" yang mungkin tidak disebut pengguna.
                                 visual_source = existing_pptx_bytes if pptx_visual_followup else generated_bytes
                                 slide_briefs = extract_pptx_visual_briefs(visual_source)
                                 if not slide_briefs:
@@ -5388,6 +5387,14 @@ class ClouzerBot(commands.Bot):
                                 )
 
                         except (ValueError, RuntimeError) as build_exc:
+                            # Pengayaan visual PPTX bersifat wajib. Jangan melakukan retry generik
+                            # yang dapat mengirim ulang PPTX polos setelah provider/embed gagal.
+                            if requested_file_format == "pptx":
+                                logging.error(
+                                    "[PPTX-VISUAL] scope=%s stage=failed_closed reason=%s",
+                                    scope_key, type(build_exc).__name__,
+                                )
+                                raise
                             # Once MASTER FINAL source resolution succeeded, subsequent PDF errors
                             # come from deterministic local rendering/validation. Re-querying the
                             # model cannot repair those failures and only burns tokens/CPU.
