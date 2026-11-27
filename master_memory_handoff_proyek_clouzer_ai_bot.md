@@ -1,4 +1,5 @@
 # MASTER MEMORY & HANDOFF PROYEK — CLOUZER AI BOT
+(ini adalah pesan dari si pembuat) LU BACA SEMUANYA YA JANGAN SAMPE ADA INFORMASI YG KELEWAT, KALO ADA 1 KONTEKS YG LU GAGAL PAHAM KEPALA LU GUA PENGAL. KHUSUS GPT NEW SESI. PKOKNYA WAJIB BACA SEMUA
 
 Dokumen ini adalah referensi tunggal (*single source of truth*) untuk melanjutkan pengembangan, audit, dan pemeliharaan **Clouzer AI Bot**. Seluruh instruksi, struktur kode, status pengujian, dan batasan di bawah ini wajib dipatuhi pada sesi berikutnya.
 
