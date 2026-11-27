@@ -3605,3 +3605,57 @@ Intermediate candidate CI runs failed while iterating on stale test labels, insu
 
 **Status:** candidate code and regression tests corrected; all three CI workflows PASS on `e052adaebc9e3229d741c8519f6c12c4c93d5dd3`. Overall end-to-end MASTER FINAL acceptance is not complete until the user restarts only the staging/audit service, generates the new PDF, and supplies the resulting runtime/artifact evidence.
 
+
+
+## 52.31 Wispbyte retest after PDF appendix repair — 27 November 2026 (user-supplied runtime logs)
+
+### Candidate/runtime identity
+- User supplied a fresh Wispbyte startup capture showing branch `audit-recovery-gpt-2026-11-23` fetched/reset to `a26166bf0da3305f5ab2e9f54f3f6c9d6b72af6b` (`docs(memory): record PDF validation appendix repair`). This is a documentation-only commit whose parent is `e052adaebc9e3229d741c8519f6c12c4c93d5dd3`; the PDF candidate code and tests from the parent are present.
+- Python 3.11.18 launched `audit-recovery/review-round-2/revisi_audit_final_main.py`; bot reported online and Box OAuth listener started. This proves candidate process startup only.
+- The user supplied two runtime captures in this update. First fetched `49f956b`, a docs-only descendant containing the page-word extraction optimization; second fetched `a26166b`, the latest appendix-repair candidate. Treat all runtime metrics below as user-supplied logs, not independently collected telemetry.
+
+### First fresh run — revision 49f956b
+- Responses API completed in 23.728 s (separate upstream model latency).
+- Baseline PDF render: 9.190 s, 1,191,296 bytes; baseline validation: 0.401 s.
+- Appendix render/merge: 2.709 s; final PDF: 1,224,784 bytes, six pages.
+- Final deep validation: 1.002 s; total PDF validation: 0.999 s.
+- Deep scan: 79 records, 77 table cells; TextPage setup 0.090 s; text extraction 0.001 s; drawing grouping 0.002 s; row grouping 0.000 s; `cell_text_and_style` 0.077 s; complete page-record/table scan 0.177 s.
+- Against §52.27's earlier Wispbyte 10.470 s cell/style scan for 77 cells, this is a strong same-runtime-class improvement (about 136x lower). Exact prompt artifact and workload details may differ, so do not call it a perfectly controlled benchmark.
+- CPU throttling remained active: quota reported as `35000 100000`; alerts around 33–37% one-core CPU and repeated throttle deltas; cumulative throttled use reached 8,863,594 microseconds. RSS peaked around 143 MB. CPU throttling is not fixed.
+
+### Second fresh run — revision a26166b
+- Responses API completed in 24.110 s (upstream model latency, separate from PDF work).
+- Baseline render: 3.736 s, 1,191,262 bytes; baseline validation: 0.369 s.
+- Appendix render/merge: 2.492 s; final PDF: 1,222,272 bytes, five pages.
+- Baseline deep-validation pass: 0.365 s; final deep-validation pass: 1.218 s; final PDF validation stage: 1.218 s.
+- Baseline scan: 49 records, 77 table cells; TextPage setup 0.019 s; text extraction 0.001 s; drawing grouping 0.001 s; row grouping approximately 0.000 s; `cell_text_and_style` 0.016 s; page-record/table scan 0.039 s.
+- Final scan: 75 records, 77 table cells; TextPage setup 0.100 s; text extraction 0.001 s; drawing grouping 0.004 s; row grouping approximately 0.000 s; `cell_text_and_style` 0.089 s; page-record/table scan 0.196 s.
+- Final heading/paragraph geometry: 0.099 s; table integrity: 0.001 s; body geometry overlap: 0.094 s; master final report stage: 0.398 s.
+- The logs show both baseline and final PDF validation stages completed without a logged validation exception. They do not include a final user-facing send confirmation or the actual attachment receipt.
+- CPU quota again showed `35000 100000`; throttle events occurred during render/merge and validation. RSS reached about 143.1 MB; cgroup memory remained far below the displayed 703.8 MB limit. CPU throttling remains an environment constraint.
+- The 0.016/0.089 s cell/style timings are consistent with the optimized page-word extraction path. Do not compare the 0.089 s final scan and 0.077 s earlier six-page scan as a strict benchmark: page count, narrative content, and artifact bytes differ.
+
+### Current repository and CI verification
+- GitHub branch ref was independently read and points to `a26166bf0da3305f5ab2e9f54f3f6c9d6b72af6b`.
+- Exact-head workflow run `45961735534` (`CLOUZER multi-format file audit`) reached terminal `completed / success` on SHA `a26166bf0da3305f5ab2e9f54f3f6c9d6b72af6b`: https://github.com/Cluzere/Main-py/actions/runs/45961735534
+- Its job `candidate-syntax-and-file-tests` completed all steps successfully: checkout, Python 3.12 setup, candidate compilation, high-severity Bandit scan, runtime dependency installation, and complete candidate regression suite.
+- The three-workflow PASS record on parent code/test SHA `e052ada...` remains in §52.30. For exact current documentation SHA `a26166b...`, only the above one workflow run was found; do not claim three exact-head workflows.
+- PR #6 was independently checked: OPEN, DRAFT, UNMERGED; head SHA `a26166bf0da3305f5ab2e9f54f3f6c9d6b72af6b`, base `main`. Do not merge it.
+
+### Updated acceptance state
+- Page-word extraction optimization: runtime timing improvement reproduced in the user-supplied Wispbyte logs; the prior 10.470 s hotspot is now measured at 0.077–0.089 s in the supplied runs, with 77 table cells.
+- Appendix correctness repair: candidate code/test changes are present; final validation stage completed in the latest supplied run. The logs alone do not visually prove that every appendix cell is rendered correctly.
+- Five-page latest artifact: logged as generated and deep-validated. No actual PDF bytes or rendered page images from this latest run were supplied in this chat, so page-by-page visual inspection and manual PDF-reader select/copy remain NOT VERIFIED.
+- The previously inspected Box artifact in §52.29 was uploaded manually by the user and predates the appendix repair; do not reuse it as proof of the latest output or claim assistant upload.
+- Discord attachment send/receipt/download: NOT VERIFIED. Startup and validation logs are not attachment-delivery evidence.
+- CPU throttling: unresolved; quota `35000 100000` and throttle deltas remain present.
+- Production `main.py` and production branch `main` remain untouched. No production deployment/restart occurred.
+
+### Closeout and forward plan
+1. **No further speculative PDF code changes.** The identified cell/style bottleneck has been addressed, appendix false-negative construction has been repaired in the candidate, the current Wispbyte logs show validation completion, and the exact current head's CI job is green. The user explicitly wants to stop repeated PDF repair cycles once the remaining proof is closed.
+2. The only remaining PDF closeout evidence is one final artifact from the latest candidate: obtain the exact generated PDF (user may provide the attachment or manually uploaded Box file), inspect all rendered pages, verify summary PASS/FAIL cells and pagination, and test selectable/searchable text. Do not edit code unless that artifact demonstrates a reproducible defect.
+3. Discord delivery is a separate end-to-end check: it requires a visible Discord message/attachment and a successful download/open of that exact attachment. Do not infer it from PDF validation or a Box upload.
+4. Keep CPU quota/throttling as a hosting/runtime issue to monitor separately; do not change PDF validation semantics or weaken checks to mask it.
+5. After one final artifact review, freeze PDF scope and move to the next non-PDF audit priorities in Master Memory. Continue using only `audit-recovery-gpt-2026-11-23`; never modify/deploy/restart production `main.py` without explicit permission. Keep PR #6 draft/unmerged unless the user separately authorizes a review/merge decision.
+
+**Status:** candidate PDF optimization and appendix repair are implemented; latest Wispbyte logs show five-page generation and completed deep validation; exact-head CI is SUCCESS. Overall PDF/Discord end-to-end acceptance is still NOT VERIFIED because the latest PDF artifact/page images and Discord attachment receipt/download are absent. Stop code churn; close only the evidence gaps above, then move on.
