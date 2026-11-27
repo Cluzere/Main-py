@@ -1423,6 +1423,11 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertLess(result.index("Paragraf kesimpulan kedua"),
                         result.index("Ringkasan Validasi Otomatis CLOUZER"))
         self.assertEqual(result.count("Ringkasan Validasi Otomatis CLOUZER"), 1)
+        self.assertIn("| Tabel produk 10 baris dan 7 kolom | PASS |", result)
+        self.assertIn("| Elemen vektor PDF | PASS |", result)
+        self.assertNotIn("**PASS**", result)
+        self.assertNotIn("**FAIL**", result)
+        self.assertIn("10 baris produk × 7 kolom.", result)
 
     def test_pdf_body_overlap_sweep_matches_exhaustive_check(self):
         import pymupdf
