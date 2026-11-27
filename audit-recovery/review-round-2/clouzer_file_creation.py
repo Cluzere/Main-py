@@ -879,11 +879,19 @@ def _make_docx(content: str, title: str) -> bytes:
                         paragraph = document.add_paragraph()
                         add_inline(paragraph, [node])
 
-        first_heading = ""
-        for node in parser.root["children"]:
-            if isinstance(node, dict) and re.fullmatch(r"h[1-6]", node["tag"]):
-                first_heading = re.sub(r"\s+", " ", node_text(node)).strip()
-                break
+        def find_first_heading(nodes):
+            for node in nodes:
+                if not isinstance(node, dict):
+                    continue
+                if re.fullmatch(r"h[1-6]", node["tag"]):
+                    return re.sub(r"\s+", " ", node_text(node)).strip()
+                if node["tag"] not in {"head", "title", "script", "style"}:
+                    found = find_first_heading(node.get("children", []))
+                    if found:
+                        return found
+            return ""
+
+        first_heading = find_first_heading(parser.root["children"])
         first_line = re.sub(r"<[^>]+>", "", value.splitlines()[0]).strip() if value.splitlines() else ""
         if title.casefold() not in {first_heading.casefold(), first_line.casefold()}:
             document.add_heading(title, level=0)
