@@ -902,19 +902,124 @@ def _make_docx(content: str, title: str) -> bytes:
         first_line = blocks[0].splitlines()[0].strip() if blocks else ""
         if title.casefold() not in {first_heading.casefold(), first_line.casefold()}:
             document.add_heading(title, level=0)
+
+        def clean_markdown_inline(raw: str) -> str:
+            cleaned = str(raw or "").strip()
+            cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", cleaned)
+            cleaned = re.sub(r"__(.*?)__", r"\1", cleaned)
+            cleaned = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", cleaned)
+            cleaned = re.sub(r"(?<!_)_([^_]+)_(?!_)", r"\1", cleaned)
+            return cleaned.replace(r"\|", "|")
+
+        def markdown_pipe_cells(line: str) -> list[str]:
+            candidate = line.strip()
+            if candidate.startswith("|"):
+                candidate = candidate[1:]
+            if candidate.endswith("|"):
+                candidate = candidate[:-1]
+            return [cell.strip() for cell in re.split(r"(?<!\\)\|", candidate)]
+
+        def is_markdown_table_separator(cells: list[str]) -> bool:
+            return len(cells) >= 2 and all(
+                re.fullmatch(r":?-{3,}:?", re.sub(r"\s+", "", cell)) is not None
+                for cell in cells
+            )
+
+        def render_markdown_table(rows: list[list[str]]) -> None:
+            if len(rows) < 2:
+                return
+            column_count = max(len(row) for row in rows)
+            table = document.add_table(rows=0, cols=column_count)
+            try:
+                table.style = "Table Grid"
+            except KeyError:
+                pass
+            for row_index, source_row in enumerate(rows):
+                cells = table.add_row().cells
+                for column_index in range(column_count):
+                    paragraph = cells[column_index].paragraphs[0]
+                    paragraph.clear()
+                    raw_cell = source_row[column_index] if column_index < len(source_row) else ""
+                    run = paragraph.add_run(clean_markdown_inline(raw_cell))
+                    if row_index == 0:
+                        run.bold = True
+
+        def render_markdown_paragraph(lines: list[str]) -> None:
+            if not lines:
+                return
+            paragraph = document.add_paragraph()
+            for line_index, line in enumerate(lines):
+                if line_index:
+                    paragraph.add_run().add_break()
+                paragraph.add_run(clean_markdown_inline(line))
+
         for block in blocks:
             lines = block.splitlines()
-            if len(lines) == 1 and re.match(r"^#{1,6}\s+", lines[0]):
-                match = re.match(r"^(#{1,6})\s+(.*)$", lines[0])
-                document.add_heading(match.group(2).strip(), level=min(len(match.group(1)), 3))
-            else:
-                paragraph = document.add_paragraph()
-                for index, line in enumerate(lines):
-                    if index:
-                        paragraph.add_run().add_break()
-                    cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", line)
-                    cleaned = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", cleaned)
-                    paragraph.add_run(cleaned)
+            index = 0
+            paragraph_lines = []
+
+            def flush_paragraph() -> None:
+                nonlocal paragraph_lines
+                render_markdown_paragraph(paragraph_lines)
+                paragraph_lines = []
+
+            while index < len(lines):
+                line = lines[index].strip()
+                if not line:
+                    flush_paragraph()
+                    index += 1
+                    continue
+
+                heading_match = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
+                if heading_match:
+                    flush_paragraph()
+                    level = min(len(line) - len(line.lstrip("#")), 3)
+                    document.add_heading(clean_markdown_inline(heading_match.group(1)), level=level)
+                    index += 1
+                    continue
+
+                if index + 1 < len(lines):
+                    header_cells = markdown_pipe_cells(line)
+                    separator_cells = markdown_pipe_cells(lines[index + 1])
+                    if (
+                        len(header_cells) >= 2
+                        and len(header_cells) == len(separator_cells)
+                        and is_markdown_table_separator(separator_cells)
+                    ):
+                        flush_paragraph()
+                        table_rows = [header_cells]
+                        index += 2
+                        while index < len(lines):
+                            row_line = lines[index].strip()
+                            if not row_line or "|" not in row_line:
+                                break
+                            row_cells = markdown_pipe_cells(row_line)
+                            if len(row_cells) < 2:
+                                break
+                            if len(row_cells) < len(header_cells):
+                                row_cells.extend([""] * (len(header_cells) - len(row_cells)))
+                            elif len(row_cells) > len(header_cells):
+                                row_cells = row_cells[:len(header_cells)]
+                            table_rows.append(row_cells)
+                            index += 1
+                        render_markdown_table(table_rows)
+                        continue
+
+                numbered_match = re.match(r"^\s*\d+[.)]\s+(.+)$", line)
+                bullet_match = re.match(r"^\s*[-*+]\s+(.+)$", line)
+                if numbered_match or bullet_match:
+                    flush_paragraph()
+                    match = numbered_match or bullet_match
+                    style = "List Number" if numbered_match else "List Bullet"
+                    paragraph = document.add_paragraph(style=style)
+                    paragraph.add_run(clean_markdown_inline(match.group(1)))
+                    index += 1
+                    continue
+
+                paragraph_lines.append(line)
+                index += 1
+
+            flush_paragraph()
     output = io.BytesIO()
     document.save(output)
     return output.getvalue()
