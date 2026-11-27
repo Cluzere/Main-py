@@ -5285,8 +5285,12 @@ class ClouzerBot(commands.Bot):
                                 requested_file_format, clean_content, reply_text or "",
                                 model_refused=model_refused_file_content,
                             )
-                            generated_bytes, generated_name, generated_mime = create_document_file(
-                                requested_file_format, clean_content, file_source_content
+                            # Keep CPU-heavy rendering and deep validation off Discord's gateway loop.
+                            generated_bytes, generated_name, generated_mime = await asyncio.to_thread(
+                                create_document_file,
+                                requested_file_format,
+                                clean_content,
+                                file_source_content,
                             )
                         except (ValueError, RuntimeError) as build_exc:
                             # Once MASTER FINAL source resolution succeeded, subsequent PDF errors
