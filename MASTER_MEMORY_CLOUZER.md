@@ -4297,232 +4297,53 @@ The DOCX work is closed. Continue with the order already recorded in §52.38; do
 
 ---
 
-## 52.44 Canva presentation export comparison — PDF PASS, PPTX visual FAIL — 27 November 2026
 
-### Context and purpose
-- This section records the live Canva presentation test requested after DOCX closeout in §52.43.
-- The presentation is titled **“Pengujian Sistem CLOUZER”** and contains four slides: title, Tujuan, Hasil, and Kesimpulan.
-- The user clarified that the Canva design itself looks normal before export. The PDF is the reference for the intended/original appearance; the exported PPTX is visibly broken.
-- Keep the verdicts format-specific. A successful PDF export does not imply a successful PPTX export, and a valid PPTX package does not imply a visually correct presentation.
+---
 
-### Canva design and PDF export — PASS (visual evidence)
-- The user asked the assistant to inspect the PDF in Box and clarified: “Pengujian sistem clouzer. Baca yg pdf bro. Kek gitu tampilan aslinya.”
-- PDF artifact inspected from Box: `Pengujian Sistem Clouzer_20261127_230915_0000.pdf`.
-- The PDF was downloaded and rendered locally for visual inspection. Four pages were inspected together.
-- The four-page PDF shows the intended, coherent visual design:
-  1. **Title:** “PENGUJIAN SISTEM CLOUZER”, large title treatment, building illustration, and orange accent.
-  2. **Tujuan:** explanatory text on the left and laptop illustration on the right.
-  3. **Hasil:** four test/result aspects with numbered presentation layout.
-  4. **Kesimpulan:** concise conclusion text with a staircase illustration.
-- The visual hierarchy, spacing, alignment, and slide/page composition appear consistent and readable in the inspected PDF. No comparable text collision or clipping was observed in the four rendered PDF pages.
-- The user confirmed that this PDF appearance matches the original Canva presentation appearance before PPTX export.
-- **PDF export verdict: PASS for the inspected visual appearance and four-page presentation reference.**
-- Evidence boundary: this is a visual inspection of the PDF artifact. Do not infer that every PDF feature, embedded link, or delivery path was tested unless separately evidenced. PDF creation was already recorded as closed in earlier sections; this entry records the Canva presentation-specific comparison.
+## 52.44 CLOUZER PPTX repeated slide-title defect: root cause and candidate fix — 27 November 2026
 
-### PPTX export artifact — package PASS, visual FAIL
-- Raw PPTX artifact located and downloaded directly from Box:
-  - File: `Pengujian Sistem Clouzer_20261127_230107_0000.pptx`
-  - Box folder: `CLOUZER_BUANGAN_UPLOAD`
-  - Box file ID: `2619164215021`
-  - Size: 10,467,908 bytes (about 10 MB)
-  - SHA-1: `67be8adccabcbc4046bf68e4814e6217df6bca08`
-- The actual binary was inspected, not only Box text extraction:
-  - ZIP/OOXML package opened and integrity check passed (`ZipFile.testzip()` returned no corrupt member).
-  - `python-pptx` opened the presentation successfully.
-  - Four slides were detected.
-  - Slide dimensions were 20 × 11.25 inches (16:9).
-  - Text content was extracted from PowerPoint text shapes/TextBoxes; the content is not merely one flattened slide image. The inspected text shapes are editable PowerPoint objects.
-  - LibreOffice successfully opened and rendered the PPTX to PDF; all four slides were rendered for visual inspection.
-- **Visual defects observed in the LibreOffice render:**
-  1. Slide 1: title text is clipped/cut off and its word arrangement is broken.
-  2. Slide 2: multiple text elements overlap/stack, reducing readability.
-  3. Slide 3: title and explanatory text collide/overlap.
-  4. Slide 4: conclusion text overlaps and is difficult to read.
-- The user independently confirmed that the downloaded PPTX file itself looks broken, while the presentation before export in Canva looks normal.
-- The earlier text-read report also identified the typo `area perbaikanuntuk` in the Tujuan slide. In the later PDF/Canva comparison, the phrase was read with the missing space corrected as `area perbaikan untuk`; retain this as an observed content correction, not proof that every slide text is identical.
-- **PPTX verdict:**
-  - Package/ZIP integrity: **PASS**.
-  - Four-slide structure and 16:9 dimensions: **PASS**.
-  - Text extraction and editable text shapes: **PASS**.
-  - Visual fidelity/readability against the Canva/PDF reference: **FAIL**.
-  - Overall PPTX artifact acceptance: **PARTIAL / NOT PASS**, because visual fidelity is a required acceptance criterion and all four rendered slides show layout defects.
-- Do not label the whole Canva presentation creation as failed: the pre-export Canva design and inspected PDF look correct. The observed failure is specifically in the exported PPTX artifact.
-- Likely failure boundary: the appearance changes during or after PPTX export/conversion, or during interpretation by the renderer. The user confirms the actual PPTX file is broken, but the exact technical root cause (Canva PPTX exporter, font substitution, unsupported layout feature, or PowerPoint/LibreOffice compatibility) has not yet been isolated. Do not state a proven root cause without further comparative testing.
-- No direct Microsoft PowerPoint application rendering was performed. LibreOffice is the renderer used for the technical visual inspection. The user's independent confirmation that the PPTX itself is broken strengthens the artifact verdict, but does not identify the exact export defect.
+### Scope and evidence
+- This entry replaces the unrelated Canva test detour. Canva is not part of CLOUZER's runtime, architecture, or file-generation pipeline; Canva test notes §§52.44–52.47 have been removed from this Master Memory.
+- Target artifact: Box file `clouzer_test.pptx`, ID `2619212339844`, folder `CLOUZER_BUANGAN_UPLOAD`, size 33,186 bytes, SHA-1 `fd17210a03081abee0181f20df13a1e3576db837`. Original artifact was not modified.
+- Box text extraction showed the first deck title, `Slide 1 — Pengenalan CLOUZER AI`, reused on subsequent slides with generated suffixes, while the intended slide-specific headings for slides 2–5 appeared in body text.
+- Candidate source inspected: `audit-recovery/review-round-2/clouzer_file_creation.py`, function `_make_pptx()`.
+- Confirmed cause in the candidate helper: it promoted the first line to the slide title only when the line was a Markdown heading or the chunk was slide index 0. For later plain-text slide chunks, the actual heading remained in the body and the generic deck title was reused. This is a PPTX builder logic defect; the evidence does not implicate Canva or Wispbyte as the cause.
 
-### Comparison summary
-| Stage / artifact | Result | Evidence |
+### Candidate-only code fix
+- Changed `_make_pptx()` so the first non-empty line of every slide chunk becomes that slide's title, regardless of whether it is prefixed with Markdown heading syntax. The selected line is removed from the body to prevent duplicate title text.
+- Added regression test `test_pptx_uses_each_slide_chunk_title_instead_of_repeating_deck_title`. It constructs a five-slide presentation and asserts:
+  - exactly five slides are generated;
+  - the five expected slide titles are distinct and correctly assigned;
+  - each slide title is not repeated in its body;
+  - slide-specific body content remains present.
+- Regression test was hardened to identify the title placeholder by shape ID rather than relying on Python object identity.
+- Helper fix commit: `8d697c56085be7b44afc55258a701f47b072ba77`.
+- Regression test commits: initial test `c2509b665a4f55f09240864f81245d03d24da2b6`; hardened test `620f405429a00deddbbd04edd0de1dd28e1dc9a8`.
+- These commits are on branch `audit-recovery-gpt-2026-11-23`. Production root `main.py` and production branch `main` were not changed. No merge to PR #6 was performed.
+
+### Validation status — strict evidence boundary
+| Check | Status | Evidence |
 |---|---|---|
-| Canva design before export | PASS (user-confirmed normal) | User's direct observation; PDF appearance matches |
-| Canva PDF export | PASS (visual) | Four-page Box PDF rendered and inspected |
-| Canva PPTX export package | PASS | ZIP/OOXML integrity and python-pptx open |
-| PPTX slide count/dimensions | PASS | 4 slides, 20 × 11.25 in, 16:9 |
-| PPTX editable text objects | PASS | Text extracted from native PowerPoint text shapes |
-| PPTX visual layout | FAIL | Four LibreOffice-rendered slides show clipping/overlap |
-| Overall PPTX artifact | PARTIAL / NOT PASS | Required visual-fidelity criterion failed |
+| Defect in candidate PPTX title-selection logic | CONFIRMED | Source inspection |
+| Candidate helper patched | DONE | GitHub commit above |
+| Five-slide regression test added | DONE | GitHub test file commit above |
+| Regression test executed | NOT YET RUN | No runtime test output collected |
+| Fresh PPTX generated by patched candidate | NOT YET RUN | No new artifact |
+| Fresh PPTX package/content/render validation | NOT YET RUN | No new artifact |
+| Discord attachment delivery | NOT YET VERIFIED | No new delivery evidence |
+| Wispbyte fetched latest patch | NOT YET VERIFIED | No matching startup log after latest commits |
+| Production deployment | NOT DONE | Production files/branch untouched |
 
-### Next steps / planning
-1. Keep the original Canva design, original PDF, and original PPTX artifacts unchanged. Do not overwrite or delete the Box originals.
-2. If the goal is to diagnose the export failure, use the existing PDF as the visual reference and the existing PPTX as the failing artifact. Compare slide-by-slide text, fonts, text-box geometry, line wrapping, and media relationships. Avoid creating another Canva design before this comparison.
-3. If a corrected PPTX is attempted, make a separate copy/design or a new export; do not replace the original evidence artifact. First determine whether the issue is font substitution, text-box dimensions/auto-fit, unsupported effects, or renderer compatibility.
-4. If the PPTX is re-exported after a correction, inspect the raw package again and render all four slides. Require visual comparison against the four-page PDF reference before changing PPTX status to PASS.
-5. Once PPTX is either closed with an accepted artifact or its remediation path is documented, continue the existing §52.43 format order: CSV, then JSON, reconciling existing Box artifacts before asking the user to run another live test.
-6. Do not repeat PDF/XLSX/ZIP tests absent a specific new defect. Keep reliability testing and Discord/Box delivery provenance as separate workstreams.
-7. Preserve protected boundaries: do not modify production root `main.py`, do not merge PR #6, and do not restart Wispbyte without the user's explicit authorization and matching startup-log evidence.
+Do not mark the fix as PASS until the regression test actually runs and the newly generated PPTX is independently inspected. A passing unit test alone does not prove live Discord delivery or visual correctness.
 
-### Handoff summary
-The Canva design before export is normal according to the user, and the inspected four-page PDF accurately shows the intended presentation appearance (**PDF visual PASS**). The PPTX downloaded from Box is a valid editable four-slide PowerPoint package, but its rendered layout is broken on every slide (**PPTX visual FAIL; overall PARTIAL / NOT PASS**). This is an export-artifact problem, not evidence that the original Canva design or PDF is broken. Exact root cause remains unproven. Preserve all original artifacts and continue with CSV then JSON after the PPTX comparison/remediation decision.
+### Next operational steps
+1. Restart only the existing candidate service on Wispbyte, using the already-configured startup command that fetches branch `audit-recovery-gpt-2026-11-23`. The user controls the Wispbyte panel; the assistant has no direct panel/console control in this session.
+2. Capture startup logs proving the fetched HEAD includes the helper and regression-test commits. Do not infer this from the bot merely coming online.
+3. Run the focused five-slide PPTX regression test in the candidate environment and retain its actual output.
+4. Run one controlled five-slide CLOUZER generation request. Retrieve the new raw PPTX artifact and inspect OOXML integrity, actual slide count/order, each slide title/body, editable text, and rendered appearance.
+5. Verify Discord attachment send/receipt/download separately from file creation and validation.
+6. If any check fails, inspect the actual traceback/artifact and patch only the candidate branch. Do not touch production root `main.py`, merge PR #6, or overwrite the original Box artifact.
+7. Once PPTX is closed, reconcile existing CSV evidence before running another CSV test, then reconcile JSON. Do not repeat already-closed PDF/XLSX/ZIP tests without a specific uncovered criterion.
 
-
----
-
-## 52.45 Operational rule: do not abandon asynchronous Canva work; ordered continuation plan — 27 November 2026
-
-### User instruction — mandatory continuity rule
-- When a Canva design-generation or other asynchronous task has been started and is still pending, **do not end the work merely because the initial tool call returned a pending status**.
-- Continue the workflow until the job reaches a terminal state (completed or failed), subject to tool availability and actual platform responses.
-- Respect the platform's required wait interval before polling. Do not poll early, and do not claim completion while the job is pending.
-- Once complete, inspect the generated result and proceed with the next necessary step. If the job fails, inspect the actual failure and determine the smallest viable recovery; do not silently abandon it or pretend it succeeded.
-- Keep the user informed with concrete results and blockers, not generic progress messages. If a hard tool/platform limitation prevents further work, state exactly what is blocked and what action is required next.
-- This rule applies to the current Canva PPTX remediation and future asynchronous project work. It does not authorize production changes, overwriting originals, or bypassing explicit approval gates.
-
-### Current Canva remediation — pending job record
-- User asked the assistant to fix the newly found Box artifact `clouzer_test.pptx` rather than merely report its problems.
-- Original Box artifact remains unchanged:
-  - Name: `clouzer_test.pptx`
-  - Box file ID: `2619212339844`
-  - Folder: `CLOUZER_BUANGAN_UPLOAD`
-  - Size: 33,186 bytes
-  - SHA-1: `fd17210a03081abee0181f20df13a1e3576db837`
-  - Link: https://account.box.com/file/2619212339844
-- Its text extraction surfaced the five intended sections/slides:
-  1. Pengenalan CLOUZER AI
-  2. Tujuan dan Fungsi Utama
-  3. Cara Kerja Sistem
-  4. Manfaat dan Kemampuan
-  5. Kesimpulan
-- The extraction repeated the label “Slide 1” for all sections with differing trailing numbers. This is a warning that slide numbering/structure needs raw PPTX inspection; it is not yet proof of the actual slide count.
-- A separate Canva presentation design was requested using the five-section content above, concise Indonesian copy, consistent modern blue/cyan styling, whitespace, and editable elements. The design-generation request returned:
-  - Job ID: `4fc1679d-8411-43e4-b748-b5b15e5f3aa6`
-  - Initial status: `pending`
-  - Continuation token was returned in the tool response in the conversation; recover the exact token from that response if required.
-  - Platform instruction: wait at least 15 seconds before the first poll. If Canva's embedded job widget is already polling/displaying the result, do not duplicate manual polling.
-- The design is **not yet confirmed complete**, inspected, exported, or accepted. Do not call it a finished PPTX. The current Canva connector exposes design creation/read/edit tools but no confirmed PPTX export/download action. If that limitation remains, the user will need to export/download PPTX from Canva's UI after the design is inspected and approved; do not claim the assistant has generated a downloadable PPTX.
-- Canva design request was based on the CLOUZER five-section test presentation, not the separate four-slide “Pengujian Sistem CLOUZER” Canva export comparison in §52.44. Do not conflate these two artifacts or their evidence.
-
-### Mandatory ordered continuation — finish this before moving to CSV
-1. **Resume the pending Canva job.** Check whether its embedded widget has completed. Otherwise wait the required interval and poll job `4fc1679d-8411-43e4-b748-b5b15e5f3aa6` using the exact continuation data returned by Canva.
-2. **Inspect the completed design.** Read the design and inspect all five pages/slides, not just the cover or text extraction. Confirm exact slide count and order, distinct correct headings, content completeness, readable text, no clipping/overlap, consistent layout, and editable native elements where available.
-3. **Repair only demonstrated defects.** Preserve the original Box PPTX and source material. Work on the new Canva design or a separate copy. Do not overwrite the original artifact. If Canva requires a transaction or explicit user approval before committing edits, show the preview and obtain that approval before commit.
-4. **Obtain the PPTX export.** If the Canva connector still has no export action, clearly instruct the user to download the inspected design from Canva as Microsoft PowerPoint (.pptx), then place/upload that exported file in the known Box handoff folder or attach it in chat. Do not represent the Canva editable design itself as a delivered PPTX file.
-5. **Validate the actual exported PPTX.** Inspect raw OOXML/ZIP integrity, actual slide count/order, text per slide, editable elements, media, dimensions, and render every slide. Compare layout to the inspected Canva design/reference. Check clipping, overlap, font substitutions, text wrapping, and missing media. Record the actual artifact identity (Box ID, size, hash) and each evidence boundary. A valid package alone is not an overall PASS.
-6. **Close PPTX with a clear verdict.** Only mark PASS if package, structure/content, and visual rendering all meet acceptance criteria. If still defective, document exact failures and the next repair action; do not advance as if PPTX passed.
-7. **Only after PPTX remediation is closed or explicitly documented as blocked**, continue the §52.43 order: reconcile existing CSV artifacts/evidence first; if a genuine gap remains, run one controlled CSV test and inspect it. Then do the same for JSON. Do not repeat already-closed PDF/XLSX/ZIP creation tests without a new specific gap.
-8. Keep reliability work and delivery provenance separate. A successful Canva design, exported PPTX, Box upload, Discord send, and user download are distinct stages; prove each separately.
-
-### Current next action
-The immediate next action is to resume and finish the pending Canva design-generation job, then inspect all five slides. **Do not switch to CSV or JSON yet.** The Canva design job must not be left at “pending” simply because the initial response was asynchronous.
-
-**Handoff summary:** User explicitly requires continuity: when an asynchronous Canva process is pending, keep working until it reaches a terminal state and then determine and execute the next ordered step. Current Canva job `4fc1679d-8411-43e4-b748-b5b15e5f3aa6` remains pending/unverified. Finish, inspect, repair, export, and validate this PPTX path first; only then continue CSV followed by JSON under §52.43.
-
-
----
-
-## 52.46 Canva remediation job completed; content inspection and remaining acceptance gates — 27 November 2026
-
-### Async continuity rule applied
-- Continued the pending Canva job instead of ending the work at its initial pending response, following the user instruction recorded in §52.45.
-- Canva job `4fc1679d-8411-43e4-b748-b5b15e5f3aa6` reached terminal status **completed**.
-- Generated design:
-  - Canva design ID: `DAHcIACyuPE`
-  - Title: `Pengenalan CLOUZER AI`
-  - Edit URL: https://www.canva.com/d/xATgNIyBVw4McWH
-  - View URL: https://www.canva.com/d/VXxlyEv2ho7DX2L
-  - Five fixed presentation pages, each 1920 × 1080 (16:9).
-
-### Content/structure inspection
-- Read the design metadata and content; confirmed exactly five pages and the intended order:
-  1. Pengenalan / Clouzer AI
-  2. Tujuan dan Fungsi Utama
-  3. Cara Kerja Sistem
-  4. Manfaat dan Kemampuan
-  5. Kesimpulan
-- The apparent missing spaces in the first flattened text extraction (examples: `digitalyang`, `memproses teks`, `sebagaipartner`) were checked against the actual Canva text elements. The underlying text contains intentional line breaks:
-  - Slide 2 subtitle: `Asisten AI untuk interaksi digital\nyang lebih mudah dan produktif.`
-  - Slide 3 step: `Sistem memproses\nteks dan konteks`
-  - Slide 5 statement: `CLOUZER AI sebagai\npartner produktivitas.`
-  These are line breaks, not missing spaces. Do not “correct” them by inserting arbitrary spaces or rewriting the wording.
-- Other extracted text is consistent with the five-slide brief. The design uses editable text elements over page backgrounds/graphics.
-- Visual thumbnail availability was incomplete: Canva returned a stored thumbnail for page 1 only and explicitly reported no stored thumbnails for pages 2–5. Therefore all five pages' exact text and page metadata were inspected, but the full visual layout of all five slides has **not** been independently verified yet.
-- An editing transaction was opened to inspect structured text and then explicitly cancelled without changes. No content edits were saved. The Canva design remains the generated version, not a repaired/committed version.
-
-### Current status — do not overstate
-- Async generation: **PASS / completed**.
-- Page count/order and 16:9 dimensions: **PASS**.
-- Text content/line-break check: **PASS for inspected text**.
-- Full visual inspection of all five slides: **PENDING** (only page 1 thumbnail was returned).
-- PPTX export/download: **NOT YET DONE**.
-- Raw PPTX OOXML validation and rendering: **NOT YET DONE**.
-- Overall PPTX acceptance: **OPEN / NOT PASS YET**.
-- The Canva design is not itself proof of a valid exported PowerPoint. The Canva connector has no confirmed PPTX export/download tool in the discovered tool set. If no export action becomes available, user must export from Canva UI as Microsoft PowerPoint (.pptx), then upload/attach the exported artifact for raw inspection. Never claim a PPTX file has been delivered before that artifact exists and is checked.
-
-### Ordered next actions
-1. Open the Canva edit link and visually inspect **all five** slides in the editor, especially slides 2–5 because API thumbnails were unavailable. Check for clipping, overlap, missing images, inconsistent spacing, and text too small.
-2. If any visible defect exists, stage only targeted edits in a Canva editing transaction; preview them and obtain explicit user approval before committing. Do not edit just to alter valid line breaks.
-3. Export/download the design as PowerPoint (.pptx) from Canva UI if the connector still cannot export. Keep the original Box file `clouzer_test.pptx` (ID `2619212339844`) unchanged; upload the new export as a separate file.
-4. Inspect the actual new PPTX binary: ZIP/OOXML integrity, true slide count/order, text, editable elements, media, dimensions, and render every slide. Compare all slides against Canva editor appearance. Record Box ID, size, SHA-1, and distinct structural/visual verdicts.
-5. Only when PPTX is accepted or the remaining blocker is clearly documented, continue §52.43 sequence: reconcile existing CSV evidence first, run one controlled CSV test only if needed, then reconcile/test JSON.
-6. Do not repeat closed PDF/XLSX/ZIP tests without a new concrete acceptance gap. Do not touch production `main.py`, merge PR #6, or restart Wispbyte without explicit authorization.
-
-**Handoff summary:** The pending Canva job was not abandoned; it completed and yielded a five-slide 16:9 design. The suspected missing spaces were actually line breaks in the text elements. Only slide 1 had a retrievable thumbnail, so full visual verification and PPTX export/validation remain open. Next: inspect all five slides in Canva, export a separate PPTX, validate the raw export, then proceed to CSV and JSON in the established order.
-
-
----
-
-## 52.47 Canva five-slide layout-geometry inspection — 27 November 2026
-
-### Work performed
-- Reopened Canva design `DAHcIACyuPE` (“Pengenalan CLOUZER AI”) and retrieved page metadata plus thumbnail URLs for all five pages using Canva read/page tools.
-- Confirmed exactly five fixed presentation pages, each 1920 × 1080 (16:9).
-- Opened a read-only editing transaction to inspect structured element bounds, text, font sizes, and positions on all five pages. No edit operations were applied. The transaction was explicitly cancelled; the saved design was not changed.
-- Canva supplied thumbnail URLs, but those signed media URLs could not be opened by the available image/web retrieval path in this session. Therefore this was a structured geometry/content inspection, **not a true pixel-level visual inspection**. Do not claim all five slides were visually rendered and checked.
-
-### Findings from structured element geometry
-- Slide 1: the two large title text boxes (“Pengenalan” and “Clouzer AI”) have a small vertical bounding-box intersection of approximately 12.7 px (first box top 177.49, height 137.32; second top 302.44). This may be intentional tight stacking, but without rendered pixels it is a **potential visual collision**, not a confirmed visible defect. Inspect in Canva editor before export.
-- Slide 2: heading, two-line subtitle, and three text bullets have separated vertical bounds; the explicit line break in “digital\nyang lebih mudah...” is intentional. No text-box overlap was evident from the supplied bounds.
-- Slide 3: title/subtitle and four numbered workflow text blocks have separated bounds. Explicit line breaks in “Sistem memproses\nteks dan konteks” and “AI menyusun\nrespons” are intentional. The numbered card shapes sit close vertically but are not evidence of text collision.
-- Slide 4: title, subtitle, and four benefit text blocks have separated vertical bounds; no text-box overlap was evident from the returned geometry.
-- Slide 5: title, two-line conclusion statement, three text bullets, and right-side label/description have separated text bounds. Some decorative horizontal shapes are close to adjacent bullet text; pixel-level appearance remains unverified.
-- Content remains editable native text elements over backgrounds/graphics. Do not “fix” intentional line breaks without a demonstrated defect.
-
-### Current verdict and next action
-- Five-page structure and 16:9 dimensions: **PASS**.
-- Text content and line-break integrity: **PASS for inspected text**.
-- Structured geometry check: **PARTIAL PASS**; no clear text collisions on slides 2–5, but slide 1 title boxes slightly intersect and require visual confirmation.
-- Pixel-level inspection of all five slides: **BLOCKED / NOT COMPLETED** because Canva returned signed thumbnail URLs that the available runtime could not retrieve/render.
-- PPTX export and binary/render validation: **NOT DONE**.
-- No Canva edits were saved; no original Box artifact was overwritten.
-
-Next: user or an available browser/UI session must open the Canva edit URL and verify the slide 1 title spacing plus the five slides visually. If no visible defect, proceed to export a separate PPTX and validate the actual export. If slide 1 visibly collides, stage a small spacing adjustment in a transaction, preview it, and obtain approval before commit. Do not claim overall PPTX PASS or proceed to CSV/JSON until this PPTX path is closed or the visual blocker is explicitly documented.
-
-
----
-
-## 52.48 PPTX repeated slide-title bug identified and candidate patch — 27 November 2026
-
-### Evidence
-- Inspected the actual Box artifact `clouzer_test.pptx` (Box file ID `2619212339844`) via Box text extraction. The extracted text shows the deck title `Slide 1 — Pengenalan CLOUZER AI` repeated as the title on later slides (with suffixes `— 2` through `— 5`), while the actual slide-specific titles (Slide 2 through Slide 5) appear in body text.
-- Inspected candidate helper `audit-recovery/review-round-2/clouzer_file_creation.py`, function `_make_pptx()`. Confirmed logic only promotes the first line to slide title when it is a Markdown heading or when `index == 0`. For slides 2+, a plain-text first line is left in the body and the generic deck title is reused. This explains the observed artifact defect.
-- This is a confirmed local PPTX builder defect; it is not evidence that Canva or Wispbyte caused the repeated titles.
-
-### Candidate-only remediation committed
-- Updated `_make_pptx()` so the first non-empty line of every slide chunk becomes that slide's title, whether or not it uses Markdown heading syntax. The line is removed from the body to avoid duplication.
-- Added regression test `test_pptx_uses_each_slide_chunk_title_instead_of_repeating_deck_title`, asserting five distinct slide titles and that each title is absent from its own body text.
-- Helper update commit: `8d697c56085be7b44afc55258a701f47b072ba77`.
-- Regression test initially added in `c2509b665a4f55f09240864f81245d03d24da2b6`, then hardened to identify the title placeholder by shape ID in `620f405429a00deddbbd04edd0de1dd28e1dc9a8`.
-- Both changes are on `audit-recovery-gpt-2026-11-23`. Production root `main.py` remains untouched. Original Box artifact remains unchanged.
-
-### Validation and deployment status
-- Regression test has been added but has **not yet been executed** in this session. Do not claim PASS until runtime test output is collected.
-- No direct Wispbyte panel/console connector is available in this session. The Wispbyte startup command previously recorded in §4 fetches the latest `audit-recovery-gpt-2026-11-23` branch and runs the candidate entrypoint. A restart is therefore required for the running service to pick up the new helper. User controls that panel restart and must provide startup/test logs.
-- Do not touch production `main.py`, merge PR #6, or modify unrelated Canva artifacts. Next: user restarts the existing audit candidate service on Wispbyte, confirms the fetched commit includes the two latest commits, then runs the five-slide PPTX regression/live test and shares logs plus the new artifact for independent validation.
+### Handoff
+The current actionable finding is a confirmed bug in CLOUZER's candidate PPTX generator: later slide headings were not promoted from plain-text first lines, causing the deck title to repeat. A candidate-only fix and five-slide regression test have been committed. Runtime test, fresh artifact inspection, Discord delivery verification, and Wispbyte fetch/restart confirmation remain outstanding. The next step is candidate Wispbyte startup-log confirmation followed by the focused five-slide regression/live test—not Canva work.
