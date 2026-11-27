@@ -1551,10 +1551,14 @@ def _make_pptx(content: str, title: str) -> bytes:
         raise ValueError("PPTX melebihi batas 100 slide.")
     for index, chunk in enumerate(chunks):
         lines = [line.strip() for line in chunk.splitlines() if line.strip()]
+        # Each slide chunk begins with its own title. Promote that first
+        # non-empty line for every slide, not only slide 1 / Markdown headings.
+        # Otherwise later slides inherit the deck title and their real titles
+        # are incorrectly rendered as body text.
         slide_title = title if index == 0 else f"{title} — {index + 1}"
         if lines:
             first = re.sub(r"^\s{0,3}#{1,6}\s*", "", lines[0]).strip()
-            if first and (lines[0].startswith("#") or index == 0):
+            if first:
                 slide_title, lines = first, lines[1:]
         slide = presentation.slides.add_slide(presentation.slide_layouts[1])
         slide.shapes.title.text = slide_title
