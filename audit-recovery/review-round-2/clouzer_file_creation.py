@@ -1386,39 +1386,6 @@ def _is_master_final_pdf_prompt(prompt: str) -> bool:
     return _mentions_ten_products(prompt) and all(item.casefold() in value for item in required)
 
 
-def _extract_pdf_cell_text_from_words(words, rect, pymupdf) -> str:
-    """Extract cell text from one page-level word pass, preserving line and word order.
-
-    This avoids repeatedly asking MuPDF to clip/rebuild text for every table cell.
-    The generated MASTER FINAL table uses ordinary text runs; equivalence with
-    MuPDF's legacy clipped extraction is guarded by a fixture test.
-    """
-    selected = []
-    for word in words:
-        x0, y0, x1, y1 = word[:4]
-        center = pymupdf.Point((x0 + x1) / 2, (y0 + y1) / 2)
-        if rect.contains(center):
-            selected.append(word)
-    selected.sort(key=lambda word: (
-        word[5] if len(word) > 5 else 0,
-        word[6] if len(word) > 6 else 0,
-        word[7] if len(word) > 7 else 0,
-    ))
-    lines = []
-    current_line = None
-    for word in selected:
-        line_key = (
-            word[5] if len(word) > 5 else 0,
-            word[6] if len(word) > 6 else 0,
-        )
-        if line_key != current_line:
-            lines.append(str(word[4]))
-            current_line = line_key
-        else:
-            lines[-1] += " " + str(word[4])
-    return "\n".join(lines).strip()
-
-
 def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], page_dicts=None, page_drawings=None) -> dict:
     """Validate semantic structure and table fidelity using cached page inspections."""
     import pymupdf
@@ -1473,9 +1440,10 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         return bool(actual and len(actual) >= 3 and all(abs(actual[i] - expected[i]) <= tolerance for i in range(3)))
 
     for page_index, page in enumerate(doc):
-        # Extract words once per page, then map them to table cells by geometry.
-        # This avoids repeated clipped TextPage extraction for every cell.
-        page_words = page.get_text("words")
+        # Reuse one full-page TextPage for all table-cell extraction on this page.
+        # TextPage.extractTextbox applies the same rectangle selection without
+        # rebuilding a clipped TextPage for every individual cell.
+        page_textpage = page.get_textpage()
         for block in page_dicts[page_index]["blocks"]:
             if "lines" not in block:
                 continue
@@ -1513,7 +1481,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         header_index = None
         for row_index, (_, cells) in enumerate(page_rows):
             values = [
-                normalized(_extract_pdf_cell_text_from_words(page_words, pymupdf.Rect(
+                normalized(page_textpage.extractTextbox(pymupdf.Rect(
                     cell["rect"].x0 + 1, cell["rect"].y0 + 1,
                     cell["rect"].x1 - 1, cell["rect"].y1 - 1,
                 )))
@@ -1542,7 +1510,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
             page_data = []
             for _, cells in page_rows[header_index + 1:]:
                 values = [
-                    re.sub(r"\s+", " ", _extract_pdf_cell_text_from_words(page_words, pymupdf.Rect(
+                    re.sub(r"\s+", " ", page_textpage.extractTextbox(pymupdf.Rect(
                         cell["rect"].x0 + 1, cell["rect"].y0 + 1,
                         cell["rect"].x1 - 1, cell["rect"].y1 - 1,
                     ))).strip()
