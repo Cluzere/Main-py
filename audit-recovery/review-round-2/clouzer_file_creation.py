@@ -102,7 +102,7 @@ def build_file_generation_system_instruction(format_name: str, prompt: str = "")
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
         raise ValueError("Format file tidak didukung.")
-    return (
+    instruction = (
         "TUGAS PENYUSUNAN KONTEN DOKUMEN — INSTRUKSI SISTEM KHUSUS. "
         "Pengguna meminta file dengan format " + fmt.upper() + ". "
         "Kamu TIDAK perlu dan TIDAK boleh mencoba memanggil tool untuk membuat atau mengirim file. "
@@ -113,7 +113,10 @@ def build_file_generation_system_instruction(format_name: str, prompt: str = "")
         "pengiriman attachment tidak tersedia. Jangan mengklaim file sudah dibuat atau dikirim. "
         "Tugasmu hanya menyusun isi dokumen sesuai permintaan pengguna. "
         "Keluarkan hanya isi dokumen, tanpa penjelasan tentang tool, API, kemampuan sesi, atau proses pengiriman. "
-        "Ikuti spesifikasi pengguna         + (
+        "Ikuti spesifikasi pengguna dan jangan mengarang fakta."
+    )
+    if fmt == "pdf" and _is_master_final_pdf_prompt(prompt):
+        instruction += (
             " Untuk laporan MASTER FINAL PDF CLOUZER, backend memakai template deterministik untuk judul, tabel 10 produk, "
             "format tabel, daftar, pagination, nomor halaman, dan ringkasan validasi. Karena itu JANGAN tulis judul, tabel, "
             "baris produk, daftar, atau ringkasan validasi. Keluarkan hanya lima heading berikut persis dan masing-masing "
@@ -122,21 +125,24 @@ def build_file_generation_system_instruction(format_name: str, prompt: str = "")
             "Kesimpulan. Pisahkan setiap paragraf dengan satu baris kosong. "
             "Jangan menambah heading lain, jangan menulis NOT VERIFIED, jangan menyatakan hasil lulus/gagal, jumlah halaman, durasi, atau temuan aktual yang belum diberikan oleh backend, dan jangan mengklaim pemeriksaan visual manual, "
             "seleksi/salin manual, atau pengiriman Discord berhasil. Backend akan menyusun bagian non-naratif dan validasi."
-            if fmt == "pdf" and _is_master_final_pdf_prompt(prompt) else
-            " Untuk PDF umum, ikuti jumlah halaman minimum/maksimum dan struktur yang diminta pengguna. Susun konten substantif yang cukup panjang; "
-            "jangan meringkas dokumen panjang menjadi outline atau beberapa paragraf saja. Gunakan bab, subbab, uraian rinci, contoh, dan tabel yang relevan. "
+        )
+    elif fmt == "pdf":
+        instruction += (
+            " Untuk PDF umum, ikuti jumlah halaman minimum/maksimum dan struktur yang diminta pengguna. "
+            "Susun konten substantif yang cukup panjang; jangan meringkas dokumen panjang menjadi outline atau beberapa paragraf saja. "
+            "Gunakan bab, subbab, uraian rinci, contoh, dan tabel yang relevan. "
             "Jangan membuat halaman kosong atau mengulang filler untuk mengejar jumlah halaman."
-            if fmt == "pdf" else
+        )
+    elif fmt == "pptx":
+        instruction += (
             " Untuk PPTX, keluarkan konten bersih yang siap ditampilkan sebagai teks editable PowerPoint. "
             "Pisahkan setiap slide dengan baris persis --- SLIDE ---. Baris pertama setiap bagian adalah judul slide. "
             "Gunakan teks biasa atau bullet sederhana; JANGAN gunakan Markdown heading, bold, italic, tabel Markdown, "
             "code fence, instruksi desain, arahan visual, deskripsi gambar, prompt gambar, atau label seperti 'Arahan visual:'. "
             "Jangan menulis instruksi generator gambar sebagai materi slide. Batasi tiap slide pada judul dan 3-6 poin ringkas. "
             "Visual/background akan dibuat terpisah oleh backend dan tidak perlu dijelaskan di isi dokumen."
-            if fmt == "pptx" else ""
-        )t == "pptx" else ""
         )
-    )
+    return instruction
 
 
 def build_pdf_retry_instruction(prompt: str, previous_error: object = "") -> str:
