@@ -231,6 +231,45 @@ Dokumen pendek untuk tes konversi Markdown."""
         self.assertEqual(summary["tables"], 1)
         self.assertEqual(summary["numbered_lists"], 3)
 
+    def test_docx_converts_mixed_html_and_markdown_to_native_word_structure(self):
+        from docx import Document
+        prompt = (
+            "Buat DOCX dengan heading Word, tabel Word asli, dan daftar bernomor. "
+            "Judul hanya satu kali."
+        )
+        content = """<p>Ringkasan dokumen.</p>
+## Identitas
+Nama proyek CLOUZER.
+
+## Data Pengujian
+| No | Nama | Umur | Jabatan | Catatan |
+|---|---|---:|---|---|
+| 1 | Andi | 25 | Admin | Normal |
+| 2 | Budi | 30 | Manager | =1+1 |
+| 3 | Citra | 27 | Staff | +SUM(1,1) |
+
+1. Periksa judul.
+2. Periksa tabel.
+3. Periksa struktur Word.
+
+## Kesimpulan
+Dokumen selesai diuji."""
+        data, filename, mime = create_document_file("docx", prompt, content)
+        doc = Document(io.BytesIO(data))
+        paragraphs = doc.paragraphs
+        self.assertTrue(filename.endswith(".docx"))
+        self.assertIn("application/vnd.openxmlformats-officedocument.wordprocessingml.document", mime)
+        self.assertEqual(sum(p.style.name.startswith("Heading") for p in paragraphs), 3)
+        self.assertEqual(len(doc.tables), 1)
+        self.assertEqual((len(doc.tables[0].rows), len(doc.tables[0].columns)), (4, 5))
+        self.assertEqual(doc.tables[0].cell(2, 4).text, "=1+1")
+        self.assertEqual(doc.tables[0].cell(3, 4).text, "+SUM(1,1)")
+        self.assertEqual(sum(p.style.name.casefold().startswith("list number") for p in paragraphs), 3)
+        summary = validate_document_file("docx", prompt, data)
+        self.assertEqual(summary["headings"], 3)
+        self.assertEqual(summary["tables"], 1)
+        self.assertEqual(summary["numbered_lists"], 3)
+
     def test_docx_validator_rejects_raw_html_and_missing_native_table(self):
         from docx import Document
         doc = Document()
