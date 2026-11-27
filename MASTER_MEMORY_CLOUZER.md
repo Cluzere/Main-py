@@ -5471,4 +5471,7 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 ### Batas bukti
 - Screenshot membuktikan UI ChatGPT menampilkan pemberitahuan konteks penuh pada saat screenshot diambil. Screenshot tidak mengungkap batas token, isi ringkasan otomatis, atau seluruh mekanisme internal pengelolaan konteks.
 - Pernyataan tentang pengalaman reset lintas sesi dan tujuan Master Memory berasal dari penjelasan langsung pengguna.
-
+\n7. **Saat pengguna mengatakan “new sesi”, “sesi baru”, “sesi ini mau habis”, “konteks penuh”, atau ungkapan setara yang menunjukkan percakapan akan ditinggalkan/dilanjutkan di sesi lain, otomatis siapkan HANDOFF untuk sesi berikutnya tanpa menunggu diminta lagi.** Handoff harus dibuat sebelum sesi berakhir, berisi status terakhir, pekerjaan yang sudah/ belum dilakukan, keputusan, batas otorisasi, bukti/SHA/link penting, hal yang NOT VERIFIED/BLOCKED, dan langkah berikutnya yang konkret.
+8. Handoff adalah dokumen operasional untuk sesi berikutnya, bukan pengganti Master Memory. Pastikan Master Memory lebih dahulu diperbarui dan diverifikasi sesuai aturan di atas, lalu susun handoff yang konsisten dengan Master Memory terbaru. Jangan menyalin asumsi yang belum terbukti sebagai fakta.
+9. Jika konteks memungkinkan, tampilkan handoff lengkap dalam bentuk yang mudah disalin di chat. Jika pengguna secara eksplisit meminta file atau penyimpanan handoff, buat/simpan artefak pada lokasi yang disepakati dan verifikasi hasilnya. Jangan mengklaim file tersimpan jika belum dibuat dan diverifikasi.
+10. Jangan menunggu sampai konteks benar-benar habis. Begitu ada sinyal sesi akan ditutup atau dipindah, lakukan pembaruan Master Memory dan siapkan handoff pada kesempatan itu.\n
