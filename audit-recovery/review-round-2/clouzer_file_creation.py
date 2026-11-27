@@ -2156,10 +2156,33 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
     elif fmt == "docx":
         from docx import Document
         doc = Document(io.BytesIO(data))
-        text_content = "\n".join(p.text for p in doc.paragraphs)
-        text_content += "\n" + "\n".join(cell.text for table in doc.tables for row in table.rows for cell in row.cells)
+        text_content = "\\n".join(p.text for p in doc.paragraphs)
+        text_content += "\\n" + "\\n".join(cell.text for table in doc.tables for row in table.rows for cell in row.cells)
         if not text_content.strip():
             raise ValueError("DOCX tidak memiliki teks.")
+        if re.search(r"</?(?:h[1-6]|p|table|thead|tbody|tr|th|td|ol|ul|li)\\b", text_content, re.I):
+            raise ValueError("DOCX masih berisi tag HTML mentah; konversi struktur Word gagal.")
+        heading_count = sum(
+            1 for paragraph in doc.paragraphs
+            if paragraph.style and paragraph.style.name.startswith("Heading")
+        )
+        table_count = len(doc.tables)
+        numbered_list_count = sum(
+            1 for paragraph in doc.paragraphs
+            if paragraph.style and paragraph.style.name.casefold().startswith("list number")
+        )
+        if re.search(r"\\b(?:heading|subheading|judul dengan struktur word)\\b", prompt, re.I) and heading_count == 0:
+            raise ValueError("DOCX diminta memiliki heading Word asli, tetapi tidak ditemukan.")
+        if re.search(r"\\b(?:tabel|table)\\b", prompt, re.I) and table_count == 0:
+            raise ValueError("DOCX diminta memiliki tabel Word asli, tetapi tidak ditemukan.")
+        if re.search(r"daftar bernomor|numbered list", prompt, re.I) and numbered_list_count == 0:
+            raise ValueError("DOCX diminta memiliki daftar bernomor Word asli, tetapi tidak ditemukan.")
+        result.update({
+            "paragraphs": len(doc.paragraphs),
+            "headings": heading_count,
+            "tables": table_count,
+            "numbered_lists": numbered_list_count,
+        })
     elif fmt == "xlsx":
         from openpyxl import load_workbook
         wb = load_workbook(io.BytesIO(data), read_only=False, data_only=False)
