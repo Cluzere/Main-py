@@ -5681,3 +5681,55 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Tidak ada perubahan pada kode kandidat, startup command, Wispbyte, production `main.py`, branch production `main`, PR #6, deployment, merge, atau restart.
 - Langkah aktif berikutnya tetap memperoleh dan menganalisis `/home/container/clouzer-audit/audit-recovery/review-round-2/resource_trace.csv`; jangan mengulang pemeriksaan yang sudah PASS dan jangan menyimpulkan kesehatan CPU/memori tanpa data CSV.
 
+
+
+---
+
+# HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
+
+**Dibuat:** 28 November 2026  
+**Repository:** `Cluzere/Main-py`  
+**Branch kandidat:** `audit-recovery-gpt-2026-11-23`  
+**Master Memory sebelum handoff:** blob SHA `bcc43399746ad4210bdd51c6602b2809c79161a8`
+
+## Status terbaru yang sudah diverifikasi sesi ini
+
+1. Master Memory kanonis berhasil di-fetch dan dibaca, termasuk aturan A, status B–F, serta bukti terbaru di G. Jangan mengandalkan ringkasan chat bila dapat membaca file ini.
+2. Branch kandidat masih tersedia. Commit kode PPTX terakhir yang dicatat Master Memory adalah `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`; regression-test fix ada pada `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
+3. Workflow yang menguji regression fix tersebut telah diperiksa ulang melalui job list GitHub:
+   - [Run 46058253311](https://github.com/Cluzere/Main-py/actions/runs/46058253311) — `candidate-syntax-and-file-tests`: completed / success; semua step selesai sukses.
+   - [Run 46058253368](https://github.com/Cluzere/Main-py/actions/runs/46058253368) — `final-candidate-syntax-regressions-and-attachment-audit`: completed / success; semua step selesai sukses.
+   - [Run 46058253339](https://github.com/Cluzere/Main-py/actions/runs/46058253339) — `compile`: completed / success; dependency consistency, Python compile, pip-audit, Bandit, document tests, ZIP fixture checksum, archive regression, dan existing audit regression seluruhnya sukses.
+   - Master Memory D1 mencatat 167 tests pada workflow multi-format dan audit recovery; run syntax-check memuat tahap suite 91, 93, dan 167 tests. Jangan menjumlahkan angka suite berbeda sebagai satu total tes unik.
+4. Ini membuktikan CI PASS pada commit pengujian yang dicatat di D1, bukan bukti live runtime atau end-to-end. Live PPTX visual/background generation, Discord attachment delivery, Box upload otomatis, dan penerimaan/pembukaan artefak tetap NOT VERIFIED.
+5. Pemeriksaan sesi ini tidak mengubah kode, workflow, startup Wispbyte, production `main.py`, production branch `main`, PR #6, deployment, atau runtime. Tidak ada merge/restart.
+6. Pemeriksaan workflow-run berdasarkan commit `54cc3...` langsung mengembalikan kosong karena wrapper hanya mengembalikan run pull-request-triggered; itu bukan bukti tidak ada CI. Bukti terminal yang digunakan adalah tiga run spesifik di atas sebagaimana dicatat Master Memory D1.
+
+## Startup Wispbyte — keputusan yang harus dipertahankan
+
+- Pengguna menyatakan Startup Command belum diubah ke startup normal.
+- **Jangan ubah startup sekarang.** Pertahankan startup kandidat/audit yang sudah tercatat di Master Memory sampai live acceptance kandidat selesai dan pengguna secara eksplisit mengizinkan perubahan.
+- Startup command dan restart adalah tindakan yang dikendalikan pengguna. Jangan mengubahnya, jangan meminta pengguna mengganti ke startup normal hanya demi merapikan konfigurasi, dan jangan restart/deploy.
+- Jangan menyamakan startup normal/production dengan candidate runtime. Production `/home/container/main.py` tetap dilindungi.
+
+## Pekerjaan berikutnya — urutan konkret
+
+1. Baca lagi Bagian A–F Master Memory terbaru dan cocokkan status commit/branch terbaru sebelum tindakan apa pun.
+2. Lanjutkan prioritas yang tercatat pada Bagian F: dapatkan isi aktual `/home/container/clouzer-audit/audit-recovery/review-round-2/resource_trace.csv` dari filesystem Wispbyte dan analisis CPU/memori. File tersebut tidak tersedia lewat GitHub fetch; jangan mengarang hasil. Wispbyte Console bukan shell interaktif. Jika perlu, rancang satu Startup Command diagnostik lengkap yang mempertahankan seluruh alur startup untuk ditinjau pengguna; jangan memasangnya sendiri.
+3. Setelah resource trace, lanjutkan live acceptance PPTX 5-slide pada candidate runtime yang SHA-nya terkonfirmasi: background unik tiap slide, 16:9, full-bleed, teks native editable, tidak ada Markdown/instruksi visual bocor, render semua slide, cek clipping/kontras/artefak, dan batas ukuran.
+4. Verifikasi Discord attachment delivery sebagai tahap terpisah dari pembuatan/validasi file.
+5. Verifikasi upload otomatis CLOUZER→Box sebagai tahap terpisah; upload manual pengguna bukan bukti integrasi bot.
+6. Jika ada perubahan kode/test/workflow, hanya di branch kandidat. Jalankan semua workflow relevan pada exact SHA baru dan tunggu hingga seluruh job terminal. Jangan melemahkan tes untuk mengejar status hijau.
+7. Jangan merge PR #6, mengubah production, mengubah Startup, atau melakukan restart/deploy tanpa izin eksplisit terpisah.
+
+## Batas dan status
+
+- **CI:** PASS untuk run yang tercantum di atas.
+- **Live PPTX acceptance:** NOT VERIFIED.
+- **Discord attachment end-to-end:** NOT VERIFIED.
+- **CLOUZER→Box automatic upload:** NOT VERIFIED.
+- **Resource trace CPU/memory:** NOT VERIFIED sampai CSV aktual diperiksa.
+- **Startup normal switch:** NOT AUTHORIZED / jangan dilakukan.
+- **Production / merge / deploy / restart:** NOT AUTHORIZED.
+
+Sesi penerima wajib membaca handoff ini dan memindahkan fakta yang masih relevan ke bagian permanen sebelum menghapus blok handoff sesuai A0.12–A0.14.
