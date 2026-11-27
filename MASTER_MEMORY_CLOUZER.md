@@ -4693,3 +4693,28 @@ Observed behavior indicates two distinct problems to investigate; do not collaps
 6. Preserve the Box original; upload any corrected output under a new filename.
 
 **Handoff:** The previous Box artifact is conclusively a five-slide PPTX with no embedded pictures. Candidate source now attempts Lucid Origin enrichment for every PPTX and fails closed instead of silently delivering a plain deck after image failure. This fixes a concrete fail-open defect but is not yet accepted end-to-end: tests/CI, provider runtime, Wispbyte commit, and Discord delivery remain open.
+
+---
+
+## 52.50 Mandatory automatic full inspection after user uploads a file — 28 November 2026
+
+### User instruction (standing workflow)
+Whenever the user uploads a file to Box and identifies it by name, description, or upload order (including short references such as “sudah upload”, “cek di Box”, or “file yang barusan”), do not stop after locating the file or opening its preview. Continue the inspection automatically and deliver a complete examination report in the same response.
+
+### Required workflow
+1. **Identify the exact upload.** Search Box using the supplied name/keywords and, when needed, inspect recent items in the relevant folder. Resolve ambiguity using filename, upload/modified time, and folder. If multiple plausible files remain, ask which one; do not inspect a guessed file.
+2. **Open the actual artifact.** Use Box preview for supported Office/PDF/image formats and obtain the raw file when package-level or pixel-level inspection is needed. A preview-open confirmation is not an inspection result.
+3. **Inspect all relevant content, not just the first page/slide.**
+   - Text-based documents/PDFs: inspect the full document, headings, paragraphs, tables, footnotes, and page-level layout where available.
+   - PPTX: inspect every slide's text and layout; verify slide count, image/media files, picture shapes, image relationships, object placement, text overflow/clipping, consistency, and rendered appearance. Do not treat textual image descriptions or placeholders as embedded visuals.
+   - Images: inspect the actual image pixels and report visible content, legibility, cropping, and obvious defects.
+   - Spreadsheets: inspect sheet names, dimensions, headers, populated ranges, formulas/values, data consistency, and visible formatting/charts where relevant.
+   - Archives/code/other binary formats: inspect package structure and relevant contents; clearly state any part that cannot be rendered or validated.
+4. **Cross-check text and visuals.** Compare what the artifact says with what it actually displays. Distinguish editable text, embedded images, placeholders, and descriptions. Check that visuals support the corresponding content and are not repeated or irrelevant.
+5. **Report findings proactively.** Provide a concise but complete report without waiting for another prompt: exact filename and Box ID, file type/size if available, inspected scope, text/content findings, visual/layout findings, technical/package checks, defects, and an overall verdict (PASS / PARTIAL / FAIL / NOT VERIFIED) with concrete reasons.
+6. **Be explicit about evidence and limits.** Never claim all pages/slides or visuals were checked unless they were. If Box preview only opens but does not expose the page/slide images, retrieve the required preview pages or raw artifact. If an inspection capability is unavailable, state exactly what was and was not inspected and continue with all available checks.
+7. **Preserve originals.** Inspection is read-only. Do not edit, replace, rename, move, or delete the user's original Box upload unless explicitly requested. If a correction is requested, save it as a new file.
+8. **No premature stopping.** Do not respond merely “preview opened”, “file found”, or “already checked” when the user asked to inspect. Continue until the complete feasible review is done and report the results. If more work is technically blocked, explain the blocker and the remaining verification steps rather than silently stopping.
+
+### Priority
+This instruction applies to all future Box uploads and file-review requests, across file types, and supplements the existing CLOUZER artifact-preservation and verification rules. It does not authorize production code changes, deployment, restart, or other unrelated actions.
