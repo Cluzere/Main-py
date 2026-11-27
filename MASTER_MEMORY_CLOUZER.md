@@ -13,6 +13,15 @@
 
 # A. ATURAN INDUK — WAJIB DIIKUTI
 
+## A0. ATURAN PERTAMA — WAJIB BACA ATURAN DAN LANGSUNG RAWAT MASTER MEMORY — PRIORITAS TERTINGGI
+
+1. **SEBELUM menjawab, memberi saran, menjalankan tindakan, atau melanjutkan pekerjaan CLOUZER pada setiap sesi baru, fetch Master Memory versi terbaru dari branch kerja yang benar dan baca seluruh aturan Bagian A terlebih dahulu. Setelah itu baca Bagian B–F secara berurutan. Buka Bagian G untuk bukti historis yang relevan.** Jangan mengandalkan ringkasan chat, ingatan model, SHA lama, atau potongan dokumen jika sumber kanonis terbaru dapat diakses.
+2. Jika pengguna memberikan HANDOFF, instruksi handoff, atau dokumen konteks sesi, baca seluruh dokumen itu juga. Handoff dan Master Memory adalah dua sumber yang saling melengkapi: baca keduanya, lalu rekonsiliasikan. Jangan menganggap salah satunya menggantikan yang lain.
+3. **Setiap informasi penting atau temuan baru yang muncul dari pesan pengguna, handoff, pencarian web, dokumentasi, inspeksi file, GitHub, CI/workflow, startup/runtime, log, atau pengujian wajib langsung dipilah dan dimasukkan ke Master Memory pada sesi/pekerjaan yang sama.** Jangan menunda sampai sesi berikutnya atau hanya berjanji akan mengingatnya.
+4. Tempatkan informasi pada bagian yang tepat: aturan permanen ke A; identitas, kondisi, dan sumber kebenaran ke B; perubahan implementasi kandidat ke C; tes dan CI ke D; hasil yang benar-benar terbukti ke E; pekerjaan tertunda dan next step ke F; bukti dan kronologi rinci ke G. Perbarui bagian kanonis terkait dan tambahkan catatan G bila temuan membutuhkan jejak historis.
+5. Sebelum menulis, fetch versi terbaru dan gunakan blob SHA terbaru. Setelah menulis, fetch ulang dan verifikasi isi, blob SHA, serta commit SHA. **Jangan pernah mengatakan Master Memory sudah diperbarui/tersimpan jika commit dan hasil fetch ulang belum terverifikasi.** Jika akses atau update gagal, nyatakan dengan jelas bahwa perubahan belum tersimpan.
+6. Aturan ini adalah gerbang pertama untuk semua pekerjaan CLOUZER dan mengungguli urutan kerja biasa. Tetap patuhi otorisasi produksi, keamanan, dan larangan lain dalam Bagian A; aturan ini tidak memberikan izin untuk mengubah production, deploy, restart, atau merge.
+
 ## A1. Prioritas dan otorisasi
 
 1. Master Memory ini adalah sumber handoff utama CLOUZER. Baca Bagian A–F sebelum melanjutkan pekerjaan; buka Bagian G saat perlu bukti atau detail historis.
@@ -194,6 +203,17 @@
   **`/home/container/clouzer-audit/audit-recovery/review-round-2/clouzer_file_creation.py`**.
 - File production yang terpisah:
   **`/home/container/main.py`**. Jangan menganggapnya entry point candidate dan jangan menyentuhnya.
+
+### Batas Console dan jalur eksekusi command — sudah diverifikasi dari dokumentasi Wispbyte
+
+- **Console Wispbyte untuk server aplikasi/bot bukan terminal shell interaktif.** Dokumentasi troubleshooting Wispbyte menyatakan pengetikan di Server Console dinonaktifkan, kecuali untuk Minecraft Servers. Karena itu, jangan meminta pengguna mengetik `pip`, `python`, atau command shell langsung ke Console.
+- Console digunakan untuk kontrol server (start/stop/restart) dan melihat output/log. Konfigurasi perintah yang dijalankan saat server mulai berada di tab **Startup**; halaman Startup juga menyediakan pengaturan Startup command, paket Python tambahan, dan environment variables.
+- Untuk diagnostik CLOUZER, command pemeriksaan harus dijalankan sebagai bagian dari Startup sequence atau mekanisme eksekusi lain yang memang didukung panel, lalu hasilnya dibaca dari Console/Logs. Jangan menganggap pesan yang diketik ke Console akan dieksekusi.
+- Sumber dokumentasi resmi yang diperiksa pada 28 November 2026:
+  - Troubleshooting, “Can't type in Server Console”: https://github.com/sayrzs/wisp-docs/blob/main/docs/common-issues.md
+  - Wispbyte Server Management: https://wispbyte.com/kb/server-management
+  - Wispbyte Startup Settings: https://wispbyte.com/kb/startup-settings
+- **Batas bukti:** dokumentasi ini membuktikan perilaku umum panel, bukan bahwa semua bentuk command startup atau setiap konfigurasi khusus server pengguna pasti berhasil. Startup CLOUZER yang sudah tercatat di bawah tetap menjadi command kanonis dan tidak boleh diubah tanpa izin eksplisit.
 
 ### Startup command Wispbyte — command asli pengguna
 
