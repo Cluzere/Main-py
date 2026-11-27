@@ -26,6 +26,17 @@
 8. Handoff adalah dokumen operasional untuk sesi berikutnya, bukan pengganti Master Memory. Pastikan Master Memory lebih dahulu diperbarui dan diverifikasi sesuai aturan di atas, lalu susun handoff yang konsisten dengan Master Memory terbaru. Jangan menyalin asumsi yang belum terbukti sebagai fakta.
 9. Jika konteks memungkinkan, tampilkan handoff lengkap dalam bentuk yang mudah disalin di chat. Jika pengguna secara eksplisit meminta file atau penyimpanan handoff, buat/simpan artefak pada lokasi yang disepakati dan verifikasi hasilnya. Jangan mengklaim file tersimpan jika belum dibuat dan diverifikasi.
 10. Jangan menunggu sampai konteks benar-benar habis. Begitu ada sinyal sesi akan ditutup atau dipindah, lakukan pembaruan Master Memory dan siapkan handoff pada kesempatan itu.
+11. **SIKLUS HANDOFF WAJIB — HANDOFF HARUS DISIMPAN LANGSUNG DI MASTER MEMORY, BUKAN HANYA DI CHAT.** Ketika pengguna meminta “buat sesi baru”, “new sesi”, “sesi baru”, atau memberi sinyal sesi akan berakhir:
+    - Perbarui seluruh bagian permanen yang relevan terlebih dahulu (A–G), lalu buat satu blok khusus berjudul `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` langsung di dalam `MASTER_MEMORY_CLOUZER.md`. Blok ini harus memuat status terakhir, pekerjaan selesai/tertunda, keputusan, batas izin, bukti/SHA/link, status NOT VERIFIED/BLOCKED, dan langkah pertama sesi berikutnya.
+    - Commit perubahan ke branch kerja, kemudian fetch ulang dan verifikasi commit SHA, blob SHA, serta keberadaan blok handoff. Jangan menyatakan handoff tersimpan jika verifikasi gagal.
+    - Berikan tautan Master Memory dan handoff yang mudah disalin kepada pengguna. Jangan hanya menaruh handoff di chat atau WritingBlock sementara.
+12. **SIKLUS PENERIMAAN DAN PENGHAPUSAN HANDOFF — WAJIB.** Pada sesi berikutnya, GPT penerima wajib fetch Master Memory terbaru, membaca seluruh Bagian A–F dan blok `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA`, serta mencocokkannya dengan konteks pengguna. Setelah GPT penerima secara nyata selesai membaca dan memahami handoff, ia harus:
+    - Memindahkan fakta/keputusan/hasil yang masih relevan dari handoff ke bagian permanen yang tepat (A–G), sehingga tidak ada informasi penting yang hilang.
+    - Menghapus hanya blok sementara `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` dari Master Memory; jangan menghapus Master Memory, aturan, bukti historis, atau catatan permanen.
+    - Menambahkan catatan ringkas ke arsip G bahwa handoff tersebut telah diterima, direkonsiliasi, dan blok sementaranya dibersihkan, dengan tanggal serta commit yang relevan.
+    - Commit, fetch ulang, dan verifikasi penghapusan blok sementara serta kelestarian catatan permanen. Jika belum bisa menulis ke GitHub, jangan pura-pura sudah menghapus; laporkan bahwa handoff telah dibaca tetapi pembersihan masih tertunda.
+13. Handoff hanya boleh dihapus setelah sesi penerima benar-benar mengonfirmasi telah menerima dan membaca isinya. Jangan menghapusnya saat masih menyiapkan sesi berikutnya atau sebelum penerima membacanya. Jika pengguna berpindah sesi tanpa ada akses GitHub, pertahankan blok handoff sampai dapat diproses.
+14. **PENEKANAN:** Siklusnya selalu `PERBARUI MASTER MEMORY → TULIS HANDOFF AKTIF DI DALAM MASTER MEMORY → VERIFIKASI → SESI BERIKUTNYA BACA HANDOFF → PINDAHKAN INFORMASI PENTING KE BAGIAN PERMANEN → HAPUS BLOK HANDOFF AKTIF → VERIFIKASI`. Handoff bersifat sementara; Master Memory dan arsip G tetap menjadi rekaman permanen.
 
 ## A1. Prioritas dan otorisasi
 
