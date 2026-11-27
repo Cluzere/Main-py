@@ -4424,3 +4424,54 @@ The Canva design before export is normal according to the user, and the inspecte
 The immediate next action is to resume and finish the pending Canva design-generation job, then inspect all five slides. **Do not switch to CSV or JSON yet.** The Canva design job must not be left at “pending” simply because the initial response was asynchronous.
 
 **Handoff summary:** User explicitly requires continuity: when an asynchronous Canva process is pending, keep working until it reaches a terminal state and then determine and execute the next ordered step. Current Canva job `4fc1679d-8411-43e4-b748-b5b15e5f3aa6` remains pending/unverified. Finish, inspect, repair, export, and validate this PPTX path first; only then continue CSV followed by JSON under §52.43.
+
+
+---
+
+## 52.46 Canva remediation job completed; content inspection and remaining acceptance gates — 27 November 2026
+
+### Async continuity rule applied
+- Continued the pending Canva job instead of ending the work at its initial pending response, following the user instruction recorded in §52.45.
+- Canva job `4fc1679d-8411-43e4-b748-b5b15e5f3aa6` reached terminal status **completed**.
+- Generated design:
+  - Canva design ID: `DAHcIACyuPE`
+  - Title: `Pengenalan CLOUZER AI`
+  - Edit URL: https://www.canva.com/d/xATgNIyBVw4McWH
+  - View URL: https://www.canva.com/d/VXxlyEv2ho7DX2L
+  - Five fixed presentation pages, each 1920 × 1080 (16:9).
+
+### Content/structure inspection
+- Read the design metadata and content; confirmed exactly five pages and the intended order:
+  1. Pengenalan / Clouzer AI
+  2. Tujuan dan Fungsi Utama
+  3. Cara Kerja Sistem
+  4. Manfaat dan Kemampuan
+  5. Kesimpulan
+- The apparent missing spaces in the first flattened text extraction (examples: `digitalyang`, `memproses teks`, `sebagaipartner`) were checked against the actual Canva text elements. The underlying text contains intentional line breaks:
+  - Slide 2 subtitle: `Asisten AI untuk interaksi digital\nyang lebih mudah dan produktif.`
+  - Slide 3 step: `Sistem memproses\nteks dan konteks`
+  - Slide 5 statement: `CLOUZER AI sebagai\npartner produktivitas.`
+  These are line breaks, not missing spaces. Do not “correct” them by inserting arbitrary spaces or rewriting the wording.
+- Other extracted text is consistent with the five-slide brief. The design uses editable text elements over page backgrounds/graphics.
+- Visual thumbnail availability was incomplete: Canva returned a stored thumbnail for page 1 only and explicitly reported no stored thumbnails for pages 2–5. Therefore all five pages' exact text and page metadata were inspected, but the full visual layout of all five slides has **not** been independently verified yet.
+- An editing transaction was opened to inspect structured text and then explicitly cancelled without changes. No content edits were saved. The Canva design remains the generated version, not a repaired/committed version.
+
+### Current status — do not overstate
+- Async generation: **PASS / completed**.
+- Page count/order and 16:9 dimensions: **PASS**.
+- Text content/line-break check: **PASS for inspected text**.
+- Full visual inspection of all five slides: **PENDING** (only page 1 thumbnail was returned).
+- PPTX export/download: **NOT YET DONE**.
+- Raw PPTX OOXML validation and rendering: **NOT YET DONE**.
+- Overall PPTX acceptance: **OPEN / NOT PASS YET**.
+- The Canva design is not itself proof of a valid exported PowerPoint. The Canva connector has no confirmed PPTX export/download tool in the discovered tool set. If no export action becomes available, user must export from Canva UI as Microsoft PowerPoint (.pptx), then upload/attach the exported artifact for raw inspection. Never claim a PPTX file has been delivered before that artifact exists and is checked.
+
+### Ordered next actions
+1. Open the Canva edit link and visually inspect **all five** slides in the editor, especially slides 2–5 because API thumbnails were unavailable. Check for clipping, overlap, missing images, inconsistent spacing, and text too small.
+2. If any visible defect exists, stage only targeted edits in a Canva editing transaction; preview them and obtain explicit user approval before committing. Do not edit just to alter valid line breaks.
+3. Export/download the design as PowerPoint (.pptx) from Canva UI if the connector still cannot export. Keep the original Box file `clouzer_test.pptx` (ID `2619212339844`) unchanged; upload the new export as a separate file.
+4. Inspect the actual new PPTX binary: ZIP/OOXML integrity, true slide count/order, text, editable elements, media, dimensions, and render every slide. Compare all slides against Canva editor appearance. Record Box ID, size, SHA-1, and distinct structural/visual verdicts.
+5. Only when PPTX is accepted or the remaining blocker is clearly documented, continue §52.43 sequence: reconcile existing CSV evidence first, run one controlled CSV test only if needed, then reconcile/test JSON.
+6. Do not repeat closed PDF/XLSX/ZIP tests without a new concrete acceptance gap. Do not touch production `main.py`, merge PR #6, or restart Wispbyte without explicit authorization.
+
+**Handoff summary:** The pending Canva job was not abandoned; it completed and yielded a five-slide 16:9 design. The suspected missing spaces were actually line breaks in the text elements. Only slide 1 had a retrievable thumbnail, so full visual verification and PPTX export/validation remain open. Next: inspect all five slides in Canva, export a separate PPTX, validate the raw export, then proceed to CSV and JSON in the established order.
