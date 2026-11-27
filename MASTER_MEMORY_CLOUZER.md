@@ -111,6 +111,16 @@
 9. Jika GitHub gagal atau update tidak terkonfirmasi, laporkan bahwa Master Memory belum berhasil diperbarui.
 
 
+## A10. Aturan kontinuitas konteks Wispbyte dan staging
+
+1. Pada sesi baru, baca Bagian B2A sebelum menanyakan lokasi runtime, server Wispbyte, branch startup, checkout directory, entry point, atau arti istilah staging.
+2. Jangan mengulang pertanyaan yang jawabannya sudah tercatat: server `Gpt sol61`, checkout `/home/container/clouzer-audit`, branch `audit-recovery-gpt-2026-11-23`, dan entry point kandidat.
+3. Jangan menyuruh pengguna membuat staging server kedua. Secara default, staging/audit test menggunakan candidate runtime Wispbyte yang sama; hanya ubah asumsi ini jika pengguna menyatakan ada instance lain.
+4. Selalu pisahkan tiga hal: (a) startup configuration/branch yang akan di-fetch, (b) commit yang benar-benar ter-fetch pada startup terakhir, dan (c) code commit yang sedang diuji CI. Ketiganya dapat berbeda.
+5. Branch audit dikonfigurasi untuk mengambil HEAD terbaru pada setiap startup. Sebelum menyimpulkan runtime sudah memuat patch terbaru, cocokkan SHA dari log startup terakhir dengan code/workflow commit yang relevan. HEAD dokumentasi-only bukan bukti bahwa proses runtime telah restart.
+6. Pengguna mengendalikan panel dan restart Wispbyte. Asisten tidak memiliki akses panel langsung dan tidak boleh mengklaim telah restart/deploy. Jangan meminta restart hanya untuk memperbarui catatan; restart hanya bila dibutuhkan untuk tes dan pengguna memberi izin.
+7. Jika perlu bertanya, tanyakan hanya informasi yang belum tercatat atau bukti baru yang benar-benar dibutuhkan—misalnya log startup terbaru—bukan meminta ulang konfigurasi yang sudah tersimpan.
+
 ## A9. Aturan penyimpanan artefak retest dan provenance Box
 
 1. Semua artefak hasil retest CLOUZER diarahkan ke Box `All Files / Test file / CLOUZER_BUANGAN_AUDIT` (folder ID `441172297609`) jika folder tersebut tersedia dan dapat diakses.
@@ -143,6 +153,52 @@
 - Candidate tests: `audit-recovery/review-round-2/test_file_creation.py`.
 - Workflow files yang terdaftar pada branch saat pemeriksaan: `.github/workflows/audit-candidate-check.yml`, `audit-recovery.yml`, `clouzer-multiformat-audit.yml`, dan `staging-smoke-test.yml`.
 - Root production `main.py` dan branch `main` tetap dilindungi oleh Bagian A.
+
+## B2A. RUNTIME WISPB YTE — SUMBER STARTUP KANDIDAT YANG SUDAH ADA
+
+**Jangan mulai sesi baru dengan bertanya lagi apakah CLOUZER memakai Wispbyte, branch mana yang diambil saat startup, atau apakah perlu membuat server staging baru. Fakta dasar berikut sudah tercatat dan harus dibaca lebih dahulu.**
+
+### Server dan hubungan dengan repository
+
+- Server Wispbyte yang dipilih pengguna: **`Gpt sol61`**.
+- Instance Wispbyte yang sama digunakan untuk menjalankan **candidate/audit runtime CLOUZER**. Tidak ada kebutuhan yang tercatat untuk membuat server staging Wispbyte kedua.
+- Istilah **staging/audit** dalam catatan proyek merujuk pada tujuan pengujian dan batas aman candidate runtime tersebut; jangan otomatis mengartikannya sebagai server Wispbyte terpisah.
+- Folder checkout pada container: **`/home/container/clouzer-audit`**.
+- Repository: **`Cluzere/Main-py`**.
+- Branch yang dikonfigurasi untuk startup fetch: **`audit-recovery-gpt-2026-11-23`**.
+- Entry point yang dijalankan:
+  **`/home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py`**.
+- Helper utama:
+  **`/home/container/clouzer-audit/audit-recovery/review-round-2/clouzer_file_creation.py`**.
+- File production yang terpisah:
+  **`/home/container/main.py`**. Jangan menganggapnya entry point candidate dan jangan menyentuhnya.
+
+### Startup command yang telah dibuktikan dari log pengguna
+
+Startup command Wispbyte melakukan pola berikut:
+
+1. Masuk ke `/home/container`.
+2. Jika `/home/container/clouzer-audit/.git` belum ada, clone repository dengan branch `audit-recovery-gpt-2026-11-23` ke folder `/home/container/clouzer-audit`.
+3. Jika checkout sudah ada, fetch branch tersebut lalu `git reset --hard FETCH_HEAD`.
+4. Install dependency dari `/home/container/requirements.txt` dan dependency runtime tambahan (discord.py, aiohttp, Pillow, python-dotenv, requests, defusedxml, py7zr, PyMuPDF, python-docx, python-pptx, openpyxl).
+5. Jalankan entry point kandidat menggunakan `/usr/local/bin/python`.
+
+Dengan demikian, startup **mengambil HEAD terbaru dari branch audit setiap kali startup/restart dijalankan**. Commit dokumentasi baru pada branch juga mengubah branch HEAD, tetapi tidak dengan sendirinya mengubah kode runtime yang sedang berjalan; runtime baru mengambilnya pada startup berikutnya.
+
+### Bukti runtime vs konfigurasi startup — jangan dicampur
+
+- Log startup yang tercatat pada 25 November 2026 membuktikan checkout branch audit dan eksekusi kandidat; pada salah satu log, fetch mencapai commit `266d05c` dan bot mencetak `[ONLINE]`.
+- Catatan startup berikutnya di §26 juga merekam fetch sampai commit `94edfcd`, listener Box OAuth pada port `15497`, dan bot ONLINE.
+- Bukti tersebut memastikan **startup Wispbyte memang terhubung ke branch audit dan entry point kandidat**, bukan root production `main.py`.
+- Namun, bukti log lama itu **bukan** bukti bahwa proses runtime saat ini sudah menjalankan commit kode terbaru `c8f2d188...`. Startup command mengambil HEAD secara dinamis; untuk memastikan commit yang sedang berjalan sekarang, periksa log startup terakhir setelah restart terakhir.
+- Jangan minta pengguna mengulang detail server, folder, branch, atau startup command yang sudah tercatat. Jika perlu konfirmasi, minta hanya bukti yang memang berubah/masih belum diketahui: log startup terbaru dan SHA yang ter-fetch.
+
+### Istilah operasional yang harus dipakai konsisten
+
+- **Wispbyte candidate/audit runtime** = instance `Gpt sol61`, checkout `/home/container/clouzer-audit`, branch audit, dan entry point kandidat di atas.
+- **Staging test** = pengujian terkontrol pada candidate/audit runtime tersebut, kecuali pengguna secara eksplisit menyatakan ada environment/server staging lain.
+- **Production** = root `/home/container/main.py` dan production branch/server yang terpisah. Jangan menyamakan candidate runtime dengan production.
+- Jangan bertanya “perlu buat server staging baru?” atau “Wispbyte yang mana?” tanpa bukti baru yang bertentangan dengan catatan ini.
 
 ## B3. Baseline kode dan workflow kandidat
 
