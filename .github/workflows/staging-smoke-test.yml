@@ -81,8 +81,8 @@ jobs:
                   print("XINGCHI_RESPONSES_OK")
           except urllib.error.HTTPError as exc:
               body = exc.read(8192).decode("utf-8", "replace")
-              body = re.sub(r"(?i)(bearer\\s+)[^\\s\\\",]+", r"\\1[REDACTED]", body)
-              body = re.sub(r"(?i)(api[_-]?key|token|authorization)(\\s*[=:]\\s*)[^\\s\\\",}]+", r"\\1\\2[REDACTED]", body)
+              body = re.sub(r"(?i)(bearer\s+)[^\s\",]+", r"\1[REDACTED]", body)
+              body = re.sub(r"(?i)(api[_-]?key|token|authorization)(\s*[=:]\s*)[^\s\",}]+", r"\1\2[REDACTED]", body)
               print(f"XINGCHI_RESPONSES_FAILED: HTTP {exc.code}")
               print("PROVIDER_ERROR_BODY=" + body[:2000])
               sys.exit(1)
