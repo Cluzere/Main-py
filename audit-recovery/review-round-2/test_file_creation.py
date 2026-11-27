@@ -45,6 +45,33 @@ Bagian: Pendahuluan, Tujuan Pengujian, Metode Pengujian, Hasil Pengujian, Kesimp
         with self.assertRaises(ValueError):
             build_file_generation_system_instruction("exe")
 
+    def test_generic_pdf_renderer_can_build_and_validate_100_substantive_pages(self):
+        prompt = "Buat PDF minimal 100 halaman tentang rekayasa perangkat lunak."
+        topics = (
+            "arsitektur sistem", "pengujian perangkat lunak", "keamanan aplikasi",
+            "manajemen data", "observabilitas layanan", "rekayasa jaringan",
+            "ketahanan sistem", "pengelolaan konfigurasi", "integrasi layanan",
+            "pengendalian mutu",
+        )
+        paragraphs = []
+        for index in range(1700):
+            topic = topics[index % len(topics)]
+            paragraphs.append(
+                f"Pembahasan {index + 1}: {topic}. "
+                f"Bagian ini menjelaskan keputusan teknis nomor {index + 1}, "
+                "konteks penerapannya, dependensi yang perlu diperiksa, "
+                "risiko operasional, metode pengukuran, dan kriteria penerimaan. "
+                "Tim harus mencatat asumsi, membandingkan alternatif, menguji hasil, "
+                "serta menyimpan bukti yang dapat ditinjau ulang oleh pemeriksa."
+            )
+        content = "# Laporan Rekayasa Perangkat Lunak\\n\\n" + "\\n\\n".join(paragraphs)
+        data, filename, mime = create_document_file("pdf", prompt, content)
+        summary = validate_document_file("pdf", prompt, data)
+        self.assertTrue(filename.endswith(".pdf"))
+        self.assertIn("application/pdf", mime)
+        self.assertGreaterEqual(summary["pages"], 100)
+        self.assertGreater(summary["text_chars"], 100_000)
+
     def test_detect_pdf_request_even_when_spec_mentions_selectable_text(self):
         prompt = """Buat PDF sungguhan bernama TES_PDF_MASTER_FINAL.pdf dan kirim sebagai attachment Discord.
 
