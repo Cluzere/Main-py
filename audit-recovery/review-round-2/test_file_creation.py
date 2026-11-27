@@ -1195,6 +1195,14 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         import pymupdf
         prompt, content = self._master_final_pdf_fixture()
         data, filename, mime = create_document_file("pdf", prompt, content)
+        # The first pass is intentionally lightweight; the exact final PDF
+        # still receives the complete deep validator below.
+        baseline = validate_document_file(
+            "pdf", prompt, data, enforce_minimum_pages=False, deep_inspection=False
+        )
+        self.assertTrue(baseline["valid"])
+        self.assertNotIn("vector_drawings", baseline)
+        self.assertNotIn("master_final_report", baseline)
         summary = validate_document_file("pdf", prompt, data)
         self.assertEqual(filename, "Tes_PDF_Final.pdf")
         self.assertEqual(mime, "application/pdf")
