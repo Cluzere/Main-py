@@ -5346,6 +5346,12 @@ class ClouzerBot(commands.Bot):
                                 slide_briefs = extract_pptx_visual_briefs(visual_source)
                                 if not slide_briefs:
                                     raise RuntimeError("PPTX tidak memiliki slide untuk diberi visual.")
+                                image_allowed, image_wait = self.rate_limiter.acquire("image", user.id)
+                                if not image_allowed:
+                                    raise RuntimeError(
+                                        "Batas pembuatan gambar pengguna tercapai; coba lagi sekitar "
+                                        + format_wait(image_wait) + "."
+                                    )
                                 image_assets = []
                                 for visual_index, brief in enumerate(slide_briefs[:PPTX_MAX_VISUALS], 1):
                                     visual_prompt = (
