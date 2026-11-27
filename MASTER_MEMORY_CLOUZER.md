@@ -4189,3 +4189,44 @@ All three push-triggered candidate workflows completed successfully on exact bra
 - No code, runtime, Wispbyte, or production changes were made during this artifact inspection.
 
 **Handoff summary:** The new Box artifact `TES_DOCX_CLOUZER_ULANG (2).docx` passes raw package integrity, native table 4×5, exact cell values, native headings, inherited Word numbering, literal strings, no duplicate tab-delimited copy, and one-page LibreOffice visual rendering. The only prompt-level gap found is that the `Data Pengujian` section has no separate short prose paragraph. Next session should fix and test only that DOCX content-completeness gap, run the exact-head DOCX CI, then request one live retest after confirming the Wispbyte candidate SHA. No unrelated audit or production action.
+
+
+---
+
+## 52.42 DOCX missing section prose — generator correction and exact-head CI closeout — 27 November 2026
+
+### Root-cause analysis
+- Inspected the active candidate entrypoint, DOCX helper, and existing DOCX regression tests on `audit-recovery-gpt-2026-11-23`.
+- `_make_docx()` faithfully rendered the supplied model HTML/Markdown and recovered a native table from explicit prompt rows when needed. It did not enforce the prompt requirement that each named section contain a separate prose paragraph.
+- `validate_document_file("docx", ...)` checked basic text, headings, native table, and numbered-list requirements, but had no per-section prose assertion. Therefore a document with `Data Pengujian` heading immediately followed by a native table could pass backend validation.
+- The duplicate-table cleanup stage only removes a complete ordered run of tab-delimited paragraphs matching an existing native table. It does not remove an ordinary prose paragraph. The inspected artifact's missing paragraph is therefore not explained by that cleanup.
+- **Evidence boundary:** the exact model response supplied when the live artifact was generated was not captured in the available evidence. We can prove the generator/validator lacked enforcement and allowed the incomplete structure through; we cannot prove whether the original paragraph was omitted by the model or lost earlier in the response pipeline.
+
+### Candidate-only correction
+- Modified only `audit-recovery/review-round-2/clouzer_file_creation.py` and `audit-recovery/review-round-2/test_file_creation.py`.
+- In `_make_docx()`, when the prompt explicitly asks for a paragraph in every section, the generator now checks the native Word body for the known section headings `Identitas`, `Data Pengujian`, and `Kesimpulan`.
+- If a section has no non-empty prose paragraph before its first native table (or before the next section when no table exists), it inserts one short, neutral section-specific paragraph immediately after the heading. Existing prose is preserved; native tables, cell values, list paragraphs, numbering, and formula-like literal text are not rewritten.
+- The fallback prose is descriptive and does not assert test outcomes or invent data. The `Data Pengujian` paragraph says that the section explains the test data and that each entry is shown in the following table.
+- Added regression test `test_docx_adds_missing_section_prose_before_table_when_prompt_requires_it`. It reproduces HTML output with Identitas prose, Data Pengujian heading directly followed by a native table, and Kesimpulan prose. It asserts all three sections have separate prose before the table/next section, and verifies the native table and exact cell values remain unchanged.
+- Current helper blob: `eea17dfefc3ecd49428059d8889e96761b0eeeb6`.
+- Current test blob: `89f7e25e30acf4c073bdbece366349098df7cb2d`.
+- Candidate code/test commit: `f380a21e173956e1e3b8390e42a1fa69a7f57f50` (`Add DOCX section prose regression test`).
+- Candidate entrypoint was not changed in this correction.
+
+### Exact-head GitHub Actions evidence — commit f380a21
+All three push-triggered workflows reached terminal `completed / success` on exact branch HEAD `f380a21e173956e1e3b8390e42a1fa69a7f57f50`:
+1. Audit candidate syntax check — run `46000845624`: https://github.com/Cluzere/Main-py/actions/runs/46000845624. Candidate compile, dependency consistency, dependency vulnerability audit, Bandit security scan, DOCX/file creation suite (**86 tests, OK**), original ZIP fixture verification, archive regressions (**93 tests, OK**), and audit regression suite (**162 tests, OK**) all completed successfully.
+2. Audit recovery candidate — run `46000845626`: https://github.com/Cluzere/Main-py/actions/runs/46000845626. Full file-creation/regression suite: **162 tests, OK**; new DOCX section-prose regression explicitly reported `ok`.
+3. CLOUZER multi-format file audit — run `46000845738`: https://github.com/Cluzere/Main-py/actions/runs/46000845738. Full regression suite: **162 tests, OK**; new DOCX section-prose regression explicitly reported `ok`.
+- The expected simulated error logs in tests `test_failed_persistence_is_raised_not_silently_swallowed` and `test_on_message_processes_ten_mixed_attachments_and_isolates_one_failure` are intentional test scenarios; their tests report `ok`, and all workflows completed successfully.
+- PR #6 rechecked after the code/test commits: open, draft, unmerged; base `main`, head `audit-recovery-gpt-2026-11-23` at `f380a21e173956e1e3b8390e42a1fa69a7f57f50`.
+
+### Acceptance boundary and next action
+- Candidate DOCX generator correction and focused regression: **PASS in CI**.
+- Exact live artifact `TES_DOCX_CLOUZER_ULANG (2).docx` from §52.41 remains **PARTIAL** until one new live retest verifies the missing paragraph is now present. CI does not retroactively change the already-inspected artifact.
+- Wispbyte has **not** been restarted or deployed. The runtime commit used for the previous artifact remains unverified; the last confirmed runtime revision recorded earlier is `266d05c8c80e3c167de2627d1ccad43779b385f8`.
+- The user controls Wispbyte restart. Do not restart or claim the candidate is active without explicit user permission and a startup log proving the fetched branch HEAD is `f380a21` or a later descendant.
+- After user-authorized restart and startup-log verification, run exactly one controlled DOCX prompt. Inspect the raw resulting DOCX for the prose paragraph under each section, native 4×5 table and exact cells, headings, inherited Word numbering, literal formula-like strings, no duplicate tab-delimited table, valid OOXML, and visual rendering. Verify Discord attachment delivery separately; do not infer it from Box presence.
+- Do not repeat PDF/XLSX/ZIP tests, do not touch production root `main.py` or production branch `main`, and do not merge PR #6 without explicit authorization.
+
+**Handoff summary:** The DOCX generator now supplies a neutral section paragraph when the user explicitly requires one and a section would otherwise jump straight to its native table. The regression reproducing the missing Data Pengujian paragraph passes, and all three GitHub Actions workflows are green on code/test commit `f380a21e173956e1e3b8390e42a1fa69a7f57f50`. The remaining gate is one live retest after the user authorizes Wispbyte restart and the startup log confirms the candidate commit. Production, PR merge state, and Wispbyte runtime were not changed.
