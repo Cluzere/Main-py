@@ -1143,6 +1143,50 @@ def _make_docx(content: str, title: str, prompt: str = "") -> bytes:
                 if row_index == 0:
                     run.bold = True
 
+    # Remove only a complete tab-delimited copy of a table that already
+    # exists as a native Word table. Do not strip arbitrary tabbed prose or
+    # partial rows: the full ordered row sequence must match exactly.
+    def _normalized_table_cell(value):
+        return re.sub(r"\\s+", " ", str(value or "")).strip()
+
+    native_table_sequences = []
+    for native_table in document.tables:
+        expected_rows = []
+        for native_row in native_table.rows:
+            expected = tuple(_normalized_table_cell(cell.text) for cell in native_row.cells)
+            if len(expected) >= 2 and any(expected):
+                expected_rows.append(expected)
+        if len(expected_rows) >= 2:
+            native_table_sequences.append(expected_rows)
+
+    if native_table_sequences:
+        top_level_paragraphs = list(document.paragraphs)
+        remove_elements = set()
+        for expected_rows in native_table_sequences:
+            row_count = len(expected_rows)
+            column_count = len(expected_rows[0])
+            for start in range(len(top_level_paragraphs) - row_count + 1):
+                candidate_paragraphs = top_level_paragraphs[start:start + row_count]
+                candidate_rows = []
+                for paragraph in candidate_paragraphs:
+                    raw_text = paragraph.text
+                    if "\\t" not in raw_text:
+                        candidate_rows = []
+                        break
+                    cells = tuple(_normalized_table_cell(cell) for cell in raw_text.split("\\t"))
+                    if len(cells) != column_count:
+                        candidate_rows = []
+                        break
+                    candidate_rows.append(cells)
+                if candidate_rows == expected_rows:
+                    remove_elements.update(paragraph._element for paragraph in candidate_paragraphs)
+
+        for paragraph in top_level_paragraphs:
+            if paragraph._element in remove_elements:
+                parent = paragraph._element.getparent()
+                if parent is not None:
+                    parent.remove(paragraph._element)
+
     output = io.BytesIO()
     document.save(output)
     return output.getvalue()
