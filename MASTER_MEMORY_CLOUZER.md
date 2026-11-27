@@ -19,7 +19,7 @@
 2. **Production root `main.py`, production branch `main`, deployment produksi, dan merge PR #6 dilindungi.** Jangan mengubah, menimpa, merge, deploy, atau restart apa pun di produksi tanpa izin eksplisit pengguna untuk tindakan tersebut.
 3. Pekerjaan audit dan perbaikan default hanya pada branch kandidat `audit-recovery-gpt-2026-11-23`. Jangan menganggap izin mengedit kandidat sebagai izin menyentuh produksi.
 4. Pengguna yang mengendalikan restart/reset Wispbyte. Jangan mengklaim atau mencoba melakukan restart/deploy Wispbyte. Minta pengguna menjalankannya hanya setelah kandidat siap dan gerbang CI yang relevan lulus.
-5. Jangan mengubah file yang diberikan pengguna untuk dipasang sebagai `main.py), nama proyek, identifier, model, konfigurasi, nama file, atau struktur yang sudah dipilih tanpa instruksi eksplisit.
+5. Jangan mengubah file yang diberikan pengguna untuk dipasang sebagai `main.py`, nama proyek, identifier, model, konfigurasi, nama file, atau struktur yang sudah dipilih tanpa instruksi eksplisit.
 6. Jangan melakukan perubahan kode kandidat hanya karena menemukan defect jika belum ada izin untuk memperbaiki. Setelah pengguna memberi instruksi seperti “benerin langsung”, lakukan perbaikan terbatas pada branch kandidat dan tetap patuhi seluruh batas produksi.
 7. Jangan merge PR #6 tanpa izin eksplisit yang terpisah.
 
@@ -110,6 +110,17 @@
 8. Setelah update GitHub, fetch ulang file dari branch yang sama dan verifikasi isi, blob SHA, dan commit SHA. Jangan mengklaim tersimpan sebelum verifikasi.
 9. Jika GitHub gagal atau update tidak terkonfirmasi, laporkan bahwa Master Memory belum berhasil diperbarui.
 
+
+## A9. Aturan penyimpanan artefak retest dan provenance Box
+
+1. Semua artefak hasil retest CLOUZER diarahkan ke Box `All Files / Test file / CLOUZER_BUANGAN_AUDIT` (folder ID `441172297609`) jika folder tersebut tersedia dan dapat diakses.
+2. Sertakan log atau manifest pengujian bila tersedia. Nama file/manifest harus menghubungkan format, waktu pengujian, dan test case.
+3. Setelah upload/penyimpanan, catat dan verifikasi nama file, Box file ID, ukuran, waktu modifikasi, provenance/uploader, serta hasil inspeksi.
+4. Jika artefak hanya tersedia sebagai attachment Discord/lokal dan belum berada di Box, jangan mengklaim sudah tersimpan di Box. Pengguna dapat mengunggahnya secara manual atau memakai jalur lain yang benar-benar tersedia.
+5. Bedakan upload otomatis CLOUZER, upload manual oleh pengguna, dan akses melalui Box connector ChatGPT. Jangan mengklaim integrasi Discord→Box otomatis berdasarkan upload manual atau sekadar file ditemukan di folder.
+6. Jangan menghapus, memindahkan, mengganti nama, atau menimpa artefak lama/original tanpa instruksi eksplisit. Hasil koreksi disimpan sebagai file baru.
+7. Folder tujuan ini adalah aturan penyimpanan artefak audit; keberadaan folder atau file di dalamnya tidak membuktikan generator/runtime CLOUZER otomatis mengunggah ke sana.
+
 ---
 
 # B. KONDISI PROYEK DAN SUMBER KEBENARAN
@@ -131,11 +142,11 @@
 - Candidate helper: `audit-recovery/review-round-2/clouzer_file_creation.py`.
 - Candidate tests: `audit-recovery/review-round-2/test_file_creation.py`.
 - Workflow files yang terdaftar pada branch saat pemeriksaan: `.github/workflows/audit-candidate-check.yml`, `audit-recovery.yml`, `clouzer-multiformat-audit.yml`, dan `staging-smoke-test.yml`.
-- Root production `main.py) dan branch `main` tetap dilindungi oleh Bagian A.
+- Root production `main.py` dan branch `main` tetap dilindungi oleh Bagian A.
 
-## B3. Snapshot Git terakhir sebelum restrukturisasi Master Memory
+## B3. Baseline kode dan workflow kandidat
 
-- Commit kandidat terakhir yang memuat perubahan kode/workflow: `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
+- Commit kandidat terakhir yang memuat perubahan kode/workflow: `c8f2d188f089b196cd8942e5c9613dfe070ed17a` (ini SHA yang harus dicocokkan dengan runtime untuk patch PPTX; dokumentasi Master Memory dapat menghasilkan commit baru tanpa mengubah kode kandidat).
 - Commit dokumentasi Master Memory dapat bergerak tanpa mengubah kode kandidat; fetch branch HEAD terbaru dari GitHub saat melanjutkan.
 - Commit kode PPTX terakhir: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
 - Commit perbaikan regression test PPTX: `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
@@ -304,7 +315,7 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 
 CI kandidat untuk patch terbaru sudah hijau. Sisa pekerjaan beralih ke live acceptance dan tata kelola repository.
 
-1. **Live staging PPTX acceptance:** setelah pengguna mengizinkan dan menjalankan restart/reset candidate Wispbyte, cocokkan startup log dengan exact branch HEAD `c8f2d188...`.
+1. **Live staging PPTX acceptance:** setelah pengguna mengizinkan dan menjalankan restart/reset candidate Wispbyte, cocokkan startup log dengan candidate code commit `c8f2d188...` (bukan dokumentasi-only HEAD SHA).
 2. Jalankan satu controlled 5-slide PPTX test: pastikan lima background generation calls berbeda, lima image 16:9 tertanam full-bleed, teks native editable, tidak ada prompt visual/Markdown bocor, dan hasil render semua slide layak.
 3. Inspeksi raw PPTX package dan render setiap slide. Periksa ukuran 8 MB, relasi media, gambar, z-order, teks, contrast, clipping, dan konsistensi.
 4. Verifikasi Discord attachment delivery secara terpisah. Simpan artefak revisi sebagai file Box baru; jangan overwrite file asli.
@@ -315,8 +326,6 @@ CI kandidat untuk patch terbaru sudah hijau. Sisa pekerjaan beralih ke live acce
 
 **Tidak ada izin dalam planning ini untuk menyentuh production `main.py`, merge PR #6, atau melakukan restart/deploy oleh asisten.**
 
-
----
 
 ---
 
