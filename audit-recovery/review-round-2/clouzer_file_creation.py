@@ -1791,12 +1791,12 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
         ("Kepadatan halaman dan halaman terakhir", "PASS" if summary.get("last_page_text_chars", 0) >= 220 and all(value >= 120 for value in summary.get("page_body_chars", [])) else "FAIL", f"Isi per halaman: {summary.get('page_body_chars', [])} karakter non-spasi."),
         ("Heading Kesimpulan bersama paragraf pembuka", "PASS", "Heading dan paragraf pembuka berada pada halaman yang sama."),
         ("Teks dapat diekstrak dan dicari", "PASS" if summary.get("text_layer") else "FAIL", "Lapisan teks PDF tersedia dan kata CLOUZER terdeteksi."),
-        ("Bold, italic, daftar bernomor, dan bullet", "PASS" if summary.get("bold_spans", 0) and summary.get("italic_spans", 0) else "FAIL", "Font tebal/miring dan penanda daftar diperiksa dari lapisan teks."),
+        ("Bold, italic, daftar bernomor, dan bullet", "PASS" if summary.get("bold_spans", 0) and summary.get("italic_spans", 0) and summary.get("numbered_list") and summary.get("bullet_list") else "FAIL", "Font tebal/miring serta daftar bernomor dan bullet diperiksa dari lapisan teks."),
         ("Geometri teks isi dan tabrakan blok", "PASS" if summary.get("body_text_geometry") and not summary.get("body_text_overlaps") else "FAIL", "Batas margin dan irisan blok teks diperiksa otomatis."),
         ("Kelengkapan narasi lima bagian", "PASS" if all(value >= 2 for value in (summary.get("paragraphs_per_section") or {}).values()) else "FAIL", f"Jumlah paragraf terdeteksi: {summary.get('paragraphs_per_section', {})}."),
         ("Jumlah baris dan kolom tabel produk", "PASS" if summary.get("product_rows") == 10 and summary.get("table_columns") == 7 else "FAIL", f"{summary.get('product_rows', 0)} baris produk × {summary.get('table_columns', 0)} kolom."),
         ("Lapisan teks PDF", "PASS" if summary.get("text_layer") and summary.get("text_chars", 0) > 0 else "FAIL", f"{summary.get('text_chars', 0)} karakter teks dapat diekstrak."),
-        ("Elemen vektor tabel", "PASS" if summary.get("vector_drawings", 0) >= 6 else "FAIL", f"{summary.get('vector_drawings', 0)} elemen gambar vektor terdeteksi."),
+        ("Elemen vektor PDF", "PASS" if summary.get("vector_drawings", 0) >= 6 else "FAIL", f"{summary.get('vector_drawings', 0)} elemen gambar vektor terdeteksi; garis sel tabel divalidasi terpisah."),
         ("Pengulangan header tabel saat tabel berlanjut", "NOT APPLICABLE" if table_pages <= 1 else "PASS" if repeated_header_ok else "FAIL", f"{summary.get('table_header_pages', 0)} header untuk {table_pages} halaman tabel."),
         ("Inspeksi visual manual seluruh halaman", "NOT VERIFIED", "Pemeriksaan otomatis tidak menggantikan inspeksi visual halaman demi halaman."),
         ("Seleksi/salin manual di aplikasi pembaca PDF", "NOT VERIFIED", "Lapisan teks tersedia; interaksi manual pada pembaca PDF belum diuji."),
@@ -1811,7 +1811,7 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
         "|---|---|---|",
     ]
     rows.extend(
-        f"| {name} | **{status}** | {evidence} |"
+        f"| {name} | {status} | {evidence} |"
         for name, status, evidence in checks
     )
     section = "\n".join(rows)
@@ -1980,6 +1980,8 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
             result["text_layer"] = True
             result["bold_spans"] = sum(bool(flag & 16) for flag in flags)
             result["italic_spans"] = sum(bool(flag & 2) for flag in flags)
+            result["numbered_list"] = bool(re.search(r"(?m)^\\s*1[.)]\\s+", extracted))
+            result["bullet_list"] = bool(re.search(r"[•▪◦]", extracted))
             result["within_page_bounds"] = True
             logging.warning("[PDF-VALIDATION-STAGE] total_pdf_validation_seconds=%.3f", time.perf_counter() - _validation_total_started)
     elif fmt == "docx":
@@ -2440,7 +2442,7 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         # expensive layout work on constrained Wispbyte CPU quotas.
         stage_started = time.perf_counter()
         baseline_summary = validate_document_file(
-            fmt, prompt, data, enforce_minimum_pages=False, deep_inspection=False
+            fmt, prompt, data, enforce_minimum_pages=False, deep_inspection=True
         )
         logging.warning("[PDF-STAGE] baseline_validation_seconds=%.3f", time.perf_counter() - stage_started)
         completed_text = _append_master_final_validation_summary(text, baseline_summary)
