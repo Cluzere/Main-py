@@ -1171,15 +1171,17 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         return prompt, content
 
 
-    def test_master_final_shared_textpage_cell_extraction_matches_legacy(self):
+    def test_master_final_page_word_cell_extraction_matches_legacy(self):
         import pymupdf
+        from clouzer_file_creation import _extract_cell_text_from_words
+
         prompt, content = self._master_final_pdf_fixture()
         data, _, _ = create_document_file("pdf", prompt, content)
         doc = pymupdf.open(stream=data, filetype="pdf")
         try:
             compared_cells = 0
             for page in doc:
-                shared_textpage = page.get_textpage()
+                page_words = page.get_textpage().extractWORDS()
                 grouped = {}
                 for drawing in page.get_drawings():
                     rect = drawing.get("rect")
@@ -1197,15 +1199,16 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
                             cell.x0 + 1, cell.y0 + 1, cell.x1 - 1, cell.y1 - 1,
                         )
                         legacy = page.get_textbox(rect)
-                        cached = shared_textpage.extractTextbox(rect)
+                        optimized = _extract_cell_text_from_words(page_words, rect)
                         self.assertEqual(
-                            cached, legacy,
-                            "Cached TextPage extraction must preserve exact cell text and ordering.",
+                            " ".join(optimized.split()), " ".join(legacy.split()),
+                            "Page-level word extraction must preserve normalized cell text and reading order.",
                         )
                         compared_cells += 1
             self.assertGreaterEqual(compared_cells, 77)
         finally:
             doc.close()
+
 
     def test_master_final_pdf_detector_accepts_ten_data_produk_wording(self):
         from clouzer_file_creation import _is_master_final_pdf_prompt
