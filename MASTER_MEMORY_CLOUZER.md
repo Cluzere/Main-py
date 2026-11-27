@@ -4542,7 +4542,7 @@ Observed behavior indicates two distinct problems to investigate; do not collaps
 - Corrected test run on exact HEAD `5d2e3c8fd46c7668da2f012546cc60b13bf1abc3`:
   - CLOUZER multi-format file audit: **completed / success** (run `46047063673`).
   - Audit recovery candidate: **completed / success** (run `46047063580`).
-  - Audit candidate syntax check: still running at the time of this note; do not mark it PASS until a completed/success result is checked.
+  - Audit candidate syntax check: **completed / success** (run `46047063513`).
 - The earlier failure at HEAD `1b20bb2a13eb543d2240f71648d4eecca31effcb` was due to the test fixture; do not treat that failed run as the final code status.
 - Passing CI proves compilation and regression coverage only. It does not prove Cloudflare runtime credentials, actual Lucid Origin response, Discord live attachment behavior, or Wispbyte has fetched this branch.
 
@@ -4554,4 +4554,4 @@ Observed behavior indicates two distinct problems to investigate; do not collaps
 5. Test a short follow-up such as “tambah visual” after a PPTX was delivered; verify it retrieves the persisted last PPTX attachment and creates a new `_visual.pptx` without changing the original artifact.
 6. Do not mark visual enrichment fully PASS until the live artifact and follow-up sequence are independently verified.
 
-**Handoff:** Candidate code now routes PPTX visual enrichment through the explicitly pinned Cloudflare Lucid Origin model, embeds image objects into the original slide deck while retaining editable text, and persists the Discord PPTX message reference for follow-up edits. Two CI workflows are green on HEAD `5d2e3c8fd46c7668da2f012546cc60b13bf1abc3`; the syntax/security workflow is pending. Live provider, Discord, and Wispbyte verification remain open.
+**Handoff:** Candidate code now routes PPTX visual enrichment through the explicitly pinned Cloudflare Lucid Origin model, embeds image objects into the original slide deck while retaining editable text, and persists the Discord PPTX message reference for follow-up edits. All three CI workflows are green on exact code HEAD `5d2e3c8fd46c7668da2f012546cc60b13bf1abc3`: audit recovery run `46047063580`, multi-format audit run `46047063673`, and syntax check run `46047063513`. The multi-format run executed **164 tests; all passed**, including the new PPTX image-embedding regression. The later HEAD `41f0b7d0c8f9ebfc6f23a9668221e39ebb6c6629` only appends this memory record; no runtime source changed after the green code HEAD. Live provider, Discord, and Wispbyte verification remain open.
