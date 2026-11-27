@@ -3432,3 +3432,58 @@ Observed PDF timings:
 8. **Candidate-only discipline.** Make any optimization and regression tests only on `audit-recovery-gpt-2026-11-23`. Re-check the branch head before staging restart. The Wispbyte startup command fetches the branch head, so a new candidate commit can be picked up on the next restart. Do not touch production `main.py`, merge PR #6, or claim production deployment without explicit authorization.
 
 **Current status after these captures:** bot startup observed; six-page PDF deep-validation stage observed; cell/style scan identified as the dominant local CPU hotspot; live attachment acceptance and CI terminal status not established by the supplied logs. Next action is source-level profiling/optimization of the cell/style scan, followed by candidate tests and a fully monitored live retest.
+
+
+## 52.28 PDF table-cell text extraction optimization and CI verification — 27 November 2026
+
+### Scope and source diagnosis
+Work remained on audit-recovery-gpt-2026-11-23, within PR #6. Production branch main, production /home/container/main.py, and Wispbyte runtime were not modified, deployed, or restarted.
+
+The §52.27 hotspot was traced to the MASTER FINAL table scan in audit-recovery/review-round-2/clouzer_file_creation.py:
+- The code already reused one full-page PyMuPDF TextPage per page.
+- However, it still called TextPage.extractTextbox() separately for every header/data cell. On the supplied six-page Wispbyte artifact this section consumed 10.470 s for 77 table cells.
+- Reusing the TextPage alone was therefore insufficient; each clipped extraction still repeatedly searched page text.
+
+### Candidate optimization
+File: audit-recovery/review-round-2/clouzer_file_creation.py
+- Added _extract_cell_text_from_words(words, rect).
+- The validator now calls page_textpage.extractWORDS() once per page, then selects words by the center point of each inset cell rectangle and reconstructs the cell text using PyMuPDF block/line/word indices.
+- Header schema checks and data-row extraction now use this shared page-level word list.
+- All existing downstream semantic and style checks remain in place: exact header schema, populated row checks, table fills/borders, bold white header spans, row count, and the other report acceptance checks.
+- Removed all per-cell page_textpage.extractTextbox() calls from this validator path.
+- Updated the source comment to describe the page-level word extraction strategy.
+
+File: audit-recovery/review-round-2/test_file_creation.py
+- Replaced the previous shared-TextPage-vs-legacy equivalence test with test_master_final_page_word_cell_extraction_matches_legacy.
+- The regression generates the MASTER FINAL PDF fixture, extracts words once per page, and compares normalized output against legacy page.get_textbox() for at least 77 table cells.
+- The test passed in all three CI workflows listed below.
+
+### Candidate commits and final branch state
+- 8db7331b8f05d951d2e7e6c96ae5089a464652d2 — perf(pdf): extract page words once for table cell validation
+- 60aaa9e775f69db5d3e55733135f285d9ecb5cdd — test(pdf): verify indexed word extraction preserves table cell text
+- b2da87a653c7fb3c56be3b1fff923314532a3b29 — docs(pdf): clarify page-level word extraction strategy
+- Verified branch ref audit-recovery-gpt-2026-11-23 points to b2da87a653c7fb3c56be3b1fff923314532a3b29.
+- Final helper blob: ae18a998fbcdd5a0e5dbf9f43107e1223e9162af.
+- Final test blob: fa7aa6bd088a967fb0e55375bac4337ee48c7f51.
+- The final branch diff for this work changes only the candidate PDF helper and its candidate test file, plus this Master Memory documentation update. No production main.py change was made.
+
+### CI terminal evidence — exact final code SHA b2da87a...
+All three workflows reached terminal success on exact SHA b2da87a653c7fb3c56be3b1fff923314532a3b29:
+1. CLOUZER multi-format file audit — run 45958055308: https://github.com/Cluzere/Main-py/actions/runs/45958055308. Complete candidate document/file regression suite: 153 tests, OK.
+2. Audit recovery candidate — run 45958055355: https://github.com/Cluzere/Main-py/actions/runs/45958055355. Focused regression tests: success; the new page-word/cell equivalence test passed.
+3. Audit candidate syntax check — run 45958055320: https://github.com/Cluzere/Main-py/actions/runs/45958055320. Compilation, dependency consistency, vulnerability/security scans, document file creation tests, archive regression tests, and existing audit regressions completed successfully. Logs report 153 document/file tests, 77 archive tests, and 93 existing audit regression tests, all OK. The new page-word/cell equivalence test passed in this workflow too.
+
+### CI performance observations and limits
+- In the CI-generated MASTER FINAL fixture with 79 page records and 77 table cells, cell_text_and_style was logged around 0.005–0.008 s; page-record/table scan was around 0.013–0.023 s across repeated validation passes.
+- These CI timings show the new path is inexpensive on the GitHub Actions runner and that the equivalence regression passes.
+- Do NOT claim a proven 10.470 s to 0.007 s production speedup: the 10.470 s baseline came from Wispbyte, while the new timings came from GitHub Actions. They are different runtime environments and are not a controlled before/after benchmark.
+- The next valid performance comparison must run the exact new candidate on the same Wispbyte staging/runtime class and representative MASTER FINAL prompt, then compare cell_text_and_style, page-record/table scan, full deep-validation duration, CPU, memory, quota, and throttle deltas against §52.27.
+
+### Remaining acceptance work
+1. Update the PR #6 description to reference this exact candidate SHA and the new extraction strategy/CI runs; keep the PR draft and unmerged.
+2. Ask the user to reset/restart only the Wispbyte staging/audit service so its startup command fetches b2da87a653c7fb3c56be3b1fff923314532a3b29. Do not access or restart production.
+3. Run the exact MASTER FINAL PDF request once on staging; capture terminal output and resource telemetry.
+4. Verify the actual Discord attachment, download that exact attachment, inspect text and every rendered page, and independently verify Box upload only if performed.
+5. Record the controlled Wispbyte before/after benchmark. Do not call the performance issue fully accepted until staging and delivery evidence are complete.
+
+**Status at this entry:** candidate code and regression test committed; all three CI workflows PASS on exact final SHA; CI fixture cell/style timing is about 0.005–0.008 s; Wispbyte live performance retest, Discord attachment receipt/download, and artifact acceptance remain NOT VERIFIED. PR #6 remains draft/unmerged. Production remains untouched.
