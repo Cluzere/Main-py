@@ -490,7 +490,7 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
             result.append(current)
         return result
 
-    def draw_paragraph(text, size=9.5, font="helv", color=ink, gap=7):
+    def draw_paragraph(text, size=9.5, font="helv", color=ink, gap=5):
         nonlocal y
         import html
         raw = str(text).strip()
@@ -507,12 +507,11 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
         escaped = re.sub(chr(96) + r"([^" + chr(96) + r"]+)" + chr(96), r"<code>\1</code>", escaped)
         plain = re.sub(r"<[^>]+>", "", escaped)
         lines = wrap_cell(plain, font, size, content_width - (18 if marker else 0))
-        line_height = size * 1.55
-        # Reserve extra vertical slack for MuPDF's HTML layout metrics. The
-        # estimated wrapped-line height is intentionally conservative so
-        # ordinary Indonesian paragraphs do not fail on a small font-metric
-        # discrepancy.
-        needed = max(line_height + gap + 8, len(lines) * line_height + gap + 12)
+        # Keep a measured safety margin without wasting a full extra line
+        # on every paragraph. insert_htmlbox below remains the final clipping
+        # guard; a negative spare value still aborts the PDF build.
+        line_height = size * 1.35
+        needed = max(line_height + gap + 6, len(lines) * line_height + gap + 7)
         if y + needed > bottom:
             new_page()
         x = left + (16 if marker else 0)
@@ -700,13 +699,13 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
                         next_marker = re.match(r"^(?:[-*•]\s+|\d+[.)]\s+)", next_value)
                         next_width = content_width - (18 if next_marker else 0)
                         next_lines = wrap_cell(next_value, "helv", 9.5, next_width)
-                        next_line_height = 9.5 * 1.55
+                        next_line_height = 9.5 * 1.35
                         following_height = max(
-                            next_line_height + 7,
-                            len(next_lines) * next_line_height * 1.6 + 20,
+                            next_line_height + 5,
+                            len(next_lines) * next_line_height * 1.25 + 10,
                         )
 
-                keep_height = 5 + heading_height + following_height + 8
+                keep_height = 5 + heading_height + following_height + 5
                 if keep_height <= bottom - top:
                     if y + keep_height > bottom:
                         new_page()
