@@ -5672,35 +5672,12 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 
 ---
 
-## HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
+## 52.62 Penerimaan handoff dan pembacaan Master Memory — 28 November 2026
 
-**Proyek:** CLOUZER Discord bot  
-**Repository:** Cluzere/Main-py  
-**Branch:** audit-recovery-gpt-2026-11-23  
-**Master Memory:** MASTER_MEMORY_CLOUZER.md
-
-### Aturan wajib untuk sesi penerima
-1. Fetch Master Memory terbaru dari branch di atas. Baca seluruh Bagian A–F, lalu bagian handoff ini dan bukti historis G yang relevan. Ikuti A0.12–A0.14.
-2. Setelah handoff benar-benar dibaca dan direkonsiliasi, pindahkan fakta penting ke bagian permanen yang tepat, hapus hanya blok handoff sementara ini, tambahkan catatan penerimaan di G, lalu commit dan fetch ulang untuk verifikasi.
-3. Sebelum menyimpan catatan baru, klasifikasikan isinya. Aturan permanen hanya Bagian A; status/identitas proyek Bagian B; implementasi Bagian C; pengujian Bagian D; hasil terbukti Bagian E; pekerjaan tertunda Bagian F; bukti kronologis Bagian G. Jangan menaruh aturan permanen di planning atau arsip.
-
-### Status terakhir yang terverifikasi
-- Startup Wispbyte pada log pengguna mencapai [ONLINE]. Python 3.11.18, pip 24.0, pip check PASS, dan 11/11 import PASS. Warning fitz adalah warning deprecation saat import test, bukan kegagalan startup.
-- Pengingat [CHECK] Pastikan Message Content Intent juga aktif adalah pesan standar program, bukan error Wispbyte dan bukan bukti bot tidak aktif. Jangan mengangkatnya lagi tanpa gejala konkret baru.
-- Audit statis PyMuPDF pada §52.60: kedua modul kandidat yang diperiksa menggunakan import pymupdf modern; tidak ada patch yang diperlukan.
-- Langkah 1 audit runtime pada §52.61: file entrypoint kandidat di commit checkout runtime 620ef73545238af290a3c648f3a3f0bbc3fa4870 dan di HEAD branch menghasilkan blob SHA identik 53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6. Identitas entrypoint MATCH/PASS.
-- Resource tracker tercatat berjalan dan menulis ke /home/container/clouzer-audit/audit-recovery/review-round-2/resource_trace.csv; isi CSV belum diperoleh/diperiksa. CPU/memori dan ada/tidaknya masalah resource tetap NOT VERIFIED.
-- PPTX visual live acceptance, upload otomatis CLOUZER ke Box, dan Discord attachment delivery tetap NOT VERIFIED sesuai Master Memory.
-
-### Langkah berikutnya — lanjutkan tanpa mengulang
-1. Lanjutkan langkah 2: dapatkan dan analisis isi resource_trace.csv untuk CPU/memori.
-2. Wispbyte Console bukan terminal shell interaktif. Jangan meminta pengguna mengetik cd, sha256sum, python, pip, atau command shell lain langsung di Console.
-3. Jika perlu mengambil/meringkas CSV melalui startup, susun satu Startup Command lengkap yang mempertahankan semua tahapan startup kanonis (fetch/reset, instalasi requirements, paket tambahan, entrypoint). Jangan memberi potongan command terpisah atau menghapus tahapan lama. Pengguna yang memasang command dan memulai server; jangan mengklaim telah dijalankan sebelum ada log.
-4. Setelah CSV diperiksa, simpulkan apakah ada masalah resource berdasarkan data, lalu update bagian permanen yang tepat dan bukti G. Jangan menebak dari keberadaan tracker saja.
-5. Jangan mengulang tes pip/dependency, audit PyMuPDF, atau langkah 1 SHA entrypoint tanpa perubahan relevan atau bukti baru.
-
-### Batas otorisasi
-- Production /home/container/main.py, production branch main, PR #6, deployment, merge, dan restart dilindungi. Jangan sentuh tanpa izin eksplisit yang sesuai.
-- Tidak ada izin untuk mengubah kode kandidat atau Startup Command hanya karena handoff ini dibuat.
-- Jangan mengklaim resource trace PASS/FAIL sebelum isi CSV diperiksa.
+- Sesi penerima melakukan fetch langsung terhadap `MASTER_MEMORY_CLOUZER.md` pada branch `audit-recovery-gpt-2026-11-23`; file lengkap berisi 5.707 baris dan 550.791 karakter pada blob `38c6436dd4638166c848e61a328c9a124a1a9748`.
+- Pembacaan mencakup seluruh Bagian A–F, struktur dan arsip Bagian G, bukti historis terbaru §§52.53–52.61, serta blok `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA`.
+- Isi handoff telah direkonsiliasikan: status startup Wispbyte sampai ONLINE, audit PyMuPDF PASS tanpa patch, pencocokan blob entrypoint PASS, dan resource trace CPU/memori tetap NOT VERIFIED karena isi CSV belum diperoleh. Tidak ada fakta baru dari handoff yang belum tercatat pada bagian permanen.
+- Sesuai A0.12–A0.14, hanya blok handoff sementara di akhir file yang dibersihkan. Catatan permanen A–G dan bukti §§52.57–52.61 dipertahankan.
+- Tidak ada perubahan pada kode kandidat, startup command, Wispbyte, production `main.py`, branch production `main`, PR #6, deployment, merge, atau restart.
+- Langkah aktif berikutnya tetap memperoleh dan menganalisis `/home/container/clouzer-audit/audit-recovery/review-round-2/resource_trace.csv`; jangan mengulang pemeriksaan yang sudah PASS dan jangan menyimpulkan kesehatan CPU/memori tanpa data CSV.
 
