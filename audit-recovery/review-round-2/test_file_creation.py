@@ -1946,7 +1946,7 @@ Jangan menggandakan tabel sebagai teks biasa."""
         base = create_document_file(
             "pptx",
             "Buat presentasi PPTX 2 slide.",
-            "Pengenalan CLOUZER\\nIsi slide pertama.\\n--- SLIDE ---\\nCara Kerja\\nIsi slide kedua.",
+            "Pengenalan CLOUZER\nIsi slide pertama.\n--- SLIDE ---\nCara Kerja\nIsi slide kedua.",
         )[0]
         briefs = extract_pptx_visual_briefs(base)
         self.assertEqual([item["title"] for item in briefs], ["Pengenalan CLOUZER", "Cara Kerja"])
