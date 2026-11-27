@@ -1712,5 +1712,127 @@ Jangan mengklaim berhasil jika file gagal dibuat atau dikirim."""
         self.assertEqual(summary["tables"], 1)
         self.assertEqual(summary["numbered_lists"], 3)
 
+
+    def test_uploaded_docx_artifact_structure_matches_user_acceptance_spec(self):
+        from pathlib import Path
+        from docx import Document
+
+        artifact = Path("audit-recovery/review-round-2/incoming/TES_DOCX_CLOUZER_ULANG (1).docx")
+        self.assertTrue(artifact.is_file(), f"Uploaded audit artifact is missing: {artifact}")
+        data = artifact.read_bytes()
+        self.assertGreater(len(data), 0)
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            self.assertIsNone(archive.testzip(), "DOCX ZIP package has a corrupt member")
+            xml_parts = [name for name in archive.namelist() if name.endswith(".xml")]
+            self.assertTrue(xml_parts)
+            for name in xml_parts:
+                import xml.etree.ElementTree as ET
+                ET.fromstring(archive.read(name))
+
+        document = Document(io.BytesIO(data))
+        self.assertEqual(len(document.tables), 1)
+        expected_rows = [
+            ["No", "Nama", "Umur", "Jabatan", "Catatan"],
+            ["1", "Andi", "25", "Admin", "Lulus"],
+            ["2", "Budi", "30", "Developer", "Perlu review"],
+            ["3", "Citra", "28", "Tester", "Selesai"],
+        ]
+        self.assertEqual(
+            [[cell.text for cell in row.cells] for row in document.tables[0].rows],
+            expected_rows,
+        )
+        paragraphs = document.paragraphs
+        paragraph_text = [paragraph.text for paragraph in paragraphs]
+        self.assertEqual(paragraph_text.count("LAPORAN PENGUJIAN CLOUZER"), 1)
+        self.assertIn("Hasil Pengujian Sistem", paragraph_text)
+        self.assertEqual(
+            sum(paragraph.style.name.casefold().startswith("list number") for paragraph in paragraphs),
+            3,
+        )
+        for literal in (
+            "=SUM(A1:A10)",
+            "=CMD|'/C calc'!A0",
+            "Jangan mengubah teks ini menjadi formula.",
+            "Pengujian DOCX telah selesai.",
+        ):
+            self.assertIn(literal, paragraph_text)
+        table_rows_as_text = {"\\t".join(row) for row in expected_rows}
+        self.assertTrue(table_rows_as_text.isdisjoint(paragraph_text))
+        summary = validate_document_file(
+            "docx",
+            "Buat DOCX dengan satu tabel Word asli, tiga daftar bernomor, dan teks literal.",
+            data,
+        )
+        self.assertEqual(summary["tables"], 1)
+        self.assertEqual(summary["numbered_lists"], 3)
+
+    def test_docx_generator_matches_uploaded_user_acceptance_spec(self):
+        from docx import Document
+
+        prompt = """Buat file TES_DOCX_CLOUZER_ULANG.docx.
+Judul: LAPORAN PENGUJIAN CLOUZER.
+Subtitle: Hasil Pengujian Sistem.
+Buat tabel Word asli dengan kolom No, Nama, Umur, Jabatan, Catatan dan data:
+- 1 | Andi | 25 | Admin | Lulus
+- 2 | Budi | 30 | Developer | Perlu review
+- 3 | Citra | 28 | Tester | Selesai
+Buat daftar bernomor otomatis:
+1. Pengujian struktur dokumen.
+2. Pengujian tabel dan isi sel.
+3. Pengujian format dan konsistensi.
+Pertahankan teks literal berikut persis:
+=SUM(A1:A10)
+=CMD|'/C calc'!A0
+Jangan mengubah teks ini menjadi formula.
+Paragraf penutup: Pengujian DOCX telah selesai.
+Jangan menggandakan tabel sebagai teks biasa."""
+        model_content = """<h1>LAPORAN PENGUJIAN CLOUZER</h1>
+<h2>Hasil Pengujian Sistem</h2>
+<ol>
+<li>Pengujian struktur dokumen.</li>
+<li>Pengujian tabel dan isi sel.</li>
+<li>Pengujian format dan konsistensi.</li>
+</ol>
+<p>=SUM(A1:A10)</p>
+<p>=CMD|'/C calc'!A0</p>
+<p>Jangan mengubah teks ini menjadi formula.</p>
+<p>Pengujian DOCX telah selesai.</p>"""
+        data, filename, mime = create_document_file("docx", prompt, model_content)
+        document = Document(io.BytesIO(data))
+        self.assertEqual(filename, "TES_DOCX_CLOUZER_ULANG.docx")
+        self.assertEqual(mime, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        self.assertEqual(len(document.tables), 1)
+        expected_rows = [
+            ["No", "Nama", "Umur", "Jabatan", "Catatan"],
+            ["1", "Andi", "25", "Admin", "Lulus"],
+            ["2", "Budi", "30", "Developer", "Perlu review"],
+            ["3", "Citra", "28", "Tester", "Selesai"],
+        ]
+        self.assertEqual(
+            [[cell.text for cell in row.cells] for row in document.tables[0].rows],
+            expected_rows,
+        )
+        paragraphs = document.paragraphs
+        paragraph_text = [paragraph.text for paragraph in paragraphs]
+        self.assertEqual(paragraph_text.count("LAPORAN PENGUJIAN CLOUZER"), 1)
+        self.assertIn("Hasil Pengujian Sistem", paragraph_text)
+        self.assertEqual(
+            sum(paragraph.style.name.casefold().startswith("list number") for paragraph in paragraphs),
+            3,
+        )
+        for literal in (
+            "=SUM(A1:A10)",
+            "=CMD|'/C calc'!A0",
+            "Jangan mengubah teks ini menjadi formula.",
+            "Pengujian DOCX telah selesai.",
+        ):
+            self.assertIn(literal, paragraph_text)
+        table_rows_as_text = {"\\t".join(row) for row in expected_rows}
+        self.assertTrue(table_rows_as_text.isdisjoint(paragraph_text))
+        summary = validate_document_file("docx", prompt, data)
+        self.assertEqual(summary["tables"], 1)
+        self.assertEqual(summary["numbered_lists"], 3)
+
+
 if __name__ == "__main__":
     unittest.main()
