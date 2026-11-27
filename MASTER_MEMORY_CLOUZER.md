@@ -4293,3 +4293,82 @@ The DOCX work is closed. Continue with the order already recorded in §52.38; do
 - Preserve append-only Master Memory history; future updates must fetch the latest file and blob SHA before appending.
 
 **Handoff summary:** The newest raw Box DOCX artifact passes every defined DOCX artifact criterion, including the formerly missing separate paragraph under `Data Pengujian`. DOCX is closed. The next format is PPTX, followed by CSV and JSON only after reconciling whether existing raw artifacts already cover them. PDF/XLSX/ZIP creation tests are not to be repeated without a specific uncovered criterion. Reliability and delivery-provenance work remain separate.
+
+
+---
+
+## 52.44 Canva presentation export comparison — PDF PASS, PPTX visual FAIL — 27 November 2026
+
+### Context and purpose
+- This section records the live Canva presentation test requested after DOCX closeout in §52.43.
+- The presentation is titled **“Pengujian Sistem CLOUZER”** and contains four slides: title, Tujuan, Hasil, and Kesimpulan.
+- The user clarified that the Canva design itself looks normal before export. The PDF is the reference for the intended/original appearance; the exported PPTX is visibly broken.
+- Keep the verdicts format-specific. A successful PDF export does not imply a successful PPTX export, and a valid PPTX package does not imply a visually correct presentation.
+
+### Canva design and PDF export — PASS (visual evidence)
+- The user asked the assistant to inspect the PDF in Box and clarified: “Pengujian sistem clouzer. Baca yg pdf bro. Kek gitu tampilan aslinya.”
+- PDF artifact inspected from Box: `Pengujian Sistem Clouzer_20261127_230915_0000.pdf`.
+- The PDF was downloaded and rendered locally for visual inspection. Four pages were inspected together.
+- The four-page PDF shows the intended, coherent visual design:
+  1. **Title:** “PENGUJIAN SISTEM CLOUZER”, large title treatment, building illustration, and orange accent.
+  2. **Tujuan:** explanatory text on the left and laptop illustration on the right.
+  3. **Hasil:** four test/result aspects with numbered presentation layout.
+  4. **Kesimpulan:** concise conclusion text with a staircase illustration.
+- The visual hierarchy, spacing, alignment, and slide/page composition appear consistent and readable in the inspected PDF. No comparable text collision or clipping was observed in the four rendered PDF pages.
+- The user confirmed that this PDF appearance matches the original Canva presentation appearance before PPTX export.
+- **PDF export verdict: PASS for the inspected visual appearance and four-page presentation reference.**
+- Evidence boundary: this is a visual inspection of the PDF artifact. Do not infer that every PDF feature, embedded link, or delivery path was tested unless separately evidenced. PDF creation was already recorded as closed in earlier sections; this entry records the Canva presentation-specific comparison.
+
+### PPTX export artifact — package PASS, visual FAIL
+- Raw PPTX artifact located and downloaded directly from Box:
+  - File: `Pengujian Sistem Clouzer_20261127_230107_0000.pptx`
+  - Box folder: `CLOUZER_BUANGAN_UPLOAD`
+  - Box file ID: `2619164215021`
+  - Size: 10,467,908 bytes (about 10 MB)
+  - SHA-1: `67be8adccabcbc4046bf68e4814e6217df6bca08`
+- The actual binary was inspected, not only Box text extraction:
+  - ZIP/OOXML package opened and integrity check passed (`ZipFile.testzip()` returned no corrupt member).
+  - `python-pptx` opened the presentation successfully.
+  - Four slides were detected.
+  - Slide dimensions were 20 × 11.25 inches (16:9).
+  - Text content was extracted from PowerPoint text shapes/TextBoxes; the content is not merely one flattened slide image. The inspected text shapes are editable PowerPoint objects.
+  - LibreOffice successfully opened and rendered the PPTX to PDF; all four slides were rendered for visual inspection.
+- **Visual defects observed in the LibreOffice render:**
+  1. Slide 1: title text is clipped/cut off and its word arrangement is broken.
+  2. Slide 2: multiple text elements overlap/stack, reducing readability.
+  3. Slide 3: title and explanatory text collide/overlap.
+  4. Slide 4: conclusion text overlaps and is difficult to read.
+- The user independently confirmed that the downloaded PPTX file itself looks broken, while the presentation before export in Canva looks normal.
+- The earlier text-read report also identified the typo `area perbaikanuntuk` in the Tujuan slide. In the later PDF/Canva comparison, the phrase was read with the missing space corrected as `area perbaikan untuk`; retain this as an observed content correction, not proof that every slide text is identical.
+- **PPTX verdict:**
+  - Package/ZIP integrity: **PASS**.
+  - Four-slide structure and 16:9 dimensions: **PASS**.
+  - Text extraction and editable text shapes: **PASS**.
+  - Visual fidelity/readability against the Canva/PDF reference: **FAIL**.
+  - Overall PPTX artifact acceptance: **PARTIAL / NOT PASS**, because visual fidelity is a required acceptance criterion and all four rendered slides show layout defects.
+- Do not label the whole Canva presentation creation as failed: the pre-export Canva design and inspected PDF look correct. The observed failure is specifically in the exported PPTX artifact.
+- Likely failure boundary: the appearance changes during or after PPTX export/conversion, or during interpretation by the renderer. The user confirms the actual PPTX file is broken, but the exact technical root cause (Canva PPTX exporter, font substitution, unsupported layout feature, or PowerPoint/LibreOffice compatibility) has not yet been isolated. Do not state a proven root cause without further comparative testing.
+- No direct Microsoft PowerPoint application rendering was performed. LibreOffice is the renderer used for the technical visual inspection. The user's independent confirmation that the PPTX itself is broken strengthens the artifact verdict, but does not identify the exact export defect.
+
+### Comparison summary
+| Stage / artifact | Result | Evidence |
+|---|---|---|
+| Canva design before export | PASS (user-confirmed normal) | User's direct observation; PDF appearance matches |
+| Canva PDF export | PASS (visual) | Four-page Box PDF rendered and inspected |
+| Canva PPTX export package | PASS | ZIP/OOXML integrity and python-pptx open |
+| PPTX slide count/dimensions | PASS | 4 slides, 20 × 11.25 in, 16:9 |
+| PPTX editable text objects | PASS | Text extracted from native PowerPoint text shapes |
+| PPTX visual layout | FAIL | Four LibreOffice-rendered slides show clipping/overlap |
+| Overall PPTX artifact | PARTIAL / NOT PASS | Required visual-fidelity criterion failed |
+
+### Next steps / planning
+1. Keep the original Canva design, original PDF, and original PPTX artifacts unchanged. Do not overwrite or delete the Box originals.
+2. If the goal is to diagnose the export failure, use the existing PDF as the visual reference and the existing PPTX as the failing artifact. Compare slide-by-slide text, fonts, text-box geometry, line wrapping, and media relationships. Avoid creating another Canva design before this comparison.
+3. If a corrected PPTX is attempted, make a separate copy/design or a new export; do not replace the original evidence artifact. First determine whether the issue is font substitution, text-box dimensions/auto-fit, unsupported effects, or renderer compatibility.
+4. If the PPTX is re-exported after a correction, inspect the raw package again and render all four slides. Require visual comparison against the four-page PDF reference before changing PPTX status to PASS.
+5. Once PPTX is either closed with an accepted artifact or its remediation path is documented, continue the existing §52.43 format order: CSV, then JSON, reconciling existing Box artifacts before asking the user to run another live test.
+6. Do not repeat PDF/XLSX/ZIP tests absent a specific new defect. Keep reliability testing and Discord/Box delivery provenance as separate workstreams.
+7. Preserve protected boundaries: do not modify production root `main.py`, do not merge PR #6, and do not restart Wispbyte without the user's explicit authorization and matching startup-log evidence.
+
+### Handoff summary
+The Canva design before export is normal according to the user, and the inspected four-page PDF accurately shows the intended presentation appearance (**PDF visual PASS**). The PPTX downloaded from Box is a valid editable four-slide PowerPoint package, but its rendered layout is broken on every slide (**PPTX visual FAIL; overall PARTIAL / NOT PASS**). This is an export-artifact problem, not evidence that the original Canva design or PDF is broken. Exact root cause remains unproven. Preserve all original artifacts and continue with CSV then JSON after the PPTX comparison/remediation decision.
