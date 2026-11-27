@@ -1756,7 +1756,7 @@ Jangan mengklaim berhasil jika file gagal dibuat atau dikirim."""
             "Pengujian DOCX telah selesai.",
         ):
             self.assertIn(literal, paragraph_text)
-        table_rows_as_text = {"\\t".join(row) for row in expected_rows}
+        table_rows_as_text = {"\t".join(row) for row in expected_rows}
         self.assertTrue(table_rows_as_text.isdisjoint(paragraph_text))
         summary = validate_document_file(
             "docx",
@@ -1827,7 +1827,7 @@ Jangan menggandakan tabel sebagai teks biasa."""
             "Pengujian DOCX telah selesai.",
         ):
             self.assertIn(literal, paragraph_text)
-        table_rows_as_text = {"\\t".join(row) for row in expected_rows}
+        table_rows_as_text = {"\t".join(row) for row in expected_rows}
         self.assertTrue(table_rows_as_text.isdisjoint(paragraph_text))
         summary = validate_document_file("docx", prompt, data)
         self.assertEqual(summary["tables"], 1)
