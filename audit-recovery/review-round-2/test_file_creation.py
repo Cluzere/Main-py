@@ -1421,5 +1421,47 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
                         result.index("Ringkasan Validasi Otomatis CLOUZER"))
         self.assertEqual(result.count("Ringkasan Validasi Otomatis CLOUZER"), 1)
 
+    def test_pdf_body_overlap_sweep_matches_exhaustive_check(self):
+        import pymupdf
+        from clouzer_file_creation import _first_body_text_overlap
+
+        records = [
+            {"page": 0, "rect": pymupdf.Rect(40, 10, 180, 20), "text": "A"},
+            {"page": 0, "rect": pymupdf.Rect(40, 20, 180, 30), "text": "touching edge"},
+            {"page": 0, "rect": pymupdf.Rect(220, 22, 350, 32), "text": "vertical overlap only"},
+            {"page": 0, "rect": pymupdf.Rect(40, 40, 180, 52), "text": "first collision"},
+            {"page": 0, "rect": pymupdf.Rect(42, 45, 182, 58), "text": "second collision"},
+            {"page": 1, "rect": pymupdf.Rect(40, 10, 180, 20), "text": "next page"},
+        ]
+
+        expected = None
+        for index, first in enumerate(records):
+            for second in records[index + 1:]:
+                if second["page"] != first["page"]:
+                    if second["page"] > first["page"]:
+                        break
+                    continue
+                intersection = first["rect"] & second["rect"]
+                if not intersection.is_empty and intersection.get_area() > 1.0:
+                    expected = (first, second)
+                    break
+            if expected:
+                break
+
+        actual = _first_body_text_overlap(records)
+        self.assertIsNotNone(actual)
+        self.assertIs(actual[0], expected[0])
+        self.assertIs(actual[1], expected[1])
+
+    def test_pdf_body_overlap_sweep_skips_disjoint_vertical_blocks(self):
+        import pymupdf
+        from clouzer_file_creation import _first_body_text_overlap
+
+        records = [
+            {"page": 0, "rect": pymupdf.Rect(40, y, 180, y + 8), "text": str(y)}
+            for y in range(10, 1010, 10)
+        ]
+        self.assertIsNone(_first_body_text_overlap(records))
+
 if __name__ == "__main__":
     unittest.main()
