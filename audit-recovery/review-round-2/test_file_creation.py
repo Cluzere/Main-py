@@ -1254,6 +1254,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertEqual(filename, "Tes_PDF_Final.pdf")
         self.assertEqual(mime, "application/pdf")
         self.assertGreaterEqual(summary["pages"], 4)
+        self.assertLessEqual(summary["pages"], 5)
         self.assertTrue(summary["master_final_report"])
         self.assertEqual(summary["product_rows"], 10)
         self.assertEqual(summary["table_columns"], 7)
@@ -1315,7 +1316,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         with pymupdf.open(stream=data, filetype="pdf") as doc:
             extracted = "\\n".join(page.get_text() for page in doc)
         self.assertIn("Jumlah halaman sebelum lampiran validasi:", extracted)
-        self.assertIn("Elemen vektor tabel", extracted)
+        self.assertIn("Elemen vektor PDF", extracted)
         self.assertEqual(re.sub(r"\\s+", " ", extracted).casefold().count("not verified"), 3)
 
     def test_master_final_pdf_rejects_wrong_table_header_schema(self):
