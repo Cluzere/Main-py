@@ -338,13 +338,28 @@ Dokumen selesai diuji."""
         prs = Presentation(io.BytesIO(data))
 
         self.assertEqual(len(prs.slides), 5)
-        actual_titles = [slide.shapes.title.text for slide in prs.slides]
+        actual_titles = []
+        title_shapes = []
+        for slide in prs.slides:
+            text_shapes = [
+                shape for shape in slide.shapes
+                if getattr(shape, "has_text_frame", False) and shape.text.strip()
+            ]
+            # The redesigned deck uses a blank layout and editable text boxes,
+            # so Presentation slide.shapes.title is intentionally None.
+            title_shape = next(
+                (shape for shape in text_shapes if shape.top < Inches(2.2)
+                 and shape.left < Inches(8.0)),
+                None,
+            )
+            self.assertIsNotNone(title_shape, "Slide title textbox must exist")
+            title_shapes.append(title_shape)
+            actual_titles.append(title_shape.text.strip())
         self.assertEqual(actual_titles, slide_titles)
-        for slide, expected_title in zip(prs.slides, slide_titles):
-            title_shape_id = slide.shapes.title.shape_id
+        for slide, expected_title, title_shape in zip(prs.slides, slide_titles, title_shapes):
             body_text = " ".join(
                 shape.text for shape in slide.shapes
-                if getattr(shape, "has_text_frame", False) and shape.shape_id != title_shape_id
+                if getattr(shape, "has_text_frame", False) and shape.shape_id != title_shape.shape_id
             )
             body_lines = [line.strip() for line in body_text.splitlines() if line.strip()]
             # The title may legitimately be mentioned inside body prose; only
