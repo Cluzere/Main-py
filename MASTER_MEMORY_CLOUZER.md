@@ -132,6 +132,17 @@
 7. Di sesi baru, jangan mengaitkan tools ChatGPT yang baru tersedia dengan bot CLOUZER. Mulai dari asumsi bahwa tools ChatGPT dapat membantu membaca Box, sedangkan bot belum otomatis upload ke Box. Jangan meminta pengguna mengulang penjelasan ini.
 8. Sampai integrasi otomatis benar-benar diimplementasikan dan diuji, prosedur aktual adalah pengguna mengunduh attachment dari Discord lalu mengunggahnya sendiri ke Box; ChatGPT kemudian memeriksa file yang sudah ada di Box.
 
+## A12. Kontinuitas lintas sesi ChatGPT dan tujuan Master Memory — KRITIS
+
+1. Pengguna sering harus memulai percakapan ChatGPT baru karena jendela konteks percakapan penuh. Screenshot yang diberikan pada 28 November 2026 menampilkan pemberitahuan **“Jendela konteks penuh”** dengan opsi memulai obrolan baru atau meningkatkan paket.
+2. Setiap percakapan baru dapat kehilangan konteks kerja rinci dari sesi sebelumnya; pengguna menggambarkan pengalaman ini sebagai bertemu “otak GPT baru” yang seperti di-reset. Perlakukan ini sebagai masalah kontinuitas yang nyata, bukan anggapan bahwa sesi baru otomatis mengetahui seluruh riwayat.
+3. **Tujuan utama Master Memory adalah mencegah kehilangan konteks/“GPT pikun” antar-sesi.** Master Memory GitHub adalah handoff persisten untuk identitas proyek, aturan, keputusan, status, bukti, temuan, planning, dan langkah berikutnya.
+4. Sesi baru wajib membaca Master Memory terbaru dari awal Bagian A–F sebelum bertanya ulang atau melanjutkan pekerjaan. Buka Bagian G untuk bukti historis dan detail yang diperlukan. Jangan mengandalkan ringkasan chat, saved memory, atau SHA lama jika dokumen GitHub terbaru dapat di-fetch.
+5. Setiap informasi baru yang relevan dan didapat dari pengguna, inspeksi file, pemeriksaan GitHub, CI/workflow, startup, runtime, atau pengujian wajib dipilah ke bagian yang tepat dan dimasukkan ke Master Memory pada sesi/pekerjaan yang sama: aturan ke A, kondisi/sumber kebenaran ke B, perubahan kandidat ke C, tes/CI ke D, hasil terbukti ke E, pekerjaan tertunda ke F, serta detail kronologis dan bukti ke G.
+6. Jangan hanya mengatakan informasi “diingat” atau “dicatat”. Untuk perubahan GitHub, fetch versi terbaru, commit pada branch yang benar, fetch ulang, dan verifikasi isi, blob SHA, serta commit SHA. Jika belum ada commit terverifikasi, katakan belum tersimpan.
+7. Master Memory harus menjaga kesinambungan tanpa mengubah fakta: pisahkan fakta langsung, laporan pengguna, inferensi, dugaan yang ditarik, status NOT VERIFIED, dan keputusan. Jangan mengubah dugaan menjadi fakta atau menghapus bukti historis saat status diperbarui.
+8. Jika konteks sesi hampir penuh, prioritaskan pembaruan Master Memory sebelum percakapan berakhir agar sesi berikutnya dapat melanjutkan dari titik terakhir tanpa meminta pengguna mengulang seluruh sejarah.
+
 ## A9. Aturan penyimpanan artefak retest dan provenance Box
 
 1. Semua artefak hasil retest CLOUZER diarahkan ke Box `All Files / Test file / CLOUZER_BUANGAN_AUDIT` (folder ID `441172297609`) jika folder tersebut tersedia dan dapat diakses.
@@ -204,15 +215,20 @@ Startup mengambil HEAD terbaru branch audit saat startup/restart. Itu **bukan** 
 
 ### Audit command dan hal yang belum diverifikasi
 
-- **URL:** command kanonis di atas memakai URL polos `https://github.com/Cluzere/Main-py.git`. Jika kolom Wispbyte benar-benar berisi teks Markdown seperti `[URL](URL)`, itu bukan URL clone yang valid. Tampilan hyperlink di chat tidak membuktikan kolom startup menyimpan Markdown.
-- **Interpreter pip:** command memakai executable `pip` untuk instalasi tetapi `/usr/local/bin/python` untuk menjalankan bot. Belum dibuktikan keduanya menunjuk environment Python yang sama. Rekomendasi hardening (belum diterapkan): gunakan `/usr/local/bin/python -m pip` untuk kedua instalasi setelah environment Wispbyte diperiksa.
-- **Requirements eksternal:** `/home/container/requirements.txt` berada di luar checkout repository dan isinya belum diperiksa dalam audit ini. Karena itu dependency penuh, konflik versi, dan kecocokannya belum dapat dinyatakan lulus.
-- **Dependency tambahan:** versi paket tidak dipin di command; hasil instalasi dapat berubah mengikuti rilis paket. Belum ada bukti `pip check` dijalankan pada startup ini.
+- **URL Markdown — dugaan ditarik:** pengguna mengonfirmasi bahwa restart Wispbyte berjalan dan candidate terbaru otomatis dijalankan. Tidak ada bukti bahwa kolom startup berisi literal Markdown. Karena itu, jangan lagi memperlakukan format Markdown sebagai masalah aktif atau meminta pengguna mengubah URL. Command kanonis tetap menyimpan URL Git biasa.
+- **Mengapa ada `pip`:** penggunaan `pip install` memang disengaja sebagai tahap pemasangan dependency sebelum entry point Python dijalankan. Ini konsisten dengan `STARTUP_COMMANDS.txt`, yang juga memisahkan instalasi dependency dan eksekusi Python. Keberadaan `pip` sendiri bukan defect.
+- **Interpreter pip:** command Wispbyte memakai executable `pip` untuk instalasi tetapi `/usr/local/bin/python` untuk menjalankan bot. Belum ada output `pip --version` dibanding `/usr/local/bin/python -m pip --version`; jadi kesamaan environment belum terbukti. Ini pemeriksaan kompatibilitas, bukan bukti bahwa startup salah.
+- **Requirements Wispbyte yang dilaporkan pengguna (isi yang diketik):** `discord.py>=2.3.2`, `aiohttp>=3.9.0`, `Pillow>=10.0.0`, `python-dotenv>=1.0.0`, `PyMuPDF<2`, `python-docx>=1.1.0`, `python-pptx>=0.6.23`, dan `openpyxl>=3.1.2`. File berada di `/home/container/requirements.txt`, di luar checkout repository.
+- **Perbedaan requirements:** file repository `audit-recovery/review-round-2/requirements-audit.txt` yang dibaca pada audit ini berisi paket dasar di atas tanpa batas versi minimum yang sama, serta `py7zr>=1.0,<2` dan `defusedxml`. File tersebut bukan file yang otomatis dipakai startup Wispbyte; startup merujuk file eksternal `/home/container/requirements.txt`.
+- **Dependency tambahan startup:** command Wispbyte menjalankan instalasi kedua untuk `discord.py aiohttp Pillow python-dotenv requests defusedxml py7zr PyMuPDF python-docx python-pptx openpyxl`. Ini berarti `requests`, `defusedxml`, dan `py7zr` tetap dipasang meski tidak tercantum dalam daftar requirements Wispbyte yang dilaporkan pengguna. Instalasi kedua dapat bersifat redundan untuk paket yang sudah dipasang oleh requirements; jangan mengubahnya tanpa memeriksa kebutuhan impor dan resolusi versi.
+- **PyMuPDF:** `PyMuPDF<2` pada requirements Wispbyte adalah deklarasi dependency yang masuk akal. Command kemudian menyebut `PyMuPDF` lagi tanpa batas versi pada perintah instalasi kedua. Belum ada bukti bahwa ini menimbulkan konflik; periksa versi terpasang dan `pip check` sebelum menyimpulkan.
+- **Pemeriksaan yang masih diperlukan:** bandingkan `pip --version` dengan `/usr/local/bin/python -m pip --version`; jalankan `/usr/local/bin/python -m pip check`; dan import-test modul kandidat dengan interpreter yang sama. Belum ada output pemeriksaan tersebut.
+- **Dependency tidak sepenuhnya reproducible:** command instalasi kedua tidak mem-pin versi. Jangan menganggap versi paket identik antar-startup.
 - **Reset checkout:** `git reset --hard FETCH_HEAD` membuang perubahan lokal pada file tracked, tetapi tidak membersihkan file untracked. Jangan menambahkan `git clean -fd` atau menghapus folder checkout tanpa inspeksi dan izin.
 - **Folder checkout:** kondisi folder `/home/container/clouzer-audit` yang ada tetapi bukan Git repository belum diuji; jangan hapus otomatis.
-- **Status:** urutan dan target entry point terbaca dari command yang diberikan pengguna; environment aktual, isi requirements, konsistensi pip/python, dependency resolution, dan SHA proses live tetap **NOT VERIFIED**.
+- **Status:** restart dan kembalinya candidate online dilaporkan pengguna; itu mendukung bahwa alur startup berjalan. Kesamaan environment pip/Python, resolusi dependency aktual, output `pip check`, dan SHA proses live terbaru tetap **NOT VERIFIED**.
 
-Rekomendasi hardening di atas adalah temuan/rencana, bukan perubahan pada command asli. Jangan ubah command di Wispbyte atau restart instance tanpa instruksi eksplisit pengguna.
+Jangan ubah command di Wispbyte atau restart instance tanpa instruksi eksplisit pengguna.
 
 ### Bukti runtime vs konfigurasi startup — jangan dicampur
 
@@ -424,10 +440,12 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 
 **Status planning per 28 November 2026:** pekerjaan berikut belum dinyatakan selesai hanya karena tercatat di sini. Status CI pada commit PPTX terakhir yang diketahui `54cc3b8...` belum terverifikasi; penambahan test/patch bukan bukti test lulus. Live PPTX, Box upload otomatis, Discord delivery, dan identitas runtime Wispbyte juga belum lulus acceptance.
 
-1. **Validasi startup Wispbyte (prioritas pertama).**
-   - Gunakan command asli yang disimpan di B2A sebagai baseline; jangan mengubahnya diam-diam.
-   - Saat pengguna memberi izin dan melakukan restart candidate, periksa log startup terbaru dan catat SHA yang benar-benar di-fetch serta proses yang berjalan.
-   - Periksa isi `/home/container/requirements.txt`, pastikan `pip` dan `/usr/local/bin/python` menunjuk environment yang sama, lalu jalankan pemeriksaan dependency seperti `pip check`. Jangan menyatakan lolos sebelum ada output.
+1. **Validasi environment dependency Wispbyte (prioritas pertama; jangan ubah startup command).**
+   - Gunakan command asli yang disimpan di B2A sebagai baseline. Dugaan URL Markdown sudah ditarik karena restart Wispbyte dilaporkan berjalan dan tidak ada bukti literal Markdown pada panel.
+   - Penggunaan `pip` memang disengaja untuk memasang dependency sebelum menjalankan kandidat. Fokus pemeriksaan adalah memastikan executable `pip` dan `/usr/local/bin/python` memakai environment yang sama, bukan menghapus `pip`.
+   - Minta/baca output `pip --version`, `/usr/local/bin/python -m pip --version`, `/usr/local/bin/python -m pip check`, dan import-test modul kandidat. Belum ada hasil output yang membuktikan pemeriksaan tersebut lulus.
+   - Bedakan requirements eksternal Wispbyte dari `requirements-audit.txt` di repository. Catat paket tambahan `requests`, `defusedxml`, dan `py7zr` yang dipasang oleh perintah kedua; periksa redundansi dan resolusi versi sebelum menyederhanakan command.
+   - Saat pengguna memberi izin dan melakukan restart candidate untuk kebutuhan tes, periksa log startup terbaru dan catat SHA yang benar-benar di-fetch serta proses yang berjalan.
    - Bedakan SHA branch HEAD, SHA commit kode, dan SHA proses runtime. Commit dokumentasi Master Memory tidak otomatis membuktikan kode baru sudah live.
 
 2. **Selesaikan live acceptance PPTX visual.**
@@ -5413,3 +5431,24 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Jangan bertanya ulang apakah file Box yang pernah diperiksa diunggah bot atau manual: untuk rangkaian artefak pengujian yang diklarifikasi pengguna, provenance-nya manual.
 - Gunakan konektor Box ChatGPT untuk membaca file yang sudah ada. Untuk file baru dari bot, sampai integrasi otomatis terbukti, pengguna masih harus mengunduh dari Discord dan mengunggah manual ke Box.
 - Jangan mengubah kode, restart Wispbyte, atau mengklaim integrasi sudah diperbaiki hanya karena Master Memory ini diperbarui.
+
+---
+
+## 52.54 Alasan pergantian sesi dan tujuan kontinuitas Master Memory — 28 November 2026
+
+### Bukti dari pengguna
+- Pengguna mengirim screenshot ChatGPT pada percakapan “Audit Bot Discord (163)”. Di bagian bawah layar terlihat pemberitahuan **“Jendela konteks penuh”** dan keterangan bahwa pengguna dapat memulai obrolan baru dengan ringkasan otomatis percakapan ini atau meningkatkan paket untuk melanjutkan dengan kapasitas konteks lebih besar.
+- Pengguna menjelaskan bahwa inilah alasan ia sering mengganti sesi: setelah sesi baru dimulai, ia merasa bertemu GPT baru yang konteks/ingatannya ter-reset dan harus mengulang penjelasan.
+- Pengguna menyatakan tujuan Master Memory sejak awal adalah menghindari GPT menjadi “pikun”, yaitu memastikan sesi baru bisa meneruskan proyek dengan konteks, aturan, temuan, dan planning yang utuh.
+
+### Dampak operasional
+1. Pergantian sesi bukan berarti proyek dimulai ulang. Master Memory GitHub adalah sumber handoff utama yang harus dibaca oleh sesi baru.
+2. Jangan meminta pengguna mengulang informasi yang sudah tersedia di Master Memory. Fetch HEAD terbaru, baca Bagian A–F, lalu lanjutkan dari status dan planning terakhir.
+3. Semua informasi baru wajib dimasukkan ke Master Memory sesuai struktur A–G pada A8/A12. Jangan berhenti pada ringkasan chat atau klaim “sudah diingat”.
+4. Setiap pembaruan harus dibuktikan dengan commit GitHub dan verifikasi fetch ulang; bila belum dilakukan, nyatakan secara jujur bahwa belum tersimpan.
+5. Bila konteks hampir penuh, dahulukan pencatatan keputusan, bukti, status, pertanyaan terbuka, dan langkah berikutnya ke Master Memory agar handoff tidak terputus.
+
+### Batas bukti
+- Screenshot membuktikan UI ChatGPT menampilkan pemberitahuan konteks penuh pada saat screenshot diambil. Screenshot tidak mengungkap batas token, isi ringkasan otomatis, atau seluruh mekanisme internal pengelolaan konteks.
+- Pernyataan tentang pengalaman reset lintas sesi dan tujuan Master Memory berasal dari penjelasan langsung pengguna.
+
