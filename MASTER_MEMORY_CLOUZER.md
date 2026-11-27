@@ -184,17 +184,35 @@
 - File production yang terpisah:
   **`/home/container/main.py`**. Jangan menganggapnya entry point candidate dan jangan menyentuhnya.
 
-### Startup command yang telah dibuktikan dari log pengguna
+### Startup command Wispbyte — command asli pengguna
 
-Startup command Wispbyte melakukan pola berikut:
+Berikut command lengkap yang diberikan pengguna untuk kolom startup Wispbyte. Simpan sebagai referensi verbatim; jangan diam-diam mengganti interpreter, dependency, URL, urutan, atau path di command ini. URL di bawah adalah URL GitHub biasa, bukan Markdown hyperlink.
+
+```sh
+cd /home/container && if [ ! -d /home/container/clouzer-audit/.git ]; then git clone --depth 1 --branch audit-recovery-gpt-2026-11-23 https://github.com/Cluzere/Main-py.git /home/container/clouzer-audit || exit 1; else git -C /home/container/clouzer-audit fetch --depth 1 origin audit-recovery-gpt-2026-11-23 && git -C /home/container/clouzer-audit reset --hard FETCH_HEAD || exit 1; fi && pip install --no-cache-dir -r /home/container/requirements.txt && pip install --no-cache-dir discord.py aiohttp Pillow python-dotenv requests defusedxml py7zr PyMuPDF python-docx python-pptx openpyxl && /usr/local/bin/python /home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py
+```
+
+### Pembacaan urutan startup
 
 1. Masuk ke `/home/container`.
-2. Jika `/home/container/clouzer-audit/.git` belum ada, clone repository dengan branch `audit-recovery-gpt-2026-11-23` ke folder `/home/container/clouzer-audit`.
+2. Jika `/home/container/clouzer-audit/.git` belum ada, clone branch `audit-recovery-gpt-2026-11-23` ke `/home/container/clouzer-audit`.
 3. Jika checkout sudah ada, fetch branch tersebut lalu `git reset --hard FETCH_HEAD`.
-4. Install dependency dari `/home/container/requirements.txt` dan dependency runtime tambahan (discord.py, aiohttp, Pillow, python-dotenv, requests, defusedxml, py7zr, PyMuPDF, python-docx, python-pptx, openpyxl).
-5. Jalankan entry point kandidat menggunakan `/usr/local/bin/python`.
+4. Install dependency dari `/home/container/requirements.txt`, lalu install dependency runtime tambahan: discord.py, aiohttp, Pillow, python-dotenv, requests, defusedxml, py7zr, PyMuPDF, python-docx, python-pptx, openpyxl.
+5. Jalankan candidate entry point `/home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py` dengan `/usr/local/bin/python`.
 
-Dengan demikian, startup **mengambil HEAD terbaru dari branch audit setiap kali startup/restart dijalankan**. Commit dokumentasi baru pada branch juga mengubah branch HEAD, tetapi tidak dengan sendirinya mengubah kode runtime yang sedang berjalan; runtime baru mengambilnya pada startup berikutnya.
+Startup mengambil HEAD terbaru branch audit saat startup/restart. Itu **bukan** bukti SHA proses yang sedang berjalan sekarang; SHA runtime tetap harus dicocokkan dengan log startup terakhir.
+
+### Audit command dan hal yang belum diverifikasi
+
+- **URL:** command kanonis di atas memakai URL polos `https://github.com/Cluzere/Main-py.git`. Jika kolom Wispbyte benar-benar berisi teks Markdown seperti `[URL](URL)`, itu bukan URL clone yang valid. Tampilan hyperlink di chat tidak membuktikan kolom startup menyimpan Markdown.
+- **Interpreter pip:** command memakai executable `pip` untuk instalasi tetapi `/usr/local/bin/python` untuk menjalankan bot. Belum dibuktikan keduanya menunjuk environment Python yang sama. Rekomendasi hardening (belum diterapkan): gunakan `/usr/local/bin/python -m pip` untuk kedua instalasi setelah environment Wispbyte diperiksa.
+- **Requirements eksternal:** `/home/container/requirements.txt` berada di luar checkout repository dan isinya belum diperiksa dalam audit ini. Karena itu dependency penuh, konflik versi, dan kecocokannya belum dapat dinyatakan lulus.
+- **Dependency tambahan:** versi paket tidak dipin di command; hasil instalasi dapat berubah mengikuti rilis paket. Belum ada bukti `pip check` dijalankan pada startup ini.
+- **Reset checkout:** `git reset --hard FETCH_HEAD` membuang perubahan lokal pada file tracked, tetapi tidak membersihkan file untracked. Jangan menambahkan `git clean -fd` atau menghapus folder checkout tanpa inspeksi dan izin.
+- **Folder checkout:** kondisi folder `/home/container/clouzer-audit` yang ada tetapi bukan Git repository belum diuji; jangan hapus otomatis.
+- **Status:** urutan dan target entry point terbaca dari command yang diberikan pengguna; environment aktual, isi requirements, konsistensi pip/python, dependency resolution, dan SHA proses live tetap **NOT VERIFIED**.
+
+Rekomendasi hardening di atas adalah temuan/rencana, bukan perubahan pada command asli. Jangan ubah command di Wispbyte atau restart instance tanpa instruksi eksplisit pengguna.
 
 ### Bukti runtime vs konfigurasi startup — jangan dicampur
 
@@ -404,20 +422,40 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 
 # F. KANDIDAT — PLANNING / PEKERJAAN BERIKUTNYA
 
-CI kandidat untuk patch terbaru sudah hijau. Sisa pekerjaan beralih ke live acceptance dan tata kelola repository.
+**Status planning per 28 November 2026:** pekerjaan berikut belum dinyatakan selesai hanya karena tercatat di sini. Status CI pada commit PPTX terakhir yang diketahui `54cc3b8...` belum terverifikasi; penambahan test/patch bukan bukti test lulus. Live PPTX, Box upload otomatis, Discord delivery, dan identitas runtime Wispbyte juga belum lulus acceptance.
 
-1. **Live staging PPTX acceptance:** setelah pengguna mengizinkan dan menjalankan restart/reset candidate Wispbyte, cocokkan startup log dengan candidate code commit `c8f2d188...` (bukan dokumentasi-only HEAD SHA).
-2. Jalankan satu controlled 5-slide PPTX test: pastikan lima background generation calls berbeda, lima image 16:9 tertanam full-bleed, teks native editable, tidak ada prompt visual/Markdown bocor, dan hasil render semua slide layak.
-3. Inspeksi raw PPTX package dan render setiap slide. Periksa ukuran 8 MB, relasi media, gambar, z-order, teks, contrast, clipping, dan konsistensi.
-4. Verifikasi Discord attachment delivery secara terpisah. Simpan artefak revisi sebagai file Box baru; jangan overwrite file asli.
-5. Evaluasi pengaktifan branch protection / required status checks untuk branch utama dan kebijakan PR. API branch saat pemeriksaan menunjukkan branch kandidat tidak protected; jangan mengubah repository settings tanpa izin yang sesuai.
-6. Tinjau hardening workflow berdasarkan D2.1: explicit `permissions: contents: read` pada `audit-candidate-check.yml`, konfirmasi branch trigger `audit-7z-diagnostics-fix`, validasi isi respons `STAGING_OK`, timeout/concurrency, dan action SHA pinning. Ini backlog hardening, bukan CI failure; jangan mengubah tanpa kebutuhan/otorisasi yang sesuai.
-7. Workflow `staging-smoke-test.yml` belum dijalankan; jalankan hanya bila staging secrets tersedia dan pengguna meminta smoke test.
-8. Perbarui Bagian C–F setelah bukti live tersedia, lalu catat detail kronologis di Bagian G.
+1. **Validasi startup Wispbyte (prioritas pertama).**
+   - Gunakan command asli yang disimpan di B2A sebagai baseline; jangan mengubahnya diam-diam.
+   - Saat pengguna memberi izin dan melakukan restart candidate, periksa log startup terbaru dan catat SHA yang benar-benar di-fetch serta proses yang berjalan.
+   - Periksa isi `/home/container/requirements.txt`, pastikan `pip` dan `/usr/local/bin/python` menunjuk environment yang sama, lalu jalankan pemeriksaan dependency seperti `pip check`. Jangan menyatakan lolos sebelum ada output.
+   - Bedakan SHA branch HEAD, SHA commit kode, dan SHA proses runtime. Commit dokumentasi Master Memory tidak otomatis membuktikan kode baru sudah live.
 
-**Tidak ada izin dalam planning ini untuk menyentuh production `main.py`, merge PR #6, atau melakukan restart/deploy oleh asisten.**
+2. **Selesaikan live acceptance PPTX visual.**
+   - Setelah candidate runtime terkonfirmasi memakai patch yang benar, jalankan tes terkontrol lima slide.
+   - Buktikan lima background berbeda dibuat, rasio 16:9, satu gambar full-bleed per slide, teks native tetap editable, dan tidak ada Markdown atau instruksi visual yang bocor ke teks slide.
+   - Inspeksi struktur ZIP/PPTX, media relationships, z-order, ukuran maksimum 8 MB, lalu render dan periksa seluruh slide untuk keterbacaan, kontras, clipping, artefak/gibberish, dan konsistensi.
+   - Status akhir harus berdasarkan artefak hasil runtime kandidat, bukan hanya source code atau unit test.
 
+3. **Perbaiki dan buktikan upload otomatis CLOUZER → Box.**
+   - Audit autentikasi/OAuth, konfigurasi, endpoint upload, request multipart, permission, error handling, dan log pada tools Box milik bot.
+   - Uji upload yang benar-benar dipanggil oleh proses CLOUZER. Catat file ID, nama, ukuran, waktu, dan log sukses yang aman (tanpa token/secret).
+   - Jangan mencampuradukkan konektor Box ChatGPT dengan tools Box di CLOUZER. File yang sebelumnya diunggah manual oleh pengguna bukan bukti upload otomatis bot.
+   - Kriteria PASS harus memenuhi rangkaian provenance yang ditetapkan di §52.53.
 
+4. **Verifikasi Discord attachment delivery secara terpisah.**
+   - Pastikan file hasil generator benar-benar dikirim sebagai attachment Discord, dapat diunduh, dan cocok dengan artefak yang diuji.
+   - Uji Discord delivery dan Box upload sebagai tahap terpisah; keberhasilan salah satunya tidak membuktikan tahap lain.
+   - Simpan artefak revisi sebagai file Box baru; jangan overwrite file asli.
+
+5. **Workflow dan repository hardening.**
+   - Periksa status workflow pada exact commit kode terbaru; jika ada workflow berjalan, tunggu sampai terminal. Jika gagal, baca log, perbaiki kandidat, lalu rerun dan verifikasi hasil terminal.
+   - Backlog yang perlu ditinjau: explicit `permissions: contents: read`, branch/path trigger, validasi respons `STAGING_OK`, timeout/concurrency, dan action SHA pinning.
+   - Evaluasi branch protection/required checks. Jangan mengubah repository settings tanpa otorisasi.
+   - `staging-smoke-test.yml` masih manual-only menurut catatan sebelumnya; jalankan hanya jika secrets tersedia dan pengguna meminta tes tersebut.
+
+**Batas otorisasi:** tidak ada izin dalam planning ini untuk mengubah production `/home/container/main.py`, merge PR #6, mengubah startup command di Wispbyte, atau melakukan restart/deploy oleh asisten.
+
+Setelah setiap bukti baru, perbarui Bagian C–E (perubahan, pengujian, hasil) dan tambahkan detail kronologis ke Bagian G. Jangan menandai item planning sebagai selesai tanpa bukti yang sesuai.
 ---
 
 # G. ARSIP KRONOLOGIS LENGKAP — RIWAYAT ASLI DIPERTAHANKAN
