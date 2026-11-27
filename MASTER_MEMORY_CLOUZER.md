@@ -497,47 +497,28 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 
 # F. KANDIDAT — PLANNING / PEKERJAAN BERIKUTNYA
 
-**PEMBARUAN STATUS — 28 NOVEMBER 2026, setelah audit sesi terakhir:** Audit statis PyMuPDF selesai pada §52.60 (PASS; tidak perlu patch). Langkah 1 mencocokkan file entrypoint kandidat pada commit runtime checkout 620ef73545238af290a3c648f3a3f0bbc3fa4870 dengan HEAD branch saat ini: kedua fetch menghasilkan blob SHA identik 53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6 (6.737 baris; 348.129 karakter). Dengan demikian, file entrypoint kandidat pada commit checkout runtime identik dengan file entrypoint kandidat di branch saat ini. Ini membuktikan identitas file entrypoint, bukan semua file pendukung atau proses runtime yang terus hidup. Langkah berikutnya sesuai urutan pengguna: (2) analisis isi resource trace di filesystem Wispbyte. Jangan meminta pengguna mengetik command shell di Console. Console bukan shell interaktif. Jika data perlu diekstrak, siapkan satu Startup Command lengkap yang mempertahankan seluruh alur startup; pengguna sendiri yang memasang dan menjalankannya. Jangan mengubah Startup tanpa instruksi eksplisit baru.
+**PEMBARUAN STATUS — 28 NOVEMBER 2026:** Audit statis PyMuPDF selesai PASS pada §52.60; tidak perlu patch dan jangan ulangi. Pencocokan entrypoint runtime dengan branch kandidat selesai PASS pada §52.61: blob entrypoint identik `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6`. Diagnostik environment Wispbyte juga PASS pada §52.57–§52.58; jangan ulangi pip check/import test tanpa perubahan dependency atau bukti regresi.
 
-**KOREKSI STATUS TERBARU — 28 November 2026:** diagnostik environment Wispbyte selesai PASS berdasarkan log aktual: pip dan /usr/local/bin/python memakai instalasi Python 3.11 yang sama; pip check PASS; 11/11 import PASS; kandidat mencapai pesan [ONLINE]; Box OAuth callback listener aktif pada 0.0.0.0:15497; resource tracker aktif. Jangan ulangi diagnostik environment ini. Warning fitz deprecated perlu audit terpisah. Pengguna menegaskan jangan menanyakan kembali hal dasar Message Content Intent; pengguna sudah berhasil melakukan pengecekan/pengumpulan data bot sebelumnya. Jangan mengasumsikan intent nonaktif hanya karena ada reminder generik di log. Runtime identity yang terbukti hanya checkout pada run ini ke short SHA 620ef73 (commit dokumentasi); jangan samakan dengan SHA kode kandidat atau klaim patch PPTX terbaru sudah live.
+**KOREKSI RESOURCE TRACE — 28 NOVEMBER 2026:** Pengguna memasok ringkasan output diagnostik yang membaca 131 baris CSV setelah startup: process CPU one-core rata-rata 0,19% dan maksimum 1,0%; cgroup CPU rata-rata 0,95%, maksimum 80,3% (puncak awal/startup); RSS stabil 124,9 MB; cgroup memory rata-rata sekitar 170,0 MB dari limit 588,8 MB; throttle delta rata-rata 0,02 dan maksimum 3 pada rentang diagnostik. Log setelah periode idle memperlihatkan CPU rendah, sedangkan saat permintaan pembuatan/validasi PDF terjadi lonjakan singkat sekitar 26–40% one-core dan throttle deltas sesaat; sesudah operasi selesai CPU kembali mendekati idle dan RSS sekitar 130–133 MB. Ini adalah bukti dari log yang diberikan pengguna, bukan inspeksi independen terhadap file CSV mentah. Kesimpulan: **tidak ada bukti tekanan RAM atau lonjakan CPU berkelanjutan pada sampel tersebut**; lonjakan singkat saat startup/pembuatan PDF tidak boleh disamakan dengan kondisi idle. Tutup permintaan ekstraksi CSV tambahan kecuali muncul gejala baru atau data baru yang bertentangan.
 
-**Status planning per 28 November 2026:** pekerjaan berikut belum dinyatakan selesai hanya karena tercatat di sini. Status CI pada commit PPTX terakhir yang diketahui `54cc3b8...` belum terverifikasi; penambahan test/patch bukan bukti test lulus. Live PPTX, Box upload otomatis, Discord delivery, dan identitas runtime Wispbyte juga belum lulus acceptance.
+**STATUS PPTX TERBARU:** Commit kode kandidat `99ea0fed2f78415fcafdfcae4ad892ebb3d397e1` mengaktifkan visual generation untuk semua PPTX dan fail-closed terhadap `ValueError/RuntimeError` pada visual pipeline. Commit telah di-fetch dan diff-nya diperiksa. Blob entrypoint saat ini `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6`, helper `f6af7ccc86e637321bb074e710b19b864f6fb081`, tests `d907fd0990856ed0f951c802d7eb202733ea8cb2`. Combined commit status untuk `99ea0fed...` kosong; workflow push-run dan job terminal belum terverifikasi melalui konektor yang tersedia. Jangan mengklaim CI PASS pada commit ini. Existing test hanya membuktikan helper embedding dengan gambar fixture; belum ada regression yang membuktikan kegagalan visual tidak masuk generic retry atau markdown-only output tidak dapat diperlakukan sebagai keberhasilan. Source inspection menunjukkan provider error dibungkus menjadi RuntimeError oleh `generate_cloudflare_image`; jalur fail-closed yang baru menangani ValueError/RuntimeError dan langsung raise sebelum generic FILE-RETRY. Namun live artifact pasca-commit belum diuji.
 
-1. **Audit warning kompatibilitas PyMuPDF (fitz) — prioritas berikutnya.**
-   - Startup aktual menunjukkan import fitz berhasil tetapi mengeluarkan warning bahwa API fitz deprecated dan akan dihapus di masa depan; log menyarankan import pymupdf.
-   - Audit pemakaian fitz pada kandidat dan dependensi terkait secara read-only terlebih dahulu. Identifikasi apakah hanya import alias atau ada API yang juga deprecated.
-   - Jangan mengganti import/dependency atau mengubah kode sebelum akar dampak dipahami dan pengguna memberi izin perbaikan. Jika diizinkan, patch hanya branch kandidat, tambah tes regresi, jalankan workflow relevan sampai terminal, lalu verifikasi.
-   - Diagnostik pip, pip check, dan 11 import sebelumnya sudah PASS; jangan mengulangnya tanpa perubahan dependency atau bukti regresi.
-   - Runtime pada log ini checkout branch ke short SHA 620ef73, yaitu commit dokumentasi; itu bukan bukti bahwa commit kode kandidat terbaru atau patch PPTX tertentu sedang berjalan. Cocokkan SHA checkout dengan commit kode saat retest berikutnya.
-   - Startup command tidak perlu diubah untuk memperbaiki warning ini. Restart Wispbyte tetap hanya oleh pengguna dan hanya bila dibutuhkan setelah patch kandidat siap.
+1. **PPTX — prioritas engineering aktif.**
+   - Jangan ulangi tes PDF, XLSX, ZIP, atau DOCX yang sudah lulus untuk acceptance masing-masing. PPTX artifact terdahulu yang diperiksa di §§52.48–52.51 memiliki defect visual/text; itu bukti historis dan tidak membuktikan hasil patch `99ea0fed...`.
+   - Tambahkan regression test terarah pada candidate branch untuk membuktikan kegagalan visual PPTX fail-closed dan tidak pernah mencapai generic retry/plain-PPTX delivery. Pastikan coverage juga membedakan file intent yang tidak terdeteksi (Markdown-only path) dari PPTX file-generation intent yang terdeteksi.
+   - Audit routing: `detect_requested_file_format(clean_content)`, construction of `payload_messages`, `resolve_document_source`, visual provider calls, embedding, validation, dan Discord send. Tambahkan log stage yang aman bila dibutuhkan: requested format, model, generated count, embedded count, validation, attachment send. Jangan log token/secret.
+   - Jalankan semua workflow candidate yang relevan pada exact code/test SHA baru; periksa setiap job dan tunggu status terminal. Run history yang tidak dapat diakses bukan PASS.
+   - Setelah CI PASS, minta pengguna melakukan satu restart candidate yang diotorisasi dan kirim log startup untuk mencocokkan SHA. Jangan ubah Startup Command dan jangan restart sendiri.
+   - Lakukan satu controlled 5-slide live test. Periksa raw PPTX package, lima media files/relationships/picture shapes, 16:9 full-bleed, editable text, tidak ada Markdown/instruksi visual, render setiap slide, clipping/kontras/artefak, ukuran output, serta attachment Discord. Simpan file koreksi sebagai file baru.
+2. **CSV dan JSON:** setelah PPTX selesai, cocokkan checklist/artefak historis sebelum meminta live test. Jalankan satu tes hanya jika ada acceptance gap yang belum ditutup; jangan mengulang tes yang sudah PASS.
+3. **Reliability:** retry, context persistence, SSE interruption, provider rate-limit/backoff, dan status per tahap tetap workstream terpisah. Kerjakan hanya jika ada reproduksi/tes yang belum ditutup; jangan mencampurnya dengan PPTX tanpa hubungan bukti.
+4. **Discord attachment delivery:** buktikan pengiriman, penerimaan, dan unduhan attachment secara terpisah dari file generation/validation. Jangan menyimpulkan delivery dari keberadaan file di Box.
+5. **CLOUZER → Box automatic upload:** masih NOT VERIFIED. Audit tools runtime CLOUZER dan uji upload yang benar-benar dipanggil bot; konektor Box ChatGPT dan upload manual pengguna bukan bukti integrasi bot.
+6. **Workflow/repository hardening:** backlog permissions/path triggers/action pinning/staging smoke tetap terpisah. Jangan mengubah settings atau workflow hanya demi status hijau; staging smoke manual-only dan membutuhkan secrets yang sudah dikonfigurasi. Jangan mengklaimnya lulus tanpa run.
+   
+**Batas otorisasi:** hanya candidate branch `audit-recovery-gpt-2026-11-23` untuk perubahan. Production `/home/container/main.py`, branch `main`, PR #6 merge, Startup Command, restart/deploy tetap tidak diizinkan tanpa izin eksplisit terpisah. Pengguna mengendalikan restart Wispbyte.
 
-2. **Selesaikan live acceptance PPTX visual.**
-   - Setelah candidate runtime terkonfirmasi memakai patch yang benar, jalankan tes terkontrol lima slide.
-   - Buktikan lima background berbeda dibuat, rasio 16:9, satu gambar full-bleed per slide, teks native tetap editable, dan tidak ada Markdown atau instruksi visual yang bocor ke teks slide.
-   - Inspeksi struktur ZIP/PPTX, media relationships, z-order, ukuran maksimum 8 MB, lalu render dan periksa seluruh slide untuk keterbacaan, kontras, clipping, artefak/gibberish, dan konsistensi.
-   - Status akhir harus berdasarkan artefak hasil runtime kandidat, bukan hanya source code atau unit test.
-
-3. **Perbaiki dan buktikan upload otomatis CLOUZER → Box.**
-   - Audit autentikasi/OAuth, konfigurasi, endpoint upload, request multipart, permission, error handling, dan log pada tools Box milik bot.
-   - Uji upload yang benar-benar dipanggil oleh proses CLOUZER. Catat file ID, nama, ukuran, waktu, dan log sukses yang aman (tanpa token/secret).
-   - Jangan mencampuradukkan konektor Box ChatGPT dengan tools Box di CLOUZER. File yang sebelumnya diunggah manual oleh pengguna bukan bukti upload otomatis bot.
-   - Kriteria PASS harus memenuhi rangkaian provenance yang ditetapkan di §52.53.
-
-4. **Verifikasi Discord attachment delivery secara terpisah.**
-   - Pastikan file hasil generator benar-benar dikirim sebagai attachment Discord, dapat diunduh, dan cocok dengan artefak yang diuji.
-   - Uji Discord delivery dan Box upload sebagai tahap terpisah; keberhasilan salah satunya tidak membuktikan tahap lain.
-   - Simpan artefak revisi sebagai file Box baru; jangan overwrite file asli.
-
-5. **Workflow dan repository hardening.**
-   - Periksa status workflow pada exact commit kode terbaru; jika ada workflow berjalan, tunggu sampai terminal. Jika gagal, baca log, perbaiki kandidat, lalu rerun dan verifikasi hasil terminal.
-   - Backlog yang perlu ditinjau: explicit `permissions: contents: read`, branch/path trigger, validasi respons `STAGING_OK`, timeout/concurrency, dan action SHA pinning.
-   - Evaluasi branch protection/required checks. Jangan mengubah repository settings tanpa otorisasi.
-   - `staging-smoke-test.yml` masih manual-only menurut catatan sebelumnya; jalankan hanya jika secrets tersedia dan pengguna meminta tes tersebut.
-
-**Batas otorisasi:** tidak ada izin dalam planning ini untuk mengubah production `/home/container/main.py`, merge PR #6, mengubah startup command di Wispbyte, atau melakukan restart/deploy oleh asisten.
-
-Setelah setiap bukti baru, perbarui Bagian C–E (perubahan, pengujian, hasil) dan tambahkan detail kronologis ke Bagian G. Jangan menandai item planning sebagai selesai tanpa bukti yang sesuai.
----
+Setiap bukti baru harus dipilah ke C (implementasi), D (tes/CI), E (hasil), F (pekerjaan tersisa), dan G (arsip). Jangan menandai item selesai tanpa bukti.
 
 # G. ARSIP KRONOLOGIS LENGKAP — RIWAYAT ASLI DIPERTAHANKAN
 
@@ -5685,51 +5666,38 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 
 ---
 
-# HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
 
-**Dibuat:** 28 November 2026  
-**Repository:** `Cluzere/Main-py`  
-**Branch kandidat:** `audit-recovery-gpt-2026-11-23`  
-**Master Memory sebelum handoff:** blob SHA `bcc43399746ad4210bdd51c6602b2809c79161a8`
+## 52.63 Penerimaan handoff, rekonsiliasi resource trace, dan investigasi PPTX fail-closed — 28 November 2026
 
-## Status terbaru yang sudah diverifikasi sesi ini
+### Penerimaan handoff dan rekonsiliasi
+- Sesi ini melakukan fetch langsung `MASTER_MEMORY_CLOUZER.md` dari branch `audit-recovery-gpt-2026-11-23`, membaca aturan Bagian A, kondisi B, implementasi C, pengujian D, hasil E, planning F, arsip G yang relevan, serta blok HANDOFF AKTIF terakhir.
+- Handoff telah direkonsiliasikan dengan status permanen. Fakta yang masih relevan dipindahkan ke pembaruan Bagian F dan catatan ini; blok HANDOFF AKTIF sementara dibersihkan sesuai A0.12–A0.14. Riwayat permanen §§52.57–52.62 tetap dipertahankan.
 
-1. Master Memory kanonis berhasil di-fetch dan dibaca, termasuk aturan A, status B–F, serta bukti terbaru di G. Jangan mengandalkan ringkasan chat bila dapat membaca file ini.
-2. Branch kandidat masih tersedia. Commit kode PPTX terakhir yang dicatat Master Memory adalah `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`; regression-test fix ada pada `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
-3. Workflow yang menguji regression fix tersebut telah diperiksa ulang melalui job list GitHub:
-   - [Run 46058253311](https://github.com/Cluzere/Main-py/actions/runs/46058253311) — `candidate-syntax-and-file-tests`: completed / success; semua step selesai sukses.
-   - [Run 46058253368](https://github.com/Cluzere/Main-py/actions/runs/46058253368) — `final-candidate-syntax-regressions-and-attachment-audit`: completed / success; semua step selesai sukses.
-   - [Run 46058253339](https://github.com/Cluzere/Main-py/actions/runs/46058253339) — `compile`: completed / success; dependency consistency, Python compile, pip-audit, Bandit, document tests, ZIP fixture checksum, archive regression, dan existing audit regression seluruhnya sukses.
-   - Master Memory D1 mencatat 167 tests pada workflow multi-format dan audit recovery; run syntax-check memuat tahap suite 91, 93, dan 167 tests. Jangan menjumlahkan angka suite berbeda sebagai satu total tes unik.
-4. Ini membuktikan CI PASS pada commit pengujian yang dicatat di D1, bukan bukti live runtime atau end-to-end. Live PPTX visual/background generation, Discord attachment delivery, Box upload otomatis, dan penerimaan/pembukaan artefak tetap NOT VERIFIED.
-5. Pemeriksaan sesi ini tidak mengubah kode, workflow, startup Wispbyte, production `main.py`, production branch `main`, PR #6, deployment, atau runtime. Tidak ada merge/restart.
-6. Pemeriksaan workflow-run berdasarkan commit `54cc3...` langsung mengembalikan kosong karena wrapper hanya mengembalikan run pull-request-triggered; itu bukan bukti tidak ada CI. Bukti terminal yang digunakan adalah tiga run spesifik di atas sebagaimana dicatat Master Memory D1.
+### Resource trace — log yang diberikan pengguna
+- Pengguna memasok output diagnostik berisi 131 baris CSV setelah startup (rentang sekitar 130 detik): `process_cpu_one_core_pct` min 0,0%, avg 0,19%, max 1,0%; `process_cpu_host_pct` avg 0,18%, max 1,0%; `cgroup_cpu_pct` avg 0,95%, max 80,3%; RSS min/avg/max 124,9 MB; cgroup memory avg 170,01 MB, max 171,8 MB; limit 588,8 MB; `cpu_throttle_events_delta` avg 0,02, max 3.
+- Sampel awal memuat cgroup CPU 80,3% pada uptime 11 detik; sampel terakhir pada uptime 141,3 detik menunjukkan cgroup 17,8% dan throttle delta 3. Log runtime lanjutan menunjukkan idle cgroup sekitar 0,1–0,2%, RSS sekitar 124,9–132,7 MB, dan memory jauh di bawah limit.
+- Saat permintaan PDF berikutnya, log menunjukkan lonjakan proses/cgroup CPU sesaat sekitar 26–40% one-core, throttle events per interval sekitar 8–13, dan RSS naik sementara sekitar 130–133 MB. Setelah permintaan berakhir, CPU kembali sekitar 0–1% dan throttle interval kembali nol.
+- Interpretasi: data yang diberikan pengguna tidak menunjukkan tekanan RAM atau CPU tinggi yang menetap; lonjakan singkat bertepatan dengan aktivitas startup/pembuatan/validasi PDF dan kemudian mereda. Quota cgroup berubah dari `100000 100000` menjadi `35000 100000` pada log; alasan perubahan tidak diketahui dan tidak boleh ditebak.
+- Bukti ini berasal dari output diagnostik/log yang ditempel pengguna. CSV mentah tidak diunduh atau diperiksa independen pada sesi ini. Jangan meminta ekstraksi ulang CSV tanpa gejala baru.
 
-## Startup Wispbyte — keputusan yang harus dipertahankan
+### Audit repository dan PPTX terbaru
+- Branch kerja: `audit-recovery-gpt-2026-11-23`; repository `Cluzere/Main-py`.
+- Commit code terakhir yang diperiksa: `99ea0fed2f78415fcafdfcae4ad892ebb3d397e1`, pesan `Make PPTX visual enrichment default and fail closed`. Diff hanya mengubah candidate entrypoint:
+  - semua permintaan PPTX memasuki Lucid Origin visual generation/embedding secara default;
+  - `ValueError`/`RuntimeError` pada PPTX langsung dilaporkan sebagai `[PPTX-VISUAL] stage=failed_closed` dan di-raise, sehingga tidak masuk generic file retry/plain-PPTX fallback.
+- Blob kandidat pada branch saat diperiksa: entrypoint `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6`; helper `f6af7ccc86e637321bb074e710b19b864f6fb081`; test `d907fd0990856ed0f951c802d7eb202733ea8cb2`.
+- Pemeriksaan source menunjukkan `generate_cloudflare_image` membungkus exception provider per-account menjadi `RuntimeError` setelah mencoba akun yang tersedia; jalur fail-closed yang baru karena itu menangkap kegagalan provider yang dibungkus tersebut.
+- Test yang sudah ada `test_pptx_visual_embedding_preserves_editable_text_and_adds_picture_relationships` memeriksa helper embedding memakai gambar fixture, tetapi belum membuktikan fail-closed branch di `process_ai_turn` dan belum ada bukti regression yang secara khusus mencegah markdown-only response diterima sebagai output PPTX sukses.
+- Combined commit status untuk `99ea0fed...` mengembalikan daftar status kosong. Tool GitHub yang tersedia di sesi ini tidak memberi bukti workflow push-run/job terminal untuk commit tersebut. Karena itu CI untuk commit `99ea0fed...` adalah **NOT VERIFIED**, bukan PASS.
+- File PPTX Box yang diperiksa di §§52.48–52.51 berasal dari percobaan live terdahulu dan memiliki defect konten/visual; tidak boleh dipakai sebagai bukti penerimaan patch `99ea0fed...`. Belum ada startup log Wispbyte pasca-commit ini dan belum ada live retest pasca-patch.
+- Tidak ada perubahan kode, tes, workflow, startup Wispbyte, production `main.py`, production branch `main`, PR #6, deployment, merge, atau restart yang dilakukan pada sesi penerimaan handoff ini.
 
-- Pengguna menyatakan Startup Command belum diubah ke startup normal.
-- **Jangan ubah startup sekarang.** Pertahankan startup kandidat/audit yang sudah tercatat di Master Memory sampai live acceptance kandidat selesai dan pengguna secara eksplisit mengizinkan perubahan.
-- Startup command dan restart adalah tindakan yang dikendalikan pengguna. Jangan mengubahnya, jangan meminta pengguna mengganti ke startup normal hanya demi merapikan konfigurasi, dan jangan restart/deploy.
-- Jangan menyamakan startup normal/production dengan candidate runtime. Production `/home/container/main.py` tetap dilindungi.
-
-## Pekerjaan berikutnya — urutan konkret
-
-1. Baca lagi Bagian A–F Master Memory terbaru dan cocokkan status commit/branch terbaru sebelum tindakan apa pun.
-2. Lanjutkan prioritas yang tercatat pada Bagian F: dapatkan isi aktual `/home/container/clouzer-audit/audit-recovery/review-round-2/resource_trace.csv` dari filesystem Wispbyte dan analisis CPU/memori. File tersebut tidak tersedia lewat GitHub fetch; jangan mengarang hasil. Wispbyte Console bukan shell interaktif. Jika perlu, rancang satu Startup Command diagnostik lengkap yang mempertahankan seluruh alur startup untuk ditinjau pengguna; jangan memasangnya sendiri.
-3. Setelah resource trace, lanjutkan live acceptance PPTX 5-slide pada candidate runtime yang SHA-nya terkonfirmasi: background unik tiap slide, 16:9, full-bleed, teks native editable, tidak ada Markdown/instruksi visual bocor, render semua slide, cek clipping/kontras/artefak, dan batas ukuran.
-4. Verifikasi Discord attachment delivery sebagai tahap terpisah dari pembuatan/validasi file.
-5. Verifikasi upload otomatis CLOUZER→Box sebagai tahap terpisah; upload manual pengguna bukan bukti integrasi bot.
-6. Jika ada perubahan kode/test/workflow, hanya di branch kandidat. Jalankan semua workflow relevan pada exact SHA baru dan tunggu hingga seluruh job terminal. Jangan melemahkan tes untuk mengejar status hijau.
-7. Jangan merge PR #6, mengubah production, mengubah Startup, atau melakukan restart/deploy tanpa izin eksplisit terpisah.
-
-## Batas dan status
-
-- **CI:** PASS untuk run yang tercantum di atas.
-- **Live PPTX acceptance:** NOT VERIFIED.
-- **Discord attachment end-to-end:** NOT VERIFIED.
-- **CLOUZER→Box automatic upload:** NOT VERIFIED.
-- **Resource trace CPU/memory:** NOT VERIFIED sampai CSV aktual diperiksa.
-- **Startup normal switch:** NOT AUTHORIZED / jangan dilakukan.
-- **Production / merge / deploy / restart:** NOT AUTHORIZED.
-
-Sesi penerima wajib membaca handoff ini dan memindahkan fakta yang masih relevan ke bagian permanen sebelum menghapus blok handoff sesuai A0.12–A0.14.
+### Verdict dan langkah berikutnya
+- Resource observation: **PASS untuk kesimpulan bahwa sampel yang diberikan tidak menunjukkan tekanan RAM atau CPU berkelanjutan**; CSV mentah tidak diperiksa independen.
+- Candidate PPTX source patch: **COMMITTED / source inspected**.
+- Candidate CI pada `99ea0fed...`: **NOT VERIFIED**.
+- Live PPTX visual acceptance setelah patch: **NOT VERIFIED**.
+- Discord attachment delivery: **NOT VERIFIED**.
+- Automatic CLOUZER→Box upload: **NOT VERIFIED**.
+- Langkah berikutnya adalah menambah regression test yang membuktikan fail-closed PPTX path dan audit routing file-intent, kemudian menjalankan seluruh workflow terkait pada exact SHA baru sampai terminal. Baru setelah CI lulus, minta satu live candidate restart yang diotorisasi dan satu controlled PPTX test.
+- Production, PR merge, startup configuration, dan restart tetap dilindungi oleh Bagian A; tidak ada izin baru untuk tindakan tersebut.
