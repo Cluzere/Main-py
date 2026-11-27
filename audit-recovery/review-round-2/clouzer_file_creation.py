@@ -1440,6 +1440,10 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         return bool(actual and len(actual) >= 3 and all(abs(actual[i] - expected[i]) <= tolerance for i in range(3)))
 
     for page_index, page in enumerate(doc):
+        # Reuse one full-page TextPage for all table-cell extraction on this page.
+        # TextPage.extractTextbox applies the same rectangle selection without
+        # rebuilding a clipped TextPage for every individual cell.
+        page_textpage = page.get_textpage()
         for block in page_dicts[page_index]["blocks"]:
             if "lines" not in block:
                 continue
@@ -1477,7 +1481,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         header_index = None
         for row_index, (_, cells) in enumerate(page_rows):
             values = [
-                normalized(page.get_textbox(pymupdf.Rect(
+                normalized(page_textpage.extractTextbox(pymupdf.Rect(
                     cell["rect"].x0 + 1, cell["rect"].y0 + 1,
                     cell["rect"].x1 - 1, cell["rect"].y1 - 1,
                 )))
@@ -1506,7 +1510,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
             page_data = []
             for _, cells in page_rows[header_index + 1:]:
                 values = [
-                    re.sub(r"\s+", " ", page.get_textbox(pymupdf.Rect(
+                    re.sub(r"\s+", " ", page_textpage.extractTextbox(pymupdf.Rect(
                         cell["rect"].x0 + 1, cell["rect"].y0 + 1,
                         cell["rect"].x1 - 1, cell["rect"].y1 - 1,
                     ))).strip()
