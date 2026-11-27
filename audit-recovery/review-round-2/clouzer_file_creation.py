@@ -1620,7 +1620,6 @@ def _make_pptx(content: str, title: str) -> bytes:
         orb = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(11.25), Inches(0.55), Inches(1.2), Inches(1.2))
         orb.fill.solid()
         orb.fill.fore_color.rgb = violet if index % 2 == 0 else cyan
-        orb.fill.transparency = 35
         orb.line.fill.background()
 
         title_box = slide.shapes.add_textbox(Inches(0.95), Inches(0.72), Inches(6.85), Inches(1.35))
