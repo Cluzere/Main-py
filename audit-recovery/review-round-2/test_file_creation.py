@@ -1179,6 +1179,13 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
             prompt.replace("10 data produk", "10 data barang", 1)
         ))
 
+    def test_master_final_detector_does_not_require_backend_owned_table_columns(self):
+        from clouzer_file_creation import _is_master_final_pdf_prompt
+        prompt = """Buatkan file PDF dengan judul LAPORAN PENGUJIAN GENERATOR PDF CLOUZER.
+        Memuat lima bagian: Pendahuluan, Tujuan Pengujian, Metode Pengujian,
+        Hasil Pengujian, dan Kesimpulan. Backend menyusun tabel 10 produk."""
+        self.assertTrue(_is_master_final_pdf_prompt(prompt))
+
     def test_master_final_source_uses_backend_template_for_title_table_and_lists(self):
         prompt, model_content = self._master_final_pdf_fixture()
         source = resolve_document_source("pdf", prompt, model_content)
