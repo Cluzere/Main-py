@@ -1506,9 +1506,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
     _deep_stage_started = time.perf_counter()
     _scan_timers = {"textpage_setup": 0.0, "text_record_extraction": 0.0, "drawing_grouping": 0.0, "table_row_grouping": 0.0, "cell_text_and_style": 0.0}
     for page_index, page in enumerate(doc):
-        # Reuse one full-page TextPage for all table-cell extraction on this page.
-        # TextPage.extractTextbox applies the same rectangle selection without
-        # rebuilding a clipped TextPage for every individual cell.
+        # Extract page words once, then select words by cell rectangle.
+        # This avoids repeatedly scanning the TextPage for each individual cell.
         _scan_started = time.perf_counter()
         page_textpage = page.get_textpage()
         page_words = page_textpage.extractWORDS()
