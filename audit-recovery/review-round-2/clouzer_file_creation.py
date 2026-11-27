@@ -1372,12 +1372,16 @@ def _mentions_ten_products(prompt: str) -> bool:
 
 
 def _is_master_final_pdf_prompt(prompt: str) -> bool:
-    """Identify the specific MASTER FINAL report contract without affecting ordinary PDFs."""
+    """Detect the MASTER FINAL request from user-facing requirements, not backend-owned table headers.
+
+    The seven table column names are inserted by the deterministic backend and therefore
+    must not be required in the user's prompt. Requiring them caused valid requests to fall
+    through to the generic PDF path, bypassing the multi-stage builder and its safeguards.
+    """
     value = str(prompt or "").casefold()
     required = (
         "laporan pengujian generator pdf clouzer",
         *_MASTER_FINAL_SECTIONS,
-        *_MASTER_FINAL_COLUMNS,
     )
     return _mentions_ten_products(prompt) and all(item.casefold() in value for item in required)
 
