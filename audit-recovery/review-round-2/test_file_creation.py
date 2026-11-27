@@ -148,6 +148,50 @@ Jangan mengklaim berhasil jika file belum benar-benar dibuat dan dikirim."""
         headings = [p.text for p in doc.paragraphs if p.style.name.startswith("Title") or p.style.name.startswith("Heading")]
         self.assertEqual(headings.count("Laporan CLOUZER"), 1)
 
+    def test_docx_converts_markdown_table_and_numbered_list_to_native_word_structure(self):
+        from docx import Document
+        prompt = (
+            "Buat DOCX dengan heading Word, tabel Word asli, dan daftar bernomor. "
+            "Judul hanya satu kali."
+        )
+        content = """# LAPORAN PENGUJIAN CLOUZER
+
+## 1. Identitas
+Nama proyek: CLOUZER.
+
+## 2. Data Pengujian
+Data berikut harus menjadi tabel Word asli.
+
+| No | Nama | Umur | Jabatan | Catatan |
+|---|---|---:|---|---|
+| 1 | Andi | 25 | Admin | Normal |
+| 2 | Budi | 30 | Manager | =1+1 |
+| 3 | Citra | 27 | Staff | +SUM(1,1) |
+
+1. Periksa judul.
+2. Periksa tabel.
+3. Periksa struktur Word.
+
+## 3. Kesimpulan
+Dokumen pendek untuk tes konversi Markdown."""
+        data, filename, mime = create_document_file("docx", prompt, content)
+        doc = Document(io.BytesIO(data))
+        paragraphs = doc.paragraphs
+        all_text = "\n".join(p.text for p in paragraphs)
+        self.assertTrue(filename.endswith(".docx"))
+        self.assertIn("application/vnd.openxmlformats-officedocument.wordprocessingml.document", mime)
+        self.assertEqual(all_text.count("LAPORAN PENGUJIAN CLOUZER"), 1)
+        self.assertEqual(sum(p.style.name.startswith("Heading") for p in paragraphs), 4)
+        self.assertEqual(len(doc.tables), 1)
+        self.assertEqual((len(doc.tables[0].rows), len(doc.tables[0].columns)), (4, 5))
+        self.assertEqual(doc.tables[0].cell(2, 4).text, "=1+1")
+        self.assertEqual(doc.tables[0].cell(3, 4).text, "+SUM(1,1)")
+        self.assertEqual(sum(p.style.name.casefold().startswith("list number") for p in paragraphs), 3)
+        summary = validate_document_file("docx", prompt, data)
+        self.assertEqual(summary["headings"], 4)
+        self.assertEqual(summary["tables"], 1)
+        self.assertEqual(summary["numbered_lists"], 3)
+
     def test_docx_converts_html_into_native_word_structure(self):
         from docx import Document
         prompt = (
