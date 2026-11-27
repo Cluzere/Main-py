@@ -497,6 +497,8 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 
 # F. KANDIDAT — PLANNING / PEKERJAAN BERIKUTNYA
 
+**PEMBARUAN STATUS — 28 NOVEMBER 2026, setelah audit sesi terakhir:** Audit statis PyMuPDF selesai pada §52.60 (PASS; tidak perlu patch). Langkah 1 mencocokkan file entrypoint kandidat pada commit runtime checkout 620ef73545238af290a3c648f3a3f0bbc3fa4870 dengan HEAD branch saat ini: kedua fetch menghasilkan blob SHA identik 53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6 (6.737 baris; 348.129 karakter). Dengan demikian, file entrypoint kandidat pada commit checkout runtime identik dengan file entrypoint kandidat di branch saat ini. Ini membuktikan identitas file entrypoint, bukan semua file pendukung atau proses runtime yang terus hidup. Langkah berikutnya sesuai urutan pengguna: (2) analisis isi resource trace di filesystem Wispbyte. Jangan meminta pengguna mengetik command shell di Console. Console bukan shell interaktif. Jika data perlu diekstrak, siapkan satu Startup Command lengkap yang mempertahankan seluruh alur startup; pengguna sendiri yang memasang dan menjalankannya. Jangan mengubah Startup tanpa instruksi eksplisit baru.
+
 **KOREKSI STATUS TERBARU — 28 November 2026:** diagnostik environment Wispbyte selesai PASS berdasarkan log aktual: pip dan /usr/local/bin/python memakai instalasi Python 3.11 yang sama; pip check PASS; 11/11 import PASS; kandidat mencapai pesan [ONLINE]; Box OAuth callback listener aktif pada 0.0.0.0:15497; resource tracker aktif. Jangan ulangi diagnostik environment ini. Warning fitz deprecated perlu audit terpisah. Pengguna menegaskan jangan menanyakan kembali hal dasar Message Content Intent; pengguna sudah berhasil melakukan pengecekan/pengumpulan data bot sebelumnya. Jangan mengasumsikan intent nonaktif hanya karena ada reminder generik di log. Runtime identity yang terbukti hanya checkout pada run ini ke short SHA 620ef73 (commit dokumentasi); jangan samakan dengan SHA kode kandidat atau klaim patch PPTX terbaru sudah live.
 
 **Status planning per 28 November 2026:** pekerjaan berikut belum dinyatakan selesai hanya karena tercatat di sini. Status CI pada commit PPTX terakhir yang diketahui `54cc3b8...` belum terverifikasi; penambahan test/patch bukan bukti test lulus. Live PPTX, Box upload otomatis, Discord delivery, dan identitas runtime Wispbyte juga belum lulus acceptance.
@@ -5647,3 +5649,58 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Warning import lama kemungkinan berasal dari diagnostic import test, bukan dari dua modul kandidat. Konfirmasi final memerlukan skrip diagnostik yang menjalankan `import fitz` atau log import lengkap.
 - Tidak ada file kode, konfigurasi, startup command, production, PR #6, atau deployment yang diubah.
 - Pekerjaan berikutnya yang membutuhkan bukti eksternal adalah memperoleh isi CSV resource trace dari filesystem Wispbyte dan mencocokkan SHA kandidat yang benar-benar di-checkout saat runtime. Live PPTX visual acceptance, upload otomatis CLOUZER→Box, dan Discord attachment delivery tetap NOT VERIFIED.
+
+
+
+## 52.61 Pencocokan blob entrypoint runtime dengan branch kandidat — 28 November 2026
+
+### Pemeriksaan langsung GitHub
+- Log Wispbyte dari pengguna menunjukkan checkout branch audit-recovery-gpt-2026-11-23 pada commit 620ef73545238af290a3c648f3a3f0bbc3fa4870 (short SHA 620ef73), yaitu commit dokumentasi docs(memory): record diagnostic startup draft status.
+- Commit tersebut diperiksa langsung. Diff-nya hanya mengubah MASTER_MEMORY_CLOUZER.md; tidak ada perubahan pada entrypoint kandidat.
+- File audit-recovery/review-round-2/revisi_audit_final_main.py di-fetch dari GitHub dua kali: sekali pada ref commit runtime 620ef73545238af290a3c648f3a3f0bbc3fa4870 dan sekali pada branch audit-recovery-gpt-2026-11-23.
+- Kedua fetch menghasilkan blob SHA identik: 53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6. Keduanya juga menghasilkan panjang konten 348.129 karakter; inspeksi kandidat sebelumnya mencatat 6.737 baris.
+- Verdict: identitas file entrypoint pada commit checkout runtime dan branch kandidat saat ini MATCH / PASS. Commit runtime berbeda dari HEAD branch karena commit setelahnya adalah pembaruan dokumentasi; perbedaan commit SHA tidak berarti entrypoint berbeda.
+- Batas bukti: pencocokan ini membuktikan hanya file entrypoint tersebut identik pada dua Git ref. Ini tidak membuktikan seluruh dependency/file pendukung pada filesystem runtime identik, tidak membuktikan proses bot terus hidup setelah log, dan tidak membuktikan acceptance fitur end-to-end.
+
+### Status langkah audit berurutan
+- Langkah 1 (cocokkan entrypoint runtime dengan branch kandidat): PASS.
+- Langkah 2 (periksa CPU/memori melalui resource trace): NOT VERIFIED. CSV diketahui berada di filesystem Wispbyte: /home/container/clouzer-audit/audit-recovery/review-round-2/resource_trace.csv; isi aktualnya belum tersedia melalui GitHub.
+- Langkah 3 (simpulkan ada/tidaknya masalah resource): PENDING sampai CSV diperiksa.
+- Langkah 4 (catat hasil terverifikasi): hasil langkah 1 tersimpan; hasil resource belum dapat dicatat sebagai kesimpulan sebelum ada data.
+- Batas operasional: Wispbyte Console pada server ini bukan shell interaktif. Jangan meminta pengguna mengetik command Linux di Console. Jika ekstraksi CSV perlu dilakukan melalui Startup, pertahankan seluruh Startup Command yang ada dan berikan satu command lengkap untuk ditinjau/dipasang pengguna; jangan mengubah Startup atau melakukan restart sendiri.
+- Tidak ada perubahan kode kandidat, Startup Command Wispbyte, production main.py, deployment, atau restart dalam pemeriksaan ini.
+
+---
+
+## HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
+
+**Proyek:** CLOUZER Discord bot  
+**Repository:** Cluzere/Main-py  
+**Branch:** audit-recovery-gpt-2026-11-23  
+**Master Memory:** MASTER_MEMORY_CLOUZER.md
+
+### Aturan wajib untuk sesi penerima
+1. Fetch Master Memory terbaru dari branch di atas. Baca seluruh Bagian A–F, lalu bagian handoff ini dan bukti historis G yang relevan. Ikuti A0.12–A0.14.
+2. Setelah handoff benar-benar dibaca dan direkonsiliasi, pindahkan fakta penting ke bagian permanen yang tepat, hapus hanya blok handoff sementara ini, tambahkan catatan penerimaan di G, lalu commit dan fetch ulang untuk verifikasi.
+3. Sebelum menyimpan catatan baru, klasifikasikan isinya. Aturan permanen hanya Bagian A; status/identitas proyek Bagian B; implementasi Bagian C; pengujian Bagian D; hasil terbukti Bagian E; pekerjaan tertunda Bagian F; bukti kronologis Bagian G. Jangan menaruh aturan permanen di planning atau arsip.
+
+### Status terakhir yang terverifikasi
+- Startup Wispbyte pada log pengguna mencapai [ONLINE]. Python 3.11.18, pip 24.0, pip check PASS, dan 11/11 import PASS. Warning fitz adalah warning deprecation saat import test, bukan kegagalan startup.
+- Pengingat [CHECK] Pastikan Message Content Intent juga aktif adalah pesan standar program, bukan error Wispbyte dan bukan bukti bot tidak aktif. Jangan mengangkatnya lagi tanpa gejala konkret baru.
+- Audit statis PyMuPDF pada §52.60: kedua modul kandidat yang diperiksa menggunakan import pymupdf modern; tidak ada patch yang diperlukan.
+- Langkah 1 audit runtime pada §52.61: file entrypoint kandidat di commit checkout runtime 620ef73545238af290a3c648f3a3f0bbc3fa4870 dan di HEAD branch menghasilkan blob SHA identik 53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6. Identitas entrypoint MATCH/PASS.
+- Resource tracker tercatat berjalan dan menulis ke /home/container/clouzer-audit/audit-recovery/review-round-2/resource_trace.csv; isi CSV belum diperoleh/diperiksa. CPU/memori dan ada/tidaknya masalah resource tetap NOT VERIFIED.
+- PPTX visual live acceptance, upload otomatis CLOUZER ke Box, dan Discord attachment delivery tetap NOT VERIFIED sesuai Master Memory.
+
+### Langkah berikutnya — lanjutkan tanpa mengulang
+1. Lanjutkan langkah 2: dapatkan dan analisis isi resource_trace.csv untuk CPU/memori.
+2. Wispbyte Console bukan terminal shell interaktif. Jangan meminta pengguna mengetik cd, sha256sum, python, pip, atau command shell lain langsung di Console.
+3. Jika perlu mengambil/meringkas CSV melalui startup, susun satu Startup Command lengkap yang mempertahankan semua tahapan startup kanonis (fetch/reset, instalasi requirements, paket tambahan, entrypoint). Jangan memberi potongan command terpisah atau menghapus tahapan lama. Pengguna yang memasang command dan memulai server; jangan mengklaim telah dijalankan sebelum ada log.
+4. Setelah CSV diperiksa, simpulkan apakah ada masalah resource berdasarkan data, lalu update bagian permanen yang tepat dan bukti G. Jangan menebak dari keberadaan tracker saja.
+5. Jangan mengulang tes pip/dependency, audit PyMuPDF, atau langkah 1 SHA entrypoint tanpa perubahan relevan atau bukti baru.
+
+### Batas otorisasi
+- Production /home/container/main.py, production branch main, PR #6, deployment, merge, dan restart dilindungi. Jangan sentuh tanpa izin eksplisit yang sesuai.
+- Tidak ada izin untuk mengubah kode kandidat atau Startup Command hanya karena handoff ini dibuat.
+- Jangan mengklaim resource trace PASS/FAIL sebelum isi CSV diperiksa.
+
