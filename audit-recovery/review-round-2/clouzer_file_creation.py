@@ -99,6 +99,7 @@ def detect_requested_file_format(prompt: str) -> str | None:
 
 def build_file_generation_system_instruction(format_name: str) -> str:
     """Explain the local file-generation architecture to the model for file requests."""
+    _validation_total_started = time.perf_counter()
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
         raise ValueError("Format file tidak didukung.")
@@ -1415,8 +1416,13 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
     """Validate semantic structure and table fidelity using cached page inspections."""
     import pymupdf
 
+    _deep_total_started = time.perf_counter()
+    _deep_stage_started = time.perf_counter()
     page_dicts = page_dicts or [page.get_text("dict") for page in doc]
+    logging.warning("[PDF-DEEP-STAGE] page_dict_setup_seconds=%.3f", time.perf_counter() - _deep_stage_started)
+    _deep_stage_started = time.perf_counter()
     page_drawings = page_drawings or [page.get_drawings() for page in doc]
+    logging.warning("[PDF-DEEP-STAGE] page_drawings_setup_seconds=%.3f", time.perf_counter() - _deep_stage_started)
     extracted = "\n".join(page_texts)
     normalized_extracted = re.sub(r"\s+", " ", extracted.casefold())
     summary_present = "ringkasan validasi otomatis clouzer" in normalized_extracted
@@ -1464,6 +1470,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
     def close_color(actual, expected, tolerance=0.035):
         return bool(actual and len(actual) >= 3 and all(abs(actual[i] - expected[i]) <= tolerance for i in range(3)))
 
+    _deep_stage_started = time.perf_counter()
     for page_index, page in enumerate(doc):
         # Reuse one full-page TextPage for all table-cell extraction on this page.
         # TextPage.extractTextbox applies the same rectangle selection without
@@ -1545,7 +1552,9 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
                     page_data.append((values, cells))
             data_rows.extend(values for values, _ in page_data)
             data_row_fills.extend(cells[0]["fill"] for _, cells in page_data)
+    logging.warning("[PDF-DEEP-STAGE] page_records_and_table_scan_seconds=%.3f records=%d table_cells=%d", time.perf_counter() - _deep_stage_started, len(records), len(all_table_cells))
 
+    _deep_stage_started = time.perf_counter()
     records.sort(key=lambda item: (item["page"], item["rect"].y0, item["rect"].x0))
     heading_indexes = {}
     for section in _MASTER_FINAL_SECTIONS:
@@ -1621,6 +1630,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         )
 
 
+    logging.warning("[PDF-DEEP-STAGE] heading_paragraph_geometry_seconds=%.3f", time.perf_counter() - _deep_stage_started)
+    _deep_stage_started = time.perf_counter()
     if len(data_rows) != 10:
         raise ValueError(f"Tabel MASTER FINAL harus memiliki tepat 10 baris produk; terdeteksi {len(data_rows)}.")
     if [row[0].strip() for row in data_rows] != [str(i) for i in range(1, 11)]:
@@ -1656,7 +1667,9 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         raise ValueError("Warna baris tabel tidak mengikuti pola selang-seling putih dan abu-biru muda.")
     if not cell_borders_ok:
         raise ValueError("Sel tabel tidak memiliki garis batas vektor yang lengkap.")
+    logging.warning("[PDF-DEEP-STAGE] table_integrity_checks_seconds=%.3f", time.perf_counter() - _deep_stage_started)
 
+    _deep_stage_started = time.perf_counter()
     # Check body text geometry and accidental text-block collisions. Table-cell
     # text is excluded because its placement is intentionally inside cell shapes.
     document_title = normalized(_safe_title(extracted, prompt))
@@ -1680,6 +1693,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
             f"Blok teks bertabrakan pada halaman {first['page'] + 1}: "
             f"{first['text'][:35]!r} / {second['text'][:35]!r}."
         )
+    logging.warning("[PDF-DEEP-STAGE] body_geometry_overlap_seconds=%.3f body_records=%d", time.perf_counter() - _deep_stage_started, len(body_records))
 
     table_content_pages = sum(bool(cells) for cells in table_cells_by_page.values())
     return {
@@ -1825,12 +1839,17 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
             # Only the final MASTER FINAL artifact performs this deep pass.
             # Keep expensive PyMuPDF text dictionaries and vector drawings out
             # of the baseline inspection entirely.
+            _validation_stage_started = time.perf_counter()
             page_dicts = [page.get_text("dict") for page in doc]
+            logging.warning("[PDF-VALIDATION-STAGE] page_text_dict_seconds=%.3f pages=%d", time.perf_counter() - _validation_stage_started, doc.page_count)
+            _validation_stage_started = time.perf_counter()
             page_drawings = [page.get_drawings() for page in doc]
+            logging.warning("[PDF-VALIDATION-STAGE] page_drawings_seconds=%.3f drawings=%d", time.perf_counter() - _validation_stage_started, sum(len(items) for items in page_drawings))
             result["vector_drawings"] = sum(len(items) for items in page_drawings)
             if re.search(r"\b(?:tabel|table)\b", prompt, re.I) and result["vector_drawings"] < 6:
                 raise ValueError("PDF diminta memiliki tabel, tetapi struktur tabel visual tidak ditemukan.")
 
+            _validation_stage_started = time.perf_counter()
             spans = []
             for page_index, (page, page_dict) in enumerate(zip(doc, page_dicts), 1):
                 page_rect = page.rect
@@ -1850,6 +1869,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
                                     f"page={(page_rect.width, page_rect.height)}; teks={span.get('text', '')[:60]!r}"
                                 )
             flags = [span.get("flags", 0) for span in spans]
+            logging.warning("[PDF-VALIDATION-STAGE] span_bounds_scan_seconds=%.3f spans=%d", time.perf_counter() - _validation_stage_started, len(spans))
             if re.search(r"\b(?:italic|miring)\b", prompt, re.I) and not any(flag & 2 for flag in flags):
                 raise ValueError("Prompt meminta teks italic/miring, tetapi tidak ditemukan font italic pada PDF.")
             if re.search(r"\b(?:bold|tebal)\b", prompt, re.I) and not any(flag & 16 for flag in flags):
@@ -1868,6 +1888,7 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
                 ]
                 if not conclusion_pages:
                     raise ValueError("Heading Kesimpulan tidak ditemukan bersama isi paragraf pada halaman yang sama.")
+            _validation_stage_started = time.perf_counter()
             table_groups = []
             repeated_header_pages = 0
             table_content_pages = 0
@@ -1905,12 +1926,16 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
             ))
             if repeat_requested and table_content_pages > 1 and repeated_header_pages < table_content_pages:
                 raise ValueError("Header tabel tidak terulang pada setiap halaman lanjutan tabel.")
+            logging.warning("[PDF-VALIDATION-STAGE] table_drawing_scan_seconds=%.3f groups=%d", time.perf_counter() - _validation_stage_started, len(table_groups))
             if _is_master_final_pdf_prompt(prompt):
+                _validation_stage_started = time.perf_counter()
                 result.update(_validate_master_final_pdf_report(doc, prompt, page_texts, page_dicts, page_drawings))
+                logging.warning("[PDF-VALIDATION-STAGE] master_final_report_seconds=%.3f", time.perf_counter() - _validation_stage_started)
             result["text_layer"] = True
             result["bold_spans"] = sum(bool(flag & 16) for flag in flags)
             result["italic_spans"] = sum(bool(flag & 2) for flag in flags)
             result["within_page_bounds"] = True
+            logging.warning("[PDF-VALIDATION-STAGE] total_pdf_validation_seconds=%.3f", time.perf_counter() - _validation_total_started)
     elif fmt == "docx":
         from docx import Document
         doc = Document(io.BytesIO(data))
