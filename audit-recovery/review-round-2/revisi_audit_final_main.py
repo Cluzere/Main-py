@@ -38,6 +38,8 @@ from clouzer_file_creation import (
     validate_document_file,
     build_file_generation_system_instruction,
     _is_master_final_pdf_prompt,
+    extract_pptx_visual_briefs,
+    embed_pptx_visuals,
 )
 from clouzer_box_oauth import start_box_oauth_server, box_api_request
 
@@ -265,6 +267,8 @@ def load_cf_accounts() -> list[dict[str, str]]:
 CF_ACCOUNTS: list[dict[str, str]] = load_cf_accounts()
 
 CF_IMAGE_MODEL = os.getenv("CF_IMAGE_MODEL", "@cf/leonardo/lucid-origin").strip()
+PPTX_IMAGE_MODEL = "@cf/leonardo/lucid-origin"
+PPTX_MAX_VISUALS = 6
 CF_EDIT_MODEL = os.getenv("CF_EDIT_MODEL", "@cf/black-forest-labs/flux-2-klein-4b").strip()
 CF_AUDIO_MODEL = os.getenv("CF_AUDIO_MODEL", "@cf/openai/whisper-large-v3-turbo").strip()
 
@@ -2728,11 +2732,12 @@ class ClouzerBot(commands.Bot):
         prompt: str,
         source_images: list[str] | None = None,
         aspect_ratio: str | None = None,
+        model_override: str | None = None,
     ) -> tuple[bytes, str, str, str]:
         if not CF_ACCOUNTS:
             raise RuntimeError("CF_ACCOUNTS_JSON belum diatur di Environment")
 
-        model_id = CF_EDIT_MODEL if source_images else CF_IMAGE_MODEL
+        model_id = str(model_override).strip() if model_override else (CF_EDIT_MODEL if source_images else CF_IMAGE_MODEL)
         safe_prompt = sanitize_image_prompt(prompt, max_len=1500)
         target_w, target_h, ratio_label = resolve_image_dimensions(aspect_ratio, prompt, source_images)
         ready_accounts, _ = self._get_rotated_cf_accounts()
@@ -5006,6 +5011,39 @@ class ClouzerBot(commands.Bot):
             _turn_diag["queue_wait_seconds"] = _turn_loop.time() - _queue_wait_started
             guild_state = self.get_guild_state(guild, user.id, channel_id)
             pending_retry_task = normalize_pending_retry_task(guild_state.get("pending_retry_task"))
+            pptx_visual_followup = False
+            existing_pptx_bytes = None
+            visual_followup_terms = re.compile(r"\b(?:visual|gambar|ilustrasi|foto|image|picture)\b", re.I)
+            visual_action_terms = re.compile(r"\b(?:tambah(?:kan)?|kasih|beri(?:kan)?|masukin|masukkan|sisipkan|embed|pasang|lengkapi|perbaiki)\b", re.I)
+            if requested_file_format is None and visual_followup_terms.search(clean_content) and visual_action_terms.search(clean_content):
+                source_message = reply_to_message
+                if source_message is None or not any(
+                    str(getattr(a, "filename", "")).lower().endswith(".pptx")
+                    for a in (getattr(source_message, "attachments", []) or [])
+                ):
+                    saved_message_id = guild_state.get("last_pptx_message_id")
+                    if isinstance(saved_message_id, int) and saved_message_id > 0:
+                        try:
+                            source_message = await target_channel.fetch_message(saved_message_id)
+                        except Exception:
+                            source_message = None
+                source_attachment = next(
+                    (a for a in (getattr(source_message, "attachments", []) or [])
+                     if str(getattr(a, "filename", "")).lower().endswith(".pptx")),
+                    None,
+                ) if source_message is not None else None
+                if source_attachment is not None:
+                    if int(getattr(source_attachment, "size", 0) or 0) > 8 * 1024 * 1024:
+                        raise RuntimeError("PPTX sumber melebihi batas 8 MB untuk pengayaan visual.")
+                    existing_pptx_bytes = await source_attachment.read()
+                    if not existing_pptx_bytes or len(existing_pptx_bytes) > 8 * 1024 * 1024:
+                        raise RuntimeError("PPTX sumber kosong atau melebihi batas 8 MB.")
+                    pptx_visual_followup = True
+                    requested_file_format = "pptx"
+                    logging.info(
+                        "[PPTX-VISUAL] scope=%s stage=source_resolved source_message=%s filename=%s bytes=%d",
+                        scope_key, getattr(source_message, "id", None), source_attachment.filename, len(existing_pptx_bytes),
+                    )
             retrying_pending_task = bool(is_retry_command(clean_content) and pending_retry_task)
             retry_source_message_id = None
             retry_attachment_failed = False
@@ -5162,14 +5200,22 @@ class ClouzerBot(commands.Bot):
 
             try:
                 try:
-                    reply_text, function_calls = await self.run_responses_ai(
-                        payload_messages,
-                        status_msg,
-                        mode=mode,
-                        allow_tools=not bool(requested_file_format),
-                        allow_image_tool=allow_img_tool,
-                        file_generation=bool(requested_file_format),
-                    )
+                    if pptx_visual_followup and existing_pptx_bytes:
+                        _existing_briefs = extract_pptx_visual_briefs(existing_pptx_bytes)
+                        reply_text = "\n--- SLIDE ---\n".join(
+                            brief["title"] + ("\n" + brief["content"] if brief["content"] else "")
+                            for brief in _existing_briefs
+                        )
+                        function_calls = []
+                    else:
+                        reply_text, function_calls = await self.run_responses_ai(
+                            payload_messages,
+                            status_msg,
+                            mode=mode,
+                            allow_tools=not bool(requested_file_format),
+                            allow_image_tool=allow_img_tool,
+                            file_generation=bool(requested_file_format),
+                        )
                     if requested_file_format:
                         logging.info(
                             "[FILE-PIPELINE] scope=%s format=%s stage=model_content_received chars=%d function_calls=%d",
@@ -5292,6 +5338,49 @@ class ClouzerBot(commands.Bot):
                                 clean_content,
                                 file_source_content,
                             )
+                            if requested_file_format == "pptx" and (
+                                pptx_visual_followup
+                                or re.search(r"\b(?:visual|gambar|ilustrasi|foto|image|picture)\b", clean_content, re.I)
+                            ):
+                                visual_source = existing_pptx_bytes if pptx_visual_followup else generated_bytes
+                                slide_briefs = extract_pptx_visual_briefs(visual_source)
+                                if not slide_briefs:
+                                    raise RuntimeError("PPTX tidak memiliki slide untuk diberi visual.")
+                                image_assets = []
+                                for visual_index, brief in enumerate(slide_briefs[:PPTX_MAX_VISUALS], 1):
+                                    visual_prompt = (
+                                        "Create a polished, presentation-ready 4:3 editorial illustration for a PowerPoint slide. "
+                                        "Subject: " + brief["title"] + ". Context: " + brief["content"][:900] + ". "
+                                        "Use a clean professional composition, coherent lighting, crisp details, no text, no letters, "
+                                        "no logos, no watermark, and a clear focal subject. The image must specifically support "
+                                        "the slide topic rather than depict a generic stock photo."
+                                    )
+                                    budget_ok, budget_wait = await asyncio.to_thread(self.global_budget.acquire, "images")
+                                    if not budget_ok:
+                                        raise RuntimeError(
+                                            "Anggaran gambar global harian tercapai pada visual slide "
+                                            + str(visual_index) + "; coba lagi sekitar " + format_wait(budget_wait) + "."
+                                        )
+                                    async with self.image_semaphore:
+                                        visual_bytes, _visual_name, _visual_mime, visual_engine = await self.generate_cloudflare_image(
+                                            visual_prompt, aspect_ratio="4:3", model_override=PPTX_IMAGE_MODEL
+                                        )
+                                    image_assets.append(visual_bytes)
+                                    logging.info(
+                                        "[PPTX-VISUAL] scope=%s slide=%d model=%s engine=%s bytes=%d",
+                                        scope_key, visual_index, PPTX_IMAGE_MODEL, visual_engine, len(visual_bytes),
+                                    )
+                                expected_visuals = min(len(slide_briefs), PPTX_MAX_VISUALS)
+                                if len(image_assets) != expected_visuals:
+                                    raise RuntimeError("Jumlah visual yang dihasilkan tidak sesuai jumlah slide target.")
+                                generated_bytes = await asyncio.to_thread(embed_pptx_visuals, visual_source, image_assets)
+                                if pptx_visual_followup:
+                                    generated_name = re.sub(r"(?i)\.pptx$", "", generated_name) + "_visual.pptx"
+                                logging.info(
+                                    "[PPTX-VISUAL] scope=%s stage=embedded count=%d model=%s followup=%s",
+                                    scope_key, len(image_assets), PPTX_IMAGE_MODEL, pptx_visual_followup,
+                                )
+
                         except (ValueError, RuntimeError) as build_exc:
                             # Once MASTER FINAL source resolution succeeded, subsequent PDF errors
                             # come from deterministic local rendering/validation. Re-querying the
@@ -5378,6 +5467,10 @@ class ClouzerBot(commands.Bot):
                         ):
                             raise RuntimeError("Discord tidak mengonfirmasi attachment file pada pesan hasil edit.")
                         logging.info("[FILE-STAGE] scope=%s format=%s stage=discord_attachment_confirmed filename=%s", scope_key, requested_file_format, generated_name)
+                        if requested_file_format == "pptx":
+                            guild_state["last_pptx_message_id"] = int(delivered_message.id)
+                            guild_state["last_pptx_filename"] = generated_name
+                            guild_state["last_pptx_owner_id"] = int(user.id)
                         if not attachment_processing_failed:
                             guild_state.pop("pending_retry_task", None)
                         history_msgs.append({
