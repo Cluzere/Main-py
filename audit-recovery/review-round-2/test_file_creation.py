@@ -1965,5 +1965,73 @@ Jangan menggandakan tabel sebagai teks biasa."""
             self.assertTrue(any(name.startswith("ppt/media/") for name in archive.namelist()))
 
 
+    def test_pptx_cleans_markdown_and_removes_visual_direction_lines(self):
+        from pptx import Presentation
+        from clouzer_file_creation import create_document_file
+
+        prompt = "Buat presentasi PowerPoint 2 slide."
+        content = """### Mengenal AI
+- **AI membantu analisis data**
+- *Contoh: rekomendasi konten*
+Arahan visual: Buat ilustrasi otak digital dengan cahaya biru.
+--- SLIDE ---
+## Risiko AI
+1. **Bias pada data**
+2. Privasi dan keamanan
+Deskripsi visual: Gambar robot dengan teks AI besar."""
+        data, _, _ = create_document_file("pptx", prompt, content)
+        presentation = Presentation(io.BytesIO(data))
+        self.assertEqual(len(presentation.slides), 2)
+        all_text = "\n".join(
+            shape.text
+            for slide in presentation.slides
+            for shape in slide.shapes
+            if getattr(shape, "has_text_frame", False)
+        )
+        self.assertIn("Mengenal AI", all_text)
+        self.assertIn("AI membantu analisis data", all_text)
+        self.assertIn("Risiko AI", all_text)
+        self.assertIn("Bias pada data", all_text)
+        for forbidden in ("###", "**", "Arahan visual:", "Deskripsi visual:", "otak digital", "robot dengan teks"):
+            self.assertNotIn(forbidden, all_text)
+
+    def test_pptx_generated_backgrounds_are_full_bleed_and_behind_editable_text(self):
+        from pptx import Presentation
+        from PIL import Image
+        from clouzer_file_creation import create_document_file, embed_pptx_visuals
+
+        prompt = "Buat presentasi PowerPoint 2 slide."
+        base = create_document_file(
+            "pptx", prompt,
+            "Pengenalan CLOUZER\nKonten editable slide pertama.\n--- SLIDE ---\nCara Kerja\nKonten editable slide kedua.",
+        )[0]
+        backgrounds = []
+        for color in ("#102040", "#17254a"):
+            image = Image.new("RGB", (1024, 576), color)
+            buffer = io.BytesIO()
+            image.save(buffer, format="PNG")
+            backgrounds.append(buffer.getvalue())
+        result = embed_pptx_visuals(base, backgrounds)
+        presentation = Presentation(io.BytesIO(result))
+        self.assertEqual(len(presentation.slides), 2)
+        for slide, expected in zip(presentation.slides, ("Pengenalan CLOUZER", "Cara Kerja")):
+            pictures = [shape for shape in slide.shapes if shape.shape_type == 13]
+            self.assertEqual(len(pictures), 1)
+            background = pictures[0]
+            self.assertEqual((background.left, background.top), (0, 0))
+            self.assertEqual((background.width, background.height), (presentation.slide_width, presentation.slide_height))
+            text_shapes = [shape for shape in slide.shapes if getattr(shape, "has_text_frame", False) and shape.text.strip()]
+            self.assertTrue(any(expected in shape.text for shape in text_shapes))
+            self.assertLess(list(slide.shapes).index(background), min(list(slide.shapes).index(shape) for shape in text_shapes))
+
+    def test_pptx_generation_instruction_forbids_markdown_and_visual_prompts(self):
+        from clouzer_file_creation import build_file_generation_system_instruction
+
+        instruction = build_file_generation_system_instruction("pptx")
+        self.assertIn("JANGAN gunakan Markdown", instruction)
+        self.assertIn("arahan visual", instruction)
+        self.assertIn("background", instruction)
+
+
 if __name__ == "__main__":
     unittest.main()
