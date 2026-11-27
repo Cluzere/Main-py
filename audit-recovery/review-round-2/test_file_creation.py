@@ -1662,5 +1662,55 @@ Jangan mengklaim berhasil jika file gagal dibuat atau dikirim."""
         self.assertEqual(summary["headings"], 4)  # title plus three section headings
         self.assertEqual(summary["numbered_lists"], 3)
 
+    def test_docx_removes_only_complete_tab_delimited_copy_of_native_table(self):
+        from docx import Document
+
+        prompt = (
+            "Buat DOCX dengan heading Word, tabel Word asli, dan daftar bernomor. "
+            "Judul hanya satu kali."
+        )
+        content = """<h1>LAPORAN PENGUJIAN CLOUZER</h1>
+<h2>Identitas</h2><p>Nama proyek: CLOUZER.</p>
+<h2>Data Pengujian</h2><p>Data pegawai disajikan pada tabel.</p>
+<table>
+<thead><tr><th>No</th><th>Nama</th><th>Umur</th><th>Jabatan</th><th>Catatan</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Andi</td><td>25</td><td>Admin</td><td>Normal</td></tr>
+<tr><td>2</td><td>Budi</td><td>30</td><td>Manager</td><td>=1+1</td></tr>
+<tr><td>3</td><td>Citra</td><td>27</td><td>Staff</td><td>+SUM(1,1)</td></tr>
+</tbody></table>
+<ol><li>Periksa struktur.</li><li>Periksa isi.</li><li>Periksa hasil.</li></ol>
+<p>No\\tNama\\tUmur\\tJabatan\\tCatatan</p>
+<p>1\\tAndi\\t25\\tAdmin\\tNormal</p>
+<p>2\\tBudi\\t30\\tManager\\t=1+1</p>
+<p>3\\tCitra\\t27\\tStaff\\t+SUM(1,1)</p>
+<p>Catatan\\tkhusus\\tini bukan salinan tabel.</p>
+<h2>Kesimpulan</h2><p>Dokumen selesai diuji.</p>"""
+
+        data, _, _ = create_document_file("docx", prompt, content)
+        document = Document(io.BytesIO(data))
+
+        self.assertEqual(len(document.tables), 1)
+        table = document.tables[0]
+        expected_rows = [
+            ["No", "Nama", "Umur", "Jabatan", "Catatan"],
+            ["1", "Andi", "25", "Admin", "Normal"],
+            ["2", "Budi", "30", "Manager", "=1+1"],
+            ["3", "Citra", "27", "Staff", "+SUM(1,1)"],
+        ]
+        self.assertEqual(
+            [[cell.text for cell in row.cells] for row in table.rows],
+            expected_rows,
+        )
+        paragraph_text = [paragraph.text for paragraph in document.paragraphs]
+        self.assertFalse(any("\\t" in text for text in paragraph_text
+                             if text in {"\\t".join(row) for row in expected_rows}))
+        self.assertIn("Catatan\\tkhusus\\tini bukan salinan tabel.", paragraph_text)
+        self.assertEqual(sum(p.style.name.casefold().startswith("list number") for p in document.paragraphs), 3)
+        self.assertEqual(sum(p.style.name.startswith("Heading") for p in document.paragraphs), 4)
+        summary = validate_document_file("docx", prompt, data)
+        self.assertEqual(summary["tables"], 1)
+        self.assertEqual(summary["numbered_lists"], 3)
+
 if __name__ == "__main__":
     unittest.main()
