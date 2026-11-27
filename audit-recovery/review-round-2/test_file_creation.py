@@ -346,7 +346,10 @@ Dokumen selesai diuji."""
                 shape.text for shape in slide.shapes
                 if getattr(shape, "has_text_frame", False) and shape.shape_id != title_shape_id
             )
-            self.assertNotIn(expected_title, body_text)
+            body_lines = [line.strip() for line in body_text.splitlines() if line.strip()]
+            # The title may legitimately be mentioned inside body prose; only
+            # reject a standalone duplicate title line in the body placeholder.
+            self.assertNotIn(expected_title, body_lines)
             self.assertIn("Isi khusus untuk " + expected_title, body_text)
 
     def test_pptx_preserves_lines_beyond_old_truncation_limit(self):
