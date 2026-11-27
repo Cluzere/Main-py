@@ -1316,13 +1316,13 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertTrue(all(count >= 4 for count in summary["paragraphs_per_section"].values()))
         import pymupdf
         with pymupdf.open(stream=data, filetype="pdf") as doc:
-            extracted = "\\n".join(page.get_text() for page in doc)
+            extracted = "\n".join(page.get_text() for page in doc)
         self.assertIn("Jumlah halaman sebelum lampiran validasi:", extracted)
-        page_match = re.search(r"Jumlah halaman sebelum lampiran validasi:\\s*(\\d+)", extracted)
+        page_match = re.search(r"Jumlah halaman sebelum lampiran validasi:\s*(\d+)", extracted)
         self.assertIsNotNone(page_match)
         self.assertLessEqual(int(page_match.group(1)), 4, "The short report body must finish by page four before its appendix.")
         self.assertIn("Elemen vektor PDF", extracted)
-        self.assertEqual(re.sub(r"\\s+", " ", extracted).casefold().count("not verified"), 3)
+        self.assertEqual(re.sub(r"\s+", " ", extracted).casefold().count("not verified"), 3)
 
     def test_master_final_pdf_rejects_wrong_table_header_schema(self):
         prompt, content = self._master_final_pdf_fixture()
