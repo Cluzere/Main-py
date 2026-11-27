@@ -3659,3 +3659,32 @@ Intermediate candidate CI runs failed while iterating on stale test labels, insu
 5. After one final artifact review, freeze PDF scope and move to the next non-PDF audit priorities in Master Memory. Continue using only `audit-recovery-gpt-2026-11-23`; never modify/deploy/restart production `main.py` without explicit permission. Keep PR #6 draft/unmerged unless the user separately authorizes a review/merge decision.
 
 **Status:** candidate PDF optimization and appendix repair are implemented; latest Wispbyte logs show five-page generation and completed deep validation; exact-head CI is SUCCESS. Overall PDF/Discord end-to-end acceptance is still NOT VERIFIED because the latest PDF artifact/page images and Discord attachment receipt/download are absent. Stop code churn; close only the evidence gaps above, then move on.
+
+
+## 52.32 PDF pagination tightening after inspection of the latest five-page Box artifact — 27 November 2026
+
+### Artifact and observed issue
+- The exact latest Box artifact inspected in this conversation is `Tes_PDF_Final (5).pdf`, Box file ID `2618358584920`, size 1,222,272 bytes, five pages. Its size matches the second Wispbyte run recorded in §52.31.
+- The five rendered pages were inspected. The report body occupies pages 1–4; page 4 contains only the final two conclusion paragraphs and has excessive unused space. The validation appendix occupies page 5 and is legible.
+- Unlike the stale six-page artifact discussed earlier, this five-page artifact's appendix has coherent PASS evidence: five sections, paragraph counts, 10×7 table, header styling, borders/alternating rows, A4, sequential page labels, formatting/list evidence, body geometry, 9,044 extractable text characters, and 89 vector drawings. Manual PDF-reader select/copy and Discord send/receipt remain NOT VERIFIED.
+- The report body has a table and conclusion on page 3; the remaining two conclusion paragraphs spill onto page 4. This is a pagination-density defect, not evidence that the text is missing or that the appendix validator is still reporting the old false negatives.
+
+### Candidate-only pagination change
+- Re-read the current candidate helper and test files from branch `audit-recovery-gpt-2026-11-23` before editing. Production `main.py`, production branch `main`, and runtime were not touched.
+- In `audit-recovery/review-round-2/clouzer_file_creation.py`, reduced conservative paragraph vertical reservation from 1.55 to 1.35 times font size, reduced paragraph gap from 7 to 5 points, and adjusted the minimum HTML box slack from +12/+8 to +7/+6 points. The HTML renderer's negative-spare check remains fail-closed; no clipping validation was removed.
+- Tightened heading keep-with-next reservation from 1.55/1.6 factors to 1.35/1.25, with a smaller fixed reserve, to avoid unnecessary page breaks while retaining heading-plus-opening-paragraph grouping.
+- In `audit-recovery/review-round-2/test_file_creation.py`, added an acceptance assertion that the full MASTER FINAL fixture must fit in no more than four total pages and its report body must use no more than three pages before the one-page appendix.
+- Commits created sequentially on the existing audit branch:
+  - Helper pagination change: `a47214e77baf33ab78ae021c8a2a828e22ff0bc3`.
+  - Regression-test tightening: `f9a995d5f2c547e8b96174441e5cf89558619b07`.
+- Latest fetched helper blob SHA after edit: `890c413aef8dd5c59a156ceb0a04bbe31b239148`.
+- Latest fetched test blob SHA after edit: `bc23985de35ee94fb01fd99aa29ee5efe91941c6`.
+
+### Verification and remaining acceptance gates
+- GitHub workflow-run lookup for exact test commit `f9a995d5f2c547e8b96174441e5cf89558619b07` returned no workflow runs at the time of this update; combined commit status also returned no statuses. Therefore the new pagination change is committed but CI is NOT YET VERIFIED. Do not call it passing.
+- The four-page assertion is intentionally strict; if the existing test fixture cannot meet it without compromising clipping safety, revise the layout/test based on measured evidence rather than weakening validation.
+- A new Wispbyte staging PDF must be generated from this exact candidate and inspected page-by-page. The current Box artifact predates these two commits and cannot prove the pagination patch.
+- PDF-reader select/copy and Discord attachment delivery/download remain NOT VERIFIED. CPU throttling from §52.31 remains an independent unresolved hosting issue.
+- PR #6 remains DRAFT and UNMERGED. No production deploy/restart or production `main.py` modification was performed or authorized.
+
+**Status:** pagination optimization and a strict regression assertion are committed to the existing audit branch; CI and a fresh staging artifact are pending. Do not mark PDF closeout complete yet.
