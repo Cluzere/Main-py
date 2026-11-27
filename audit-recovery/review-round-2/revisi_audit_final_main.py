@@ -37,6 +37,7 @@ from clouzer_file_creation import (
     normalize_pending_retry_task,
     validate_document_file,
     build_file_generation_system_instruction,
+    build_pdf_retry_instruction,
     _is_master_final_pdf_prompt,
     extract_pptx_visual_briefs,
     embed_pptx_visuals,
@@ -5177,7 +5178,7 @@ class ClouzerBot(commands.Bot):
                 # operations, not model-callable Responses tools. Tell the model to
                 # return document content only and do not expose unrelated tools.
                 payload_messages[0]["content"] += "\n\n" + build_file_generation_system_instruction(
-                    requested_file_format
+                    requested_file_format, clean_content
                 )
                 logging.info(
                     "[FILE-PIPELINE] scope=%s format=%s stage=model_content_request "
@@ -5432,7 +5433,7 @@ class ClouzerBot(commands.Bot):
                                 "pptx": "Keluarkan isi setiap slide dengan judul dan konten, pisahkan slide memakai baris --- SLIDE ---. Penuhi jumlah slide yang diminta. Jangan mengarang data.",
                                 "rtf": "Keluarkan hanya dokumen RTF asli yang dimulai dengan {\\rtf dan memiliki struktur grup seimbang. Jangan mengarang data.",
                                 "md": "Keluarkan hanya Markdown lengkap dengan heading dan struktur yang diminta. Jangan mengarang data.",
-                                "pdf": "Keluarkan isi dokumen lengkap dengan judul, bagian, dan tabel yang diminta; jangan sertakan penjelasan di luar dokumen. Jangan mengarang data.",
+                                "pdf": build_pdf_retry_instruction(clean_content, build_exc),
                                 "docx": "Keluarkan isi dokumen Word lengkap dengan judul, bagian, dan tabel yang diminta. Jangan mengarang data.",
                                 "odt": "Keluarkan isi dokumen OpenDocument lengkap dengan judul, bagian, dan tabel yang diminta. Jangan mengarang data.",
                                 "txt": "Keluarkan hanya isi teks lengkap sesuai permintaan. Jangan mengarang data.",
