@@ -1170,6 +1170,43 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         content = "# LAPORAN PENGUJIAN GENERATOR PDF CLOUZER\n\n" + "\n\n".join(sections)
         return prompt, content
 
+
+    def test_master_final_shared_textpage_cell_extraction_matches_legacy(self):
+        import pymupdf
+        prompt, content = self._master_final_pdf_fixture()
+        data, _, _ = create_document_file("pdf", prompt, content)
+        doc = pymupdf.open(stream=data, filetype="pdf")
+        try:
+            compared_cells = 0
+            for page in doc:
+                shared_textpage = page.get_textpage()
+                grouped = {}
+                for drawing in page.get_drawings():
+                    rect = drawing.get("rect")
+                    if rect is None or rect.x0 < 40 or rect.x1 > 555 or rect.y0 < 75 or rect.y1 > 795:
+                        continue
+                    if rect.width < 30 or rect.height < 10:
+                        continue
+                    grouped.setdefault(round(rect.y0, 1), []).append(rect)
+                for cells in grouped.values():
+                    if len(cells) != 7:
+                        continue
+                    cells.sort(key=lambda rect: rect.x0)
+                    for cell in cells:
+                        rect = pymupdf.Rect(
+                            cell.x0 + 1, cell.y0 + 1, cell.x1 - 1, cell.y1 - 1,
+                        )
+                        legacy = page.get_textbox(rect)
+                        cached = shared_textpage.extractTextbox(rect)
+                        self.assertEqual(
+                            cached, legacy,
+                            "Cached TextPage extraction must preserve exact cell text and ordering.",
+                        )
+                        compared_cells += 1
+            self.assertGreaterEqual(compared_cells, 77)
+        finally:
+            doc.close()
+
     def test_master_final_pdf_detector_accepts_ten_data_produk_wording(self):
         from clouzer_file_creation import _is_master_final_pdf_prompt
         prompt, _ = self._master_final_pdf_fixture()
