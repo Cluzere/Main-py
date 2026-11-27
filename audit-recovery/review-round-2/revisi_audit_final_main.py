@@ -5218,7 +5218,7 @@ class ClouzerBot(commands.Bot):
                         )
                     if requested_file_format == "pdf" and reply_text:
                         _pdf_min_match = re.search(
-                            r"(?:minimal|sekurang-kurangnya|paling sedikit)\\s+(\\d+)\\s+halaman",
+                            r"(?:minimal|sekurang-kurangnya|paling sedikit)\s+(\d+)\s+halaman",
                             clean_content, re.I,
                         )
                         _pdf_min_pages = int(_pdf_min_match.group(1)) if _pdf_min_match else 0
@@ -5236,7 +5236,7 @@ class ClouzerBot(commands.Bot):
                             _pdf_continuations = 0
                             while _pdf_total_chars < _pdf_target_chars and _pdf_continuations < 12:
                                 _pdf_continuations += 1
-                                _pdf_headings = re.findall(r"(?m)^\\s{0,3}#{1,3}\\s+(.+?)\\s*$", reply_text)
+                                _pdf_headings = re.findall(r"(?m)^\s{0,3}#{1,3}\s+(.+?)\s*$", reply_text)
                                 _pdf_context_tail = reply_text[-5_000:]
                                 _pdf_continue_messages = copy.deepcopy(payload_messages)
                                 _pdf_continue_messages.append({
@@ -5483,7 +5483,7 @@ class ClouzerBot(commands.Bot):
                             # come from deterministic local rendering/validation. Re-querying the
                             # model cannot repair those failures and only burns tokens/CPU.
                             _long_pdf_match = re.search(
-                                r"(?:minimal|sekurang-kurangnya|paling sedikit)\\s+(\\d+)\\s+halaman",
+                                r"(?:minimal|sekurang-kurangnya|paling sedikit)\s+(\d+)\s+halaman",
                                 clean_content, re.I,
                             )
                             _is_long_pdf_request = bool(
