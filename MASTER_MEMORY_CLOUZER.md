@@ -3898,3 +3898,42 @@ Priority order; all code changes and CI work remain candidate-branch-only:
 - Any later candidate commit may be fetched by Wispbyte on a user-initiated restart; warn before requesting a restart.
 
 **Status:** Live XLSX artifact **PASS**; live ZIP archive-creation artifact **PASS**; PDF remains **PASS / FROZEN** under §52.35. No repeat test of these same three artifacts is currently needed. Continue with separate retry/SSE and remaining-format coverage rather than reopening accepted artifact tests.
+
+
+## 52.37 DOCX live artifact failure, HTML-to-Word remediation, and regression coverage — 27 November 2026
+
+### Live artifact inspected
+- User uploaded TES_DOCX_CLOUZER.docx to Box; Box file ID 2618468435277, size 37,301 bytes, SHA-1 0b526c134881fadf64093e9b6a0a9bed6f249f4b, stored in CLOUZER_BUANGAN_UPLOAD/Tes 10 file.
+- The raw DOCX was downloaded from Box and inspected directly as an OOXML ZIP package; the verdict is not based only on Box's extracted-text preview.
+- Package opens and contains the expected core Word parts. word/document.xml contains literal escaped HTML tags in w:t text nodes, including &lt;h1&gt;, &lt;h2&gt;, &lt;table&gt;, and &lt;ol&gt;.
+- Actual structure counts: 0 native Word tables (w:tbl), 0 direct numbering properties (w:numPr), and 0 paragraph style references (w:pStyle). The document body has plain paragraphs only. The title appears once, so title duplication was not the defect in this artifact.
+- The content values (Andi/Budi/Citra and literal formula-like notes) were present in the HTML payload, but were not represented as a native Word table. This is a structural conversion failure, not a missing-content diagnosis.
+- Artifact verdict: DOCX FAIL for semantic structure (headings, table, numbered list, paragraphs). Package validity/openability by parser: PASS only at container level; no claim of successful Microsoft Word/LibreOffice visual inspection or Discord delivery.
+- Box artifact link: https://account.box.com/file/2618468435277. Box records the user as uploader; do not attribute upload to CLOUZER.
+
+### Root cause found in candidate code
+- Candidate helper audit-recovery/review-round-2/clouzer_file_creation.py, prior blob 890c413aef8dd5c59a156ceb0a4bbe31b239148, implemented _make_docx as a Markdown-only renderer: it recognized Markdown heading lines and otherwise wrote text into ordinary Word paragraphs.
+- The live model output used HTML elements (h1/h2/p/table/thead/tbody/tr/th/td/ol/li). The builder did not parse HTML, so those tags were escaped and stored as literal text in Word.
+- The previous DOCX validator checked only that extracted text was non-empty. It therefore accepted a structurally incorrect DOCX instead of failing closed.
+
+### Candidate-only remediation committed
+- Added HTML parsing to the DOCX builder using Python's standard-library HTMLParser; supported HTML headings, paragraphs, inline bold/italic/underline, line breaks, native Word tables, and native numbered/bulleted list paragraph styles. Existing Markdown DOCX behavior is retained.
+- Updated title extraction to recognize an HTML h1, and added recursive first-heading detection so an h1 wrapped in html/body does not cause a duplicate auto-generated title.
+- Strengthened DOCX validation to reject raw HTML tags left in document text and, when requested in the prompt, require native Word headings, native Word tables, and native numbered lists. Validator summaries now report paragraph, heading, table, and numbered-list counts.
+- Added regression tests using an HTML fixture equivalent to the live failed artifact. Assertions cover single title, four Word heading paragraphs, one native table with four rows × five columns, preservation of literal formula-like cell text, three numbered-list paragraphs, and validator metrics. Added a fail-closed test for raw HTML text.
+- Relevant candidate commits:
+  - 1a349d6973425bd61d8d7ebd428040b016df1f7a — HTML-to-DOCX builder.
+  - 9677467a8a2c7ceacf40a7e268e282f7fbb5d696 — native structure validation.
+  - bccf97cda0ae6ac37ba95fda776f0d74869c03a7 — corrected regex escaping in new parser/validator code.
+  - 2732f31cd0d063f981b82bcaeda25b216fa752df — added regression tests and corrected test newline literal.
+  - 42be95393567f50b231c5a9a1cdfc6cf07d8d703 — avoid duplicate title when HTML heading is nested under wrappers.
+- All changes are on audit-recovery-gpt-2026-11-23 only. Production main.py, production branch main, and production runtime remain untouched. PR #6 remains draft/unmerged.
+
+### CI evidence and remaining verification
+- An intermediate multi-format CI run for commit 9677467... failed during the full candidate regression suite. That version contained incorrectly double-escaped regex patterns; this was corrected in bccf97c.... Do not hide the intermediate failure or treat it as the final code state.
+- Push-triggered candidate workflows for later commits were observed in progress while this entry was written. Their final conclusions must be fetched and recorded before claiming CI PASS.
+- No live Wispbyte/Discord candidate runtime test has been run after these code changes. Do not ask the user to rerun the DOCX test until the latest candidate CI results are green and the candidate code is ready for a user-initiated runtime test.
+- A future user-initiated Wispbyte restart may fetch this audit branch; warn before requesting it. Do not restart or deploy without explicit user permission.
+- The DOCX artifact remains FAIL until a newly generated live artifact is independently inspected for native heading styles, actual w:tbl table structure, native numbering, content fidelity, and actual Discord attachment delivery. Candidate unit tests/CI do not prove live artifact acceptance.
+
+Status: DOCX failure recorded and candidate code remediation plus regression tests committed. CI for the latest candidate head and live Discord/Wispbyte retest remain pending. Production remains protected; no merge, deployment, or restart performed.
