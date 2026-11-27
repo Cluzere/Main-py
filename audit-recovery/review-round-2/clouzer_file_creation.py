@@ -1416,7 +1416,7 @@ def _extract_pdf_cell_text_from_words(words, rect, pymupdf) -> str:
             current_line = line_key
         else:
             lines[-1] += " " + str(word[4])
-    return "\\n".join(lines).strip()
+    return "\n".join(lines).strip()
 
 
 def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], page_dicts=None, page_drawings=None) -> dict:
