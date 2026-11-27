@@ -742,6 +742,85 @@ def _make_docx(content: str, title: str) -> bytes:
 
     document = Document()
     value = str(content or "")
+
+    def normalize_mixed_markdown(source: str) -> str:
+        """Convert Markdown block structures before parsing mixed HTML/Markdown."""
+        from html import escape
+
+        lines = str(source or "").splitlines()
+        output = []
+        index = 0
+
+        def cells_from_line(line):
+            candidate = line.strip()
+            if candidate.startswith("|"):
+                candidate = candidate[1:]
+            if candidate.endswith("|"):
+                candidate = candidate[:-1]
+            return [cell.strip() for cell in re.split(r"(?<!\\)\|", candidate)]
+
+        def is_separator(line):
+            cells = cells_from_line(line)
+            return len(cells) >= 2 and all(
+                re.fullmatch(r":?-{3,}:?", re.sub(r"\s+", "", cell)) for cell in cells
+            )
+
+        while index < len(lines):
+            line = lines[index]
+            stripped = line.strip()
+
+            if index + 1 < len(lines) and "|" in stripped and is_separator(lines[index + 1]):
+                header = cells_from_line(stripped)
+                rows = [header]
+                index += 2
+                while index < len(lines) and "|" in lines[index].strip():
+                    row = cells_from_line(lines[index].strip())
+                    if len(row) < len(header):
+                        row.extend([""] * (len(header) - len(row)))
+                    rows.append(row[:len(header)])
+                    index += 1
+                output.append("<table><thead><tr>" + "".join(
+                    "<th>" + escape(cell) + "</th>" for cell in rows[0]
+                ) + "</tr></thead><tbody>")
+                for row in rows[1:]:
+                    output.append("<tr>" + "".join(
+                        "<td>" + escape(cell) + "</td>" for cell in row
+                    ) + "</tr>")
+                output.append("</tbody></table>")
+                continue
+
+            heading = re.match(r"^(#{1,6})\s+(.+?)\s*#*\s*$", stripped)
+            if heading and "<" not in stripped:
+                level = len(heading.group(1))
+                output.append(f"<h{level}>" + escape(heading.group(2)) + f"</h{level}>")
+                index += 1
+                continue
+
+            numbered = re.match(r"^\s*\d+[.)]\s+(.+)$", line)
+            bullet = re.match(r"^\s*[-*+]\s+(.+)$", line)
+            if (numbered or bullet) and "<" not in stripped:
+                is_numbered = bool(numbered)
+                tag = "ol" if is_numbered else "ul"
+                items = []
+                while index < len(lines):
+                    pattern = r"^\s*\d+[.)]\s+(.+)$" if is_numbered else r"^\s*[-*+]\s+(.+)$"
+                    match = re.match(pattern, lines[index])
+                    if not match or "<" in lines[index]:
+                        break
+                    items.append("<li>" + escape(match.group(1).strip()) + "</li>")
+                    index += 1
+                output.append(f"<{tag}>" + "".join(items) + f"</{tag}>")
+                continue
+
+            output.append(line)
+            index += 1
+
+        return "\n".join(output)
+
+    # Mixed HTML/Markdown responses previously selected the HTML parser and
+    # silently flattened Markdown tables and lists into ordinary paragraphs.
+    if re.search(r"</?(?:h[1-6]|p|table|thead|tbody|tr|th|td|ol|ul|li|div|strong|b|em|i|br)\b", value, re.I):
+        value = normalize_mixed_markdown(value)
     if re.search(r"</?(?:h[1-6]|p|table|thead|tbody|tr|th|td|ol|ul|li|div|strong|b|em|i|br)\b", value, re.I):
         from html.parser import HTMLParser
         from html import unescape
