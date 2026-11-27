@@ -1386,6 +1386,40 @@ def _is_master_final_pdf_prompt(prompt: str) -> bool:
     return _mentions_ten_products(prompt) and all(item.casefold() in value for item in required)
 
 
+def _extract_cell_text_from_words(words, rect):
+    """Reconstruct cell text from one page-level word extraction.
+
+    TextPage.extractTextbox rescans page text for every cell. The validator
+    needs cell text in reading order, so use word-level block/line/word
+    indices and retain words whose centers fall inside the inset cell rect.
+    Callers extractWORDS once per page.
+    """
+    x0, y0, x1, y1 = rect.x0, rect.y0, rect.x1, rect.y1
+    selected = []
+    for word in words:
+        if len(word) < 8:
+            continue
+        wx0, wy0, wx1, wy1, value, block_no, line_no, word_no = word[:8]
+        center_x = (wx0 + wx1) / 2
+        center_y = (wy0 + wy1) / 2
+        if x0 <= center_x <= x1 and y0 <= center_y <= y1:
+            selected.append((block_no, line_no, word_no, str(value)))
+    selected.sort(key=lambda item: (item[0], item[1], item[2]))
+    lines = []
+    current_line = None
+    current_words = []
+    for block_no, line_no, _, value in selected:
+        line_key = (block_no, line_no)
+        if current_line is not None and line_key != current_line:
+            lines.append(" ".join(current_words))
+            current_words = []
+        current_line = line_key
+        current_words.append(value)
+    if current_words:
+        lines.append(" ".join(current_words))
+    return "\n".join(lines)
+
+
 def _first_body_text_overlap(body_records):
     """Return the first overlapping same-page body-block pair in source order.
 
@@ -1477,6 +1511,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         # rebuilding a clipped TextPage for every individual cell.
         _scan_started = time.perf_counter()
         page_textpage = page.get_textpage()
+        page_words = page_textpage.extractWORDS()
         _scan_timers["textpage_setup"] += time.perf_counter() - _scan_started
         _scan_started = time.perf_counter()
         for block in page_dicts[page_index]["blocks"]:
@@ -1522,7 +1557,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         header_index = None
         for row_index, (_, cells) in enumerate(page_rows):
             values = [
-                normalized(page_textpage.extractTextbox(pymupdf.Rect(
+                normalized(_extract_cell_text_from_words(page_words, pymupdf.Rect(
                     cell["rect"].x0 + 1, cell["rect"].y0 + 1,
                     cell["rect"].x1 - 1, cell["rect"].y1 - 1,
                 )))
@@ -1551,7 +1586,7 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
             page_data = []
             for _, cells in page_rows[header_index + 1:]:
                 values = [
-                    re.sub(r"\s+", " ", page_textpage.extractTextbox(pymupdf.Rect(
+                    re.sub(r"\s+", " ", _extract_cell_text_from_words(page_words, pymupdf.Rect(
                         cell["rect"].x0 + 1, cell["rect"].y0 + 1,
                         cell["rect"].x1 - 1, cell["rect"].y1 - 1,
                     ))).strip()
