@@ -4036,3 +4036,40 @@ The following are separate artifact-level results already recorded in §§52.35�
 - Preserve this append-only history. For future Master Memory updates, fetch the latest branch copy and blob SHA first, append a new section, commit to the audit branch, then fetch again to verify the saved text and commit.
 
 **Handoff summary:** PDF, XLSX, and ZIP creation artifacts have passed their defined inspected acceptance criteria; DOCX native structure and content now pass on the inspected Box artifact, with one redundant plain-text copy of the table to clean up. Next work is to verify CI for the latest DOCX regex fix, optionally remove that duplicate safely, then move to the next uncompleted format (PPTX/CSV/JSON as confirmed by the checklist) and keep delivery/reliability tests separate. Production remains protected.
+
+
+## 52.39 DOCX duplicate tab-delimited table cleanup and exact-head CI — 27 November 2026
+
+### Defect being closed
+- Carry forward §52.38: the inspected live artifact `TES_DOCX_CLOUZER_ULANG.docx` passed native DOCX package, heading, native table, cell-value, and numbered-list checks, but the same table was also repeated after the report/list as tab-delimited plain-text paragraphs.
+- This was a presentation-cleanliness defect only. Do not replace or rebuild the native table, remove legitimate report prose, change heading/list rendering, or weaken DOCX validation.
+
+### Candidate-only implementation
+- Updated `audit-recovery/review-round-2/clouzer_file_creation.py` in `_make_docx()`.
+- After HTML/Markdown rendering and explicit-prompt table recovery, the builder now compares top-level paragraph sequences against the complete ordered rows of each native Word table.
+- It removes a paragraph sequence only when every paragraph is tab-delimited, has the same number of cells as the native table, and the complete ordered cell values match the native table exactly after whitespace normalization.
+- Partial rows, arbitrary tabbed prose, and nonmatching content are retained. Native table cells and their literal values remain untouched.
+- Added regression test `test_docx_removes_only_complete_tab_delimited_copy_of_native_table`: reproduces a native HTML table followed by a duplicate tab-delimited copy, verifies the native 4×5 table and all cell values remain intact, confirms the duplicate rows are absent from ordinary paragraphs, confirms unrelated tabbed prose remains, and checks headings/list structure plus final DOCX validation.
+- Relevant commits on `audit-recovery-gpt-2026-11-23`:
+  - Helper implementation: `3ab0ac295ddcbeae773f21ad79fa3d01f4296148`.
+  - Initial regression test: `034112244945f068751c38678f4ecca3a2697d76`.
+  - Helper escape correction: `c6e515bae53363267751079ae973c70cc2a2de80`.
+  - Regression assertion correction: `b4f1e01a7d9e620d7797c2a137aae34b1d9714dd`.
+  - Final fixture correction using literal tab characters: `ebe6e731f8d42550163c860d6346a0925187a8e5`.
+- Current helper blob: `7e3ce0986c5cfda0687d57c371aaa3ef68023ab8`.
+- Current test blob: `676f6cf12b4dbade8684072f711e4a2bd5b1ca45`.
+- Current audit branch HEAD at this record: `ebe6e731f8d42550163c860d6346a0925187a8e5`.
+
+### CI verification — exact current HEAD PASS
+All three required workflows reached terminal `completed / success` on the exact same branch HEAD `ebe6e731f8d42550163c860d6346a0925187a8e5`:
+1. Audit candidate syntax check — run `45988193858`: https://github.com/Cluzere/Main-py/actions/runs/45988193858. Dependency consistency, Python compilation, pip-audit, Bandit, DOCX/file tests, ZIP fixture verification, archive regressions, and existing audit regressions passed. The full file-creation suite reported **159 tests, OK**.
+2. CLOUZER multi-format file audit — run `45988193863`: https://github.com/Cluzere/Main-py/actions/runs/45988193863. Full regression suite: **159 tests, OK**.
+3. Audit recovery candidate — run `45988193960`: https://github.com/Cluzere/Main-py/actions/runs/45988193960. Full regression suite: **159 tests, OK**.
+- Intermediate runs on `c6e515bae53363267751079ae973c70cc2a2de80` and `b4f1e01a7d9e620d7797c2a137aae34b1d9714dd` failed because the regression fixture encoded the tab separator as literal backslash-plus-t rather than actual tab characters; the final fixture correction at `ebe6e731f8d42550163c860d6346a0925187a8e5` resolves that test-fixture mismatch. Do not hide the intermediate failures; the exact latest HEAD is the verified green state.
+- No production root `main.py`, production branch `main`, PR #6 merge state, or Wispbyte runtime was changed. No deployment or restart was performed.
+
+### Acceptance boundary and next step
+- Candidate code and CI: **PASS** for removal of an exact duplicate tab-delimited table copy while preserving the native table and unrelated tabbed prose.
+- The prior uploaded live artifact remains **PASS for core DOCX structure/content; PARTIAL for presentation cleanliness**. CI does not retroactively change that artifact's verdict.
+- Live DOCX retest remains pending. After the user explicitly authorizes and performs a Wispbyte restart that fetches this exact branch HEAD (or a later descendant), run one controlled DOCX prompt and inspect the resulting raw DOCX bytes for: one native 4×5 table, exact cell values, headings, native numbering, no duplicate tab-delimited rows, preserved non-table prose, valid OOXML package, and Discord attachment delivery evidence.
+- Do not claim deployment, live artifact PASS, Discord delivery, or automatic Box upload until separately evidenced.
