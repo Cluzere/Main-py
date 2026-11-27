@@ -5614,3 +5614,28 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Hasil ini adalah pembaruan dokumentasi saja. Tidak ada perubahan pada `/home/container/main.py`, production branch `main`, file kandidat, PR #6, startup command, deployment, atau restart Wispbyte.
 - Langkah lanjutan yang masih berlaku: audit statis read-only penggunaan API `fitz`/PyMuPDF pada kandidat; jangan patch tanpa izin. Live PPTX visual acceptance, upload otomatis CLOUZER→Box, Discord attachment delivery, serta verifikasi runtime terhadap SHA kode kandidat terbaru tetap mengikuti status NOT VERIFIED di Bagian D–F.
 - Verifikasi akhir wajib dilakukan setelah commit: fetch ulang file dan pastikan blok handoff sementara sudah tidak ada, catatan §52.59 tetap ada, serta blob SHA dan commit SHA baru tercatat.
+
+
+## 52.60 Audit statis PyMuPDF pada kandidat — 28 November 2026
+
+### File dan bukti yang diperiksa
+- Pemeriksaan read-only dilakukan langsung pada GitHub branch `audit-recovery-gpt-2026-11-23`.
+- Kandidat `audit-recovery/review-round-2/revisi_audit_final_main.py`: blob SHA saat diperiksa `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6`, 6.737 baris.
+- Modul generator `audit-recovery/review-round-2/clouzer_file_creation.py`: blob SHA `f6af7ccc86e637321bb074e710b19b864f6fb081`, 3.201 baris.
+- Pada entrypoint kandidat, baris 51–54 memakai `import pymupdf as fitz`; tidak ditemukan `import fitz` legacy pada file tersebut.
+- Semua pemakaian alias `fitz` di entrypoint yang terdeteksi adalah `fitz.open`, `fitz.Matrix`, dan operasi halaman PyMuPDF. API itu memakai alias yang diimpor dari modul `pymupdf`.
+- Pada `clouzer_file_creation.py`, builder PDF memakai `import pymupdf as fitz` di `_make_pdf`; validator PDF dan pemeriksaan laporan memakai `import pymupdf` secara langsung. Pemakaian yang ditemukan meliputi `open`, `Rect`, `Point`, `get_text`, `get_pixmap`, `get_text_length`, dan `insert_pdf`. Tidak ditemukan import legacy `fitz` di modul ini.
+- Hasil pencarian statis pada dua file tersebut tidak menemukan pola import `fitz` lama. Tidak ada perubahan kode dilakukan.
+
+### Interpretasi warning Wispbyte
+- Log sebelumnya melaporkan tes import `fitz` berhasil tetapi mengeluarkan deprecation warning yang menyarankan `import pymupdf`.
+- Kode kandidat yang diperiksa sekarang sudah memakai `pymupdf`, sehingga warning tersebut tidak membuktikan entrypoint kandidat saat ini masih memakai import lama.
+- Karena log diagnostik menjalankan tes import bernama `fitz`, warning sangat mungkin berasal dari tes diagnostik yang secara eksplisit mengimpor nama modul lama; ini masih inferensi sampai skrip diagnostik yang mencetak daftar import diperiksa.
+- SHA blob kandidat saat ini `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6` berbeda dari SHA kandidat yang tercatat pada audit sebelumnya (`6fa66382352a02e81a50fb843fad6501a16bdd20`). Log startup sebelumnya hanya membuktikan checkout short SHA `620ef73` (commit dokumentasi), bukan bahwa blob kandidat terbaru ini sedang berjalan. Jangan klaim runtime memakai kandidat terbaru sebelum SHA checkout runtime diverifikasi.
+- Upaya mengambil `resource_trace.csv` dan `requirements.txt` dari path repo kandidat menghasilkan NOT_FOUND. CSV diketahui berada di filesystem Wispbyte pada `/home/container/clouzer-audit/audit-recovery/review-round-2/resource_trace.csv`, tetapi isi file runtime tersebut tidak tersedia dari GitHub fetch. Jangan mengarang hasil analisis resource trace.
+
+### Verdict dan tindak lanjut
+- Audit statis PyMuPDF pada dua modul kandidat: PASS untuk penggunaan import modern; tidak ada dasar dari kode yang diperiksa untuk patch migrasi `fitz`.
+- Warning import lama kemungkinan berasal dari diagnostic import test, bukan dari dua modul kandidat. Konfirmasi final memerlukan skrip diagnostik yang menjalankan `import fitz` atau log import lengkap.
+- Tidak ada file kode, konfigurasi, startup command, production, PR #6, atau deployment yang diubah.
+- Pekerjaan berikutnya yang membutuhkan bukti eksternal adalah memperoleh isi CSV resource trace dari filesystem Wispbyte dan mencocokkan SHA kandidat yang benar-benar di-checkout saat runtime. Live PPTX visual acceptance, upload otomatis CLOUZER→Box, dan Discord attachment delivery tetap NOT VERIFIED.
