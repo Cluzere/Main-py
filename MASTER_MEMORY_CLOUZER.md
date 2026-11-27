@@ -3,7 +3,7 @@
 **Terakhir dirapikan:** 28 November 2026  
 **Repository:** `Cluzere/Main-py`  
 **Branch kerja kandidat:** `audit-recovery-gpt-2026-11-23`  
-**HEAD branch setelah perbaikan test dan workflow:** `c8f2d188f089b196cd8942e5c9613dfe070ed17a`  
+**HEAD branch terbaru setelah pembaruan Master Memory:** `367b010eb77d4e5f5bf8d1688aa33fb115db1b67`  
 **Commit kode PPTX terbaru yang diketahui:** `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`  
 **File induk:** `MASTER_MEMORY_CLOUZER.md`
 
@@ -135,7 +135,8 @@
 
 ## B3. Snapshot Git terakhir sebelum restrukturisasi Master Memory
 
-- Branch HEAD terakhir setelah perbaikan test dan workflow: `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
+- Commit kandidat terakhir yang memuat perubahan kode/workflow: `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
+- HEAD branch saat ini: `367b010eb77d4e5f5bf8d1688aa33fb115db1b67` (pembaruan dokumentasi Master Memory saja; tidak mengubah kode kandidat).
 - Commit kode PPTX terakhir: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
 - Commit perbaikan regression test PPTX: `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
 - Commit filter workflow multi-format: `e8a0b29826daea2f47814a12cfc013bab427b0e3`.
@@ -5212,7 +5213,9 @@ Akhir dokumen arsip asli. Jangan menafsirkan rencana historis sebagai pekerjaan 
 
 ### G3.5 Status akhir
 
-- Branch HEAD: `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
+- Latest code/workflow commit: `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
+- Current branch HEAD after final Master Memory documentation update: `367b010eb77d4e5f5bf8d1688aa33fb115db1b67`.
+- Final Master Memory blob SHA: `fd48f81cea0610ba579c0da89cad11f42a8dce9f`.
 - Latest PPTX source code commit: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
 - Latest PPTX test correction commit: `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
 - Latest workflow commits: `e8a0b29826daea2f47814a12cfc013bab427b0e3` dan `c8f2d188f089b196cd8942e5c9613dfe070ed17a`.
