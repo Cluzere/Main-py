@@ -4389,3 +4389,120 @@ Branch HEAD verified as `527268de10170b29d00c894b5317c5f0ad8b37e2`. All three wo
 - Preserve original Box artifact `clouzer_test.pptx`; do not overwrite it. Do not modify production `main.py`, merge PR #6, or deploy production.
 
 **Handoff:** The red workflow was caused by an over-broad test assertion that rejected a legitimate title mention in body prose. The assertion was narrowed to reject only a standalone duplicate title line. All three latest GitHub Actions workflows are green on candidate HEAD `527268de10170b29d00c894b5317c5f0ad8b37e2`, and the PPTX regression now passes in CI. Live artifact and runtime acceptance remain open.
+
+
+---
+
+## 52.46 Live PPTX visual-enrichment follow-up: PPTX succeeds, visual assets still absent — 28 November 2026
+
+### User-reported behavior and latest outcome
+- After the candidate PPTX title fix and green CI reported in §52.45, the user restarted Wispbyte and ran the controlled five-slide PowerPoint prompt.
+- The user uploaded the resulting file to Box. The identified artifact is:
+  - File: `clouzer_buatkan_file_powerpoint_pptx_tentang_20261127_171018.pptx`
+  - Box file ID: `2619287149492`
+  - Box URL: https://account.box.com/file/2619287149492
+  - Size: 32,898 bytes
+  - SHA-1: `72a967ee85c56381161b88c6ba8dadd3d19f3d5d`
+- The user subsequently asked CLOUZER to add visual imagery. CLOUZER responded that no PPTX had been created or attached and that it had only produced slide text plus visual directions, claiming it could not assemble/send a PPTX in that session.
+- When the user clarified with “Pptx ini lu render kasih visual gambarnya doang”, CLOUZER interpreted the word “gambar” as a request to generate standalone image(s), rather than to edit the existing PPTX and embed visual assets in its slides.
+- A clarified follow-up instruction explicitly required editing the existing PPTX, embedding relevant visuals inside slides, preserving editable PowerPoint text, keeping exactly five slides, saving a new PPTX, validating it, and attaching it. **User reports that CLOUZER then successfully generated a PPTX, but the visual images still were not created/embedded.** The newly generated follow-up artifact has not yet been identified or independently inspected; do not confuse it with the earlier Box artifact above.
+
+### Independent inspection of the identified five-slide PPTX artifact
+The artifact `clouzer_buatkan_file_powerpoint_pptx_tentang_20261127_171018.pptx` was downloaded from Box into the current working session and inspected directly.
+
+- `python-pptx` opened the file successfully.
+- Exactly five slide XML parts exist; presentation relationships list slides 1 through 5 in the expected order.
+- ZIP CRC test returned `None`; package contains presentation relationships, a slide master, and a theme.
+- Each slide has a distinct title in a native PowerPoint TITLE placeholder:
+  1. Pengenalan CLOUZER AI
+  2. Tujuan dan Fungsi Utama
+  3. Cara Kerja Sistem
+  4. Manfaat dan Kemampuan
+  5. Kesimpulan
+- Every slide contains at least three relevant body points; observed point counts were 3, 4, 4, 4, and 4.
+- Text is stored in editable PowerPoint text shapes, not flattened full-slide screenshots.
+- Earlier inspection noted that the prompt's literal prefixes “Slide 1 —” etc. were omitted from the title placeholders. The semantic headings and their order were correct.
+- This artifact establishes the structural PPTX acceptance criteria for the basic five-slide deck. It does not prove the later visual-enrichment attempt succeeded.
+
+### Independent rendering and visual inspection
+- Converted the identified PPTX to PDF with LibreOffice headless; conversion succeeded.
+- PDF metadata reported exactly five pages.
+- Rendered all five pages to PNG and assembled a contact sheet for inspection.
+- No blank slides, clipped text, text overflowing slide boundaries, or overlapping text were observed in this LibreOffice render.
+- The design was very plain: white background, black text, sparse content concentrated near the top, large unused whitespace, and bullet formatting that showed a bullet symbol followed by a hyphen on body lines.
+- Verdict for this artifact: **basic PPTX structure and LibreOffice rendering PASS; visual design quality PARTIAL; visual image/media enrichment NOT PRESENT / NOT SATISFIED.**
+- The rendered PDF and contact sheet were inspection artifacts only; they do not replace or modify the original Box PPTX.
+- LibreOffice rendering is not the same as a direct Microsoft PowerPoint application test.
+- Discord attachment send/receipt/download provenance remains a separate evidence gate and is not proven solely by Box presence.
+
+### Updated diagnosis: context carryover and tool routing for follow-up edits
+Observed behavior indicates two distinct problems to investigate; do not collapse them into one unproven root cause:
+
+1. **Follow-up context / artifact reference**
+   - CLOUZER appears not to reliably preserve or resolve the previously generated PPTX as the active artifact when the user sends a short follow-up such as “tambah visual”.
+   - When the bot falls back to a text-only response claiming it cannot create a PPTX, inspect whether the follow-up turn receives prior conversation history, original task intent, the file-generation requirement, and the existing artifact path/ID.
+   - Verify whether the bot stores an artifact/task reference after successful file generation and makes it available to subsequent turns in the same Discord conversation.
+2. **Intent classification / tool routing**
+   - “Render” can mean converting a deck into PDF/images; it is ambiguous for the requested operation.
+   - “Gambar” may trigger image generation as a standalone output. The actual user intent is: **edit the existing PPTX, create or obtain visual assets if supported, embed them into slide layouts, preserve editable text, and return a new PPTX file.**
+   - Inspect routing between ordinary text response, image-generation tool, and PPTX/document editing helper. Image generation, if available, must produce only assets to be embedded into the PPTX; it must not replace the PPTX deliverable.
+   - Do not assume a prompt-only fix will solve a missing artifact context or missing tool route. First inspect the actual message/context construction and available tools.
+3. **Actual image/media embedding**
+   - For a visual-enrichment task, acceptance requires relevant images or graphic assets to be embedded as media/shape elements in the PPTX package and visibly placed on slides.
+   - A response containing visual descriptions, image prompts, or a standalone generated image is not a successful PPTX visual-enrichment result.
+   - Verify media relationships and picture/graphic shapes in each relevant slide, then render the revised deck and inspect the result. Preserve native editable text.
+
+### Next actions — priority order
+1. Identify and retrieve the *newest* Box artifact produced after the clarified visual-enrichment prompt. Do not assume it is the earlier basic PPTX file.
+2. Inspect the new artifact's raw PPTX package:
+   - slide count and order remain exactly five;
+   - title/body content remains intact and editable;
+   - embedded media files exist under `ppt/media/` where visuals were requested;
+   - slide XML contains picture/graphic elements and valid relationships to those media files;
+   - visuals are placed on intended slides rather than merely stored as unused media.
+3. Render the new PPTX to PDF/PNG with LibreOffice and inspect every slide for visual quality, text/image overlap, clipping, missing assets, and consistent layout.
+4. If the latest artifact still has no embedded visuals, inspect candidate source for:
+   - conversation history and artifact/task-state persistence between Discord turns;
+   - whether previous file artifact IDs/paths are stored and restored;
+   - intent classification for “edit/continue/enhance existing PPTX”;
+   - tool selection/routing for image generation versus PPTX editing;
+   - whether the PPTX helper supports adding pictures/media and saving a *new* PPTX;
+   - final attachment send path and operation outcome tracking.
+5. Reproduce the short-follow-up sequence in a controlled test. Log the resolved active artifact, requested operation (edit existing deck), selected tool/helper, media creation result, PPTX save result, validation result, and Discord attachment result.
+6. Make the smallest candidate-only code fix after identifying the failing layer. Add regression tests for:
+   - follow-up “add visuals” inheriting the previous PPTX artifact;
+   - the request being routed to PPTX editing rather than a standalone image-only response;
+   - embedded media being referenced by slide XML and visible in render;
+   - editable text remaining native and unchanged;
+   - final output remaining a valid PPTX attachment.
+7. Run syntax/compile, focused unit tests, full regression tests, security checks, and GitHub Actions. Only after green CI and explicit user authorization should the user restart Wispbyte; verify the startup log identifies the exact candidate HEAD.
+8. Generate one new live visual-enriched PPTX and inspect it independently. Do not mark visual enrichment PASS until embedded assets are confirmed in the PPTX and the rendered slides visibly contain them.
+
+### Status matrix
+| Acceptance item | Status |
+|---|---|
+| Basic five-slide PPTX generated | PASS for identified Box artifact |
+| Five distinct slide titles in TITLE placeholders | PASS |
+| At least three relevant body points per slide | PASS |
+| Native editable PowerPoint text | PASS |
+| PPTX package integrity / ZIP CRC | PASS |
+| Five slides in expected presentation order | PASS |
+| LibreOffice conversion to five-page PDF | PASS |
+| No clipping/overlapping text in LibreOffice render | PASS for identified basic artifact |
+| Professional/visually rich slide design | PARTIAL |
+| Visual images actually generated and embedded in revised PPTX | NOT PASS / user reports absent |
+| Existing PPTX artifact reliably carried into follow-up turns | NOT VERIFIED; suspected context gap |
+| Follow-up intent routed to PPTX editor rather than standalone image generation | NOT PASS in observed interaction |
+| Newest visual-enriched artifact independently inspected | PENDING |
+| Discord attachment delivery and download | NOT VERIFIED separately |
+| Wispbyte runtime commit for latest visual attempt | NOT VERIFIED by supplied startup log |
+
+### Protected boundaries
+- Continue only on `audit-recovery-gpt-2026-11-23` and candidate files unless explicitly authorized otherwise.
+- Do not modify production root `main.py` or production branch `main`.
+- Do not merge PR #6.
+- User controls Wispbyte restart; never claim to have restarted/deployed it.
+- Preserve the original Box PPTX; save any improved deck under a new filename.
+- Keep the existing PPTX basic-structure PASS separate from visual-enrichment acceptance. Do not downgrade the former because the later visual request failed, and do not mark the latter PASS because a new PPTX file was generated.
+
+**Handoff summary:** The basic five-slide CLOUZER PPTX artifact is structurally valid, has distinct native title placeholders and editable text, and renders to five LibreOffice PDF pages without clipping or overlap. Its visual design is plain and contains no requested visual imagery. After a clarified follow-up, the user reports CLOUZER generated another PPTX but still did not create/embed visuals. The next task is to identify that newest artifact, verify whether media is actually embedded, then trace follow-up artifact-context persistence and image-to-PPTX tool routing in the candidate code. No production deployment or merge is authorized.
