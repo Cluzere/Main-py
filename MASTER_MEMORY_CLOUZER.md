@@ -22,6 +22,11 @@
 5. Sebelum menulis, fetch versi terbaru dan gunakan blob SHA terbaru. Setelah menulis, fetch ulang dan verifikasi isi, blob SHA, serta commit SHA. **Jangan pernah mengatakan Master Memory sudah diperbarui/tersimpan jika commit dan hasil fetch ulang belum terverifikasi.** Jika akses atau update gagal, nyatakan dengan jelas bahwa perubahan belum tersimpan.
 6. Aturan ini adalah gerbang pertama untuk semua pekerjaan CLOUZER dan mengungguli urutan kerja biasa. Tetap patuhi otorisasi produksi, keamanan, dan larangan lain dalam Bagian A; aturan ini tidak memberikan izin untuk mengubah production, deploy, restart, atau merge.
 
+7. **Saat pengguna mengatakan “new sesi”, “sesi baru”, “sesi ini mau habis”, “konteks penuh”, atau ungkapan setara yang menunjukkan percakapan akan ditinggalkan/dilanjutkan di sesi lain, otomatis siapkan HANDOFF untuk sesi berikutnya tanpa menunggu diminta lagi.** Handoff harus dibuat sebelum sesi berakhir, berisi status terakhir, pekerjaan yang sudah/belum dilakukan, keputusan, batas otorisasi, bukti/SHA/link penting, hal yang NOT VERIFIED/BLOCKED, dan langkah berikutnya yang konkret.
+8. Handoff adalah dokumen operasional untuk sesi berikutnya, bukan pengganti Master Memory. Pastikan Master Memory lebih dahulu diperbarui dan diverifikasi sesuai aturan di atas, lalu susun handoff yang konsisten dengan Master Memory terbaru. Jangan menyalin asumsi yang belum terbukti sebagai fakta.
+9. Jika konteks memungkinkan, tampilkan handoff lengkap dalam bentuk yang mudah disalin di chat. Jika pengguna secara eksplisit meminta file atau penyimpanan handoff, buat/simpan artefak pada lokasi yang disepakati dan verifikasi hasilnya. Jangan mengklaim file tersimpan jika belum dibuat dan diverifikasi.
+10. Jangan menunggu sampai konteks benar-benar habis. Begitu ada sinyal sesi akan ditutup atau dipindah, lakukan pembaruan Master Memory dan siapkan handoff pada kesempatan itu.
+
 ## A1. Prioritas dan otorisasi
 
 1. Master Memory ini adalah sumber handoff utama CLOUZER. Baca Bagian A–F sebelum melanjutkan pekerjaan; buka Bagian G saat perlu bukti atau detail historis.
