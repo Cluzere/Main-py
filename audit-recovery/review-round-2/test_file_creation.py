@@ -1703,9 +1703,9 @@ Jangan mengklaim berhasil jika file gagal dibuat atau dikirim."""
             expected_rows,
         )
         paragraph_text = [paragraph.text for paragraph in document.paragraphs]
-        self.assertFalse(any("\\t" in text for text in paragraph_text
-                             if text in {"\\t".join(row) for row in expected_rows}))
-        self.assertIn("Catatan\\tkhusus\\tini bukan salinan tabel.", paragraph_text)
+        duplicate_rows = {"\t".join(row) for row in expected_rows}
+        self.assertTrue(duplicate_rows.isdisjoint(paragraph_text))
+        self.assertIn("Catatan\tkhusus\tini bukan salinan tabel.", paragraph_text)
         self.assertEqual(sum(p.style.name.casefold().startswith("list number") for p in document.paragraphs), 3)
         self.assertEqual(sum(p.style.name.startswith("Heading") for p in document.paragraphs), 4)
         summary = validate_document_file("docx", prompt, data)
