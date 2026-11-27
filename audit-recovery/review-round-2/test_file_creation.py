@@ -2048,7 +2048,7 @@ Deskripsi visual: Gambar robot dengan teks AI besar."""
         self.assertIn("arahan visual", instruction)
         self.assertIn("background", instruction)
 
-def test_pptx_request_phrase_routes_to_pptx_file_generation(self):
+    def test_pptx_request_phrase_routes_to_pptx_file_generation(self):
         prompt = "Buatkan presentasi PowerPoint PPTX 5 slide tentang keamanan AI."
         self.assertEqual(detect_requested_file_format(prompt), "pptx")
 
