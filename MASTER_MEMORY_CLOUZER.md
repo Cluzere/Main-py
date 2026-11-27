@@ -4112,3 +4112,80 @@ All three push-triggered candidate workflows completed successfully on exact bra
 - Production root `main.py`, production branch `main`, and production runtime remain untouched.
 - PR #6 was rechecked: open, draft, unmerged; base `main`, head `audit-recovery-gpt-2026-11-23` at code/test commit `76fca8d` before this documentation-only append.
 - No Wispbyte restart, deploy, PR merge, or production change was performed.
+
+
+---
+
+## 52.41 DOCX live artifact (2) — Box inspection and next-session handoff — 27 November 2026
+
+### Artifact identity and provenance
+- User asked to inspect the new Box artifact named `TES_DOCX_CLOUZER_ULANG (2).docx`.
+- Located using Box search in folder path `CLOUZER_BUANGAN_UPLOAD/Tes 10 file`.
+- Box file ID: `2618773168671`.
+- Box URL: https://account.box.com/file/2618773168671
+- Size: 37,324 bytes.
+- SHA-1: `cf00da1123599fe4569d51481859c4fea27fa5cb`.
+- Box created/modified: `2026-11-27T12:29:39Z` (19:29:39 WIB).
+- Downloaded the raw binary from Box and inspected the actual DOCX bytes; did not rely only on Box text extraction.
+- The Box actor authenticated as the user's connected Box account. Box upload presence alone does not prove CLOUZER automatic Box upload or Discord attachment delivery.
+- No Wispbyte startup log for this artifact's generation was supplied in this turn; therefore do not claim that runtime was definitely on candidate commit `76fca8d` when this artifact was generated.
+
+### Raw DOCX structural inspection
+- [x] File exists and size is 37,324 bytes; SHA-1 matches Box metadata.
+- [x] ZIP package opens; `ZipFile.testzip()` returned `None`.
+- [x] 17 ZIP members; all XML/relationship parts parsed without XML errors.
+- [x] `python-docx` opens the document successfully.
+- [x] Exactly one `w:tbl` exists in `word/document.xml`.
+- [x] Native table dimensions are 4 rows × 5 cells in every row.
+- [x] Exact table contents:
+  - Header: `No | Nama | Umur | Jabatan | Catatan`
+  - `1 | Andi | 25 | Admin | Normal`
+  - `2 | Budi | 30 | Manager | =1+1`
+  - `3 | Citra | 27 | Staff | +SUM(1,1)`
+- [x] Formula-like strings `=1+1` and `+SUM(1,1)` are present as literal text in native table cells.
+- [x] Exactly one title paragraph exists: `LAPORAN PENGUJIAN CLOUZER`, styled `Heading 1`.
+- [x] Three section headings exist exactly once: `Identitas`, `Data Pengujian`, and `Kesimpulan`, each styled `Heading 2`.
+- [x] Three list paragraphs use paragraph style `List Number`. Its style definition contains `numPr` with `numId=5`; `word/numbering.xml` maps numId 5 to abstractNumId 7 with decimal format and level text `%1.`. This is genuine Word automatic numbering inherited through the paragraph style, even though individual list paragraphs do not contain direct `w:numPr`.
+- [x] No ordinary body paragraph contains tab-delimited copies of the table rows. The only native table is the single source of tabular data.
+- [x] No duplicate title.
+- [x] No XML parsing errors or corrupt ZIP member.
+
+### Content acceptance and visual rendering
+- The artifact corresponds to the controlled prompt used in this session: one title, three sections, native 4×5 table with the three specified rows, three Word-numbered points, and formula-like literal cell values.
+- **One explicit prompt criterion is not met:** the prompt asked for a short paragraph in every section. `Identitas` and `Kesimpulan` each have a prose paragraph, but `Data Pengujian` is followed immediately by the table and has no separate introductory paragraph. Record this as a content-completeness gap, not as a table/OOXML defect.
+- Rendered the DOCX to PDF using Libreoffice for visual inspection. It rendered to one page; title, headings, table borders, cell values, and numbered list were visible; no clipping or overflow was observed in the rendered page.
+- The rendered page uses Letter page size. No requirement in the controlled prompt mandated A4, so do not classify Letter as a failure unless the user later specifies A4.
+- No direct Microsoft Word application rendering test was performed; LibreOffice rendering is the observed visual evidence.
+
+### Artifact verdict
+- Native DOCX/OOXML package: **PASS**.
+- Native table and exact cell values: **PASS**.
+- Heading structure/title uniqueness: **PASS**.
+- Native Word numbering: **PASS**.
+- Literal formula-like cell values: **PASS**.
+- No duplicate tab-delimited table: **PASS**.
+- One-page LibreOffice visual rendering/no clipping: **PASS (LibreOffice only)**.
+- Paragraph in every section: **PARTIAL / one missing** (`Data Pengujian` lacks its own prose paragraph).
+- Discord attachment delivery and automatic Box upload provenance: **NOT VERIFIED by this Box artifact inspection**.
+- Runtime commit used to generate this file: **NOT VERIFIED** without the corresponding Wispbyte startup log.
+
+### Next-session plan — stay on this DOCX test only
+1. Do not broaden the scope to PDF, XLSX, ZIP, PPTX, retry, or unrelated reliability work.
+2. Treat this artifact's verified structural successes as closed; do not repeat them unless a later change regresses them.
+3. Inspect the candidate DOCX generation path and its regression tests specifically for why the `Data Pengujian` section has no separate short paragraph before the native table.
+4. Make the smallest candidate-branch-only correction so every one of the three sections has a short paragraph while retaining the single native 4×5 table, exact cell values, native numbering, formula-like literal strings, and duplicate-table cleanup.
+5. Add/update a focused regression assertion that checks a non-empty prose paragraph between the `Data Pengujian` heading and the native table; ensure it does not accept the table itself as the paragraph.
+6. Run all DOCX-relevant GitHub Actions on the exact resulting commit; inspect terminal workflow conclusions and logs. If a test fails, fix only the demonstrated DOCX issue and rerun until complete.
+7. Only after CI is green, tell the user the exact audit-branch commit. The user controls Wispbyte restart; request one restart only if they agree. Confirm the fetched HEAD from startup logs before claiming the candidate is live.
+8. Run one controlled DOCX prompt once after the exact candidate is loaded; inspect the raw Discord attachment/Box artifact and verify all criteria, including the missing Data Pengujian paragraph. Avoid repeated prompts that waste the user's quota.
+9. Record Discord attachment send/receipt/download as a separate evidence gate. Do not infer it from Box presence.
+10. At the end, append the final DOCX result and handoff to this Master Memory. Do not merge PR #6 or touch production root `main.py` without explicit user authorization.
+
+### Protected boundaries
+- Repository: `Cluzere/Main-py`; audit branch: `audit-recovery-gpt-2026-11-23`.
+- Candidate entrypoint/helper/tests remain those listed in §§3 and 52.40.
+- Production root `main.py`, production branch `main`, and production runtime remain protected.
+- PR #6 remains draft/unmerged unless explicitly authorized.
+- No code, runtime, Wispbyte, or production changes were made during this artifact inspection.
+
+**Handoff summary:** The new Box artifact `TES_DOCX_CLOUZER_ULANG (2).docx` passes raw package integrity, native table 4×5, exact cell values, native headings, inherited Word numbering, literal strings, no duplicate tab-delimited copy, and one-page LibreOffice visual rendering. The only prompt-level gap found is that the `Data Pengujian` section has no separate short prose paragraph. Next session should fix and test only that DOCX content-completeness gap, run the exact-head DOCX CI, then request one live retest after confirming the Wispbyte candidate SHA. No unrelated audit or production action.
