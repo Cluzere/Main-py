@@ -97,8 +97,8 @@ def detect_requested_file_format(prompt: str) -> str | None:
     return min(matches)[1] if matches else None
 
 
-def build_file_generation_system_instruction(format_name: str) -> str:
-    """Explain the local file-generation architecture to the model for file requests."""
+def build_file_generation_system_instruction(format_name: str, prompt: str = "") -> str:
+    """Explain local file generation; apply MASTER FINAL constraints only to that exact request."""
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
         raise ValueError("Format file tidak didukung.")
@@ -113,8 +113,7 @@ def build_file_generation_system_instruction(format_name: str) -> str:
         "pengiriman attachment tidak tersedia. Jangan mengklaim file sudah dibuat atau dikirim. "
         "Tugasmu hanya menyusun isi dokumen sesuai permintaan pengguna. "
         "Keluarkan hanya isi dokumen, tanpa penjelasan tentang tool, API, kemampuan sesi, atau proses pengiriman. "
-        "Ikuti spesifikasi pengguna dan jangan mengarang fakta."
-        + (
+        "Ikuti spesifikasi pengguna         + (
             " Untuk laporan MASTER FINAL PDF CLOUZER, backend memakai template deterministik untuk judul, tabel 10 produk, "
             "format tabel, daftar, pagination, nomor halaman, dan ringkasan validasi. Karena itu JANGAN tulis judul, tabel, "
             "baris produk, daftar, atau ringkasan validasi. Keluarkan hanya lima heading berikut persis dan masing-masing "
@@ -123,15 +122,45 @@ def build_file_generation_system_instruction(format_name: str) -> str:
             "Kesimpulan. Pisahkan setiap paragraf dengan satu baris kosong. "
             "Jangan menambah heading lain, jangan menulis NOT VERIFIED, jangan menyatakan hasil lulus/gagal, jumlah halaman, durasi, atau temuan aktual yang belum diberikan oleh backend, dan jangan mengklaim pemeriksaan visual manual, "
             "seleksi/salin manual, atau pengiriman Discord berhasil. Backend akan menyusun bagian non-naratif dan validasi."
+            if fmt == "pdf" and _is_master_final_pdf_prompt(prompt) else
+            " Untuk PDF umum, ikuti jumlah halaman minimum/maksimum dan struktur yang diminta pengguna. Susun konten substantif yang cukup panjang; "
+            "jangan meringkas dokumen panjang menjadi outline atau beberapa paragraf saja. Gunakan bab, subbab, uraian rinci, contoh, dan tabel yang relevan. "
+            "Jangan membuat halaman kosong atau mengulang filler untuk mengejar jumlah halaman."
             if fmt == "pdf" else
             " Untuk PPTX, keluarkan konten bersih yang siap ditampilkan sebagai teks editable PowerPoint. "
             "Pisahkan setiap slide dengan baris persis --- SLIDE ---. Baris pertama setiap bagian adalah judul slide. "
             "Gunakan teks biasa atau bullet sederhana; JANGAN gunakan Markdown heading, bold, italic, tabel Markdown, "
             "code fence, instruksi desain, arahan visual, deskripsi gambar, prompt gambar, atau label seperti 'Arahan visual:'. "
             "Jangan menulis instruksi generator gambar sebagai materi slide. Batasi tiap slide pada judul dan 3-6 poin ringkas. "
-            "Visual/background akan dibuat terpisah oleh backend dan tidak perlu dijelaskan di isi slide."
+            "Visual/background akan dibuat terpisah oleh backend dan tidak perlu dijelaskan di isi dokumen."
             if fmt == "pptx" else ""
+        )t == "pptx" else ""
         )
+    )
+
+
+def build_pdf_retry_instruction(prompt: str, previous_error: object = "") -> str:
+    """Build targeted PDF recovery guidance without weakening page-count validation."""
+    match = re.search(
+        r"(?:minimal|sekurang-kurangnya|paling sedikit)\\s+(\\d+)\\s+halaman",
+        str(prompt or ""),
+        re.I,
+    )
+    if not match:
+        return (
+            "Keluarkan isi PDF lengkap dan substantif sesuai seluruh persyaratan pengguna. "
+            "Jangan meringkas menjadi outline, jangan mengulang filler, dan jangan mengklaim jumlah halaman."
+        )
+    target_pages = int(match.group(1))
+    failure = str(previous_error or "").strip()
+    return (
+        f"Permintaan asli mewajibkan PDF minimal {target_pages} halaman aktual. "
+        + (f"Percobaan sebelumnya gagal validasi: {failure[:240]}. " if failure else "")
+        + "Susun ulang dokumen panjang dengan pembagian bab dan subbab yang memadai, uraian substantif, "
+        "contoh konkret, tabel yang relevan, dan pembahasan rinci di setiap bagian. "
+        "Jangan membatasi dokumen menjadi lima bagian pendek atau dua paragraf per bagian kecuali pengguna memang meminta format MASTER FINAL. "
+        "Jangan membuat halaman kosong, mengulang paragraf, atau memakai filler untuk mengejar halaman. "
+        "Pertahankan seluruh fakta sumber dan jangan mengarang data."
     )
 
 
