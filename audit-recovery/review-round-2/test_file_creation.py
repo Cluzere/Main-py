@@ -319,6 +319,7 @@ Dokumen selesai diuji."""
 
     def test_pptx_uses_each_slide_chunk_title_instead_of_repeating_deck_title(self):
         from pptx import Presentation
+        from pptx.util import Inches
 
         prompt = "Buat presentasi PowerPoint 5 slide tentang CLOUZER"
         slide_titles = [
