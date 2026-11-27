@@ -1653,7 +1653,7 @@ Jangan mengklaim berhasil jika file gagal dibuat atau dikirim."""
         self.assertEqual(values[1], ["1", "Andi", "25", "Admin", "Normal"])
         self.assertEqual(values[2], ["2", "Budi", "30", "Manager", "=1+1"])
         self.assertEqual(values[3], ["3", "Citra", "27", "Staff", "+SUM(1,1)"])
-        self.assertEqual(sum(p.style.name.startswith("Heading") for p in document.paragraphs), 3)
+        self.assertEqual(sum(p.style.name.startswith("Heading") for p in document.paragraphs), 4)  # title plus three section headings
         self.assertEqual(sum(p.style.name.casefold().startswith("list number") for p in document.paragraphs), 3)
         all_text = "\\n".join(p.text for p in document.paragraphs)
         self.assertEqual(all_text.count("LAPORAN PENGUJIAN CLOUZER"), 1)
