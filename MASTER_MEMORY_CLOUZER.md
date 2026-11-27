@@ -121,6 +121,17 @@
 6. Pengguna mengendalikan panel dan restart Wispbyte. Asisten tidak memiliki akses panel langsung dan tidak boleh mengklaim telah restart/deploy. Jangan meminta restart hanya untuk memperbarui catatan; restart hanya bila dibutuhkan untuk tes dan pengguna memberi izin.
 7. Jika perlu bertanya, tanyakan hanya informasi yang belum tercatat atau bukti baru yang benar-benar dibutuhkan—misalnya log startup terbaru—bukan meminta ulang konfigurasi yang sudah tersimpan.
 
+## A11. Pemisahan tools ChatGPT dan tools/runtime CLOUZER — KRITIS
+
+1. **Tools yang tersedia di sesi ChatGPT (termasuk konektor Box/GitHub dan fungsi inspeksi file) adalah alat milik sesi ChatGPT, bukan tools yang otomatis tersedia di dalam Discord bot CLOUZER.** Jangan pernah menganggap bot dapat memanggil, melihat, atau menggunakan tools ChatGPT tersebut.
+2. Tujuan alur yang diinginkan pengguna adalah: CLOUZER membuat/mengirim file di Discord → CLOUZER mengunggah file yang sama ke Box → ChatGPT membaca dan menginspeksi file dari Box melalui konektor Box ChatGPT. Ini adalah alur target, bukan status yang boleh diasumsikan sudah aktif.
+3. **Status operasional saat ini: integrasi otomatis CLOUZER/Discord → Box untuk upload file belum terbukti aktif dan harus dianggap BELUM BERFUNGSI / NOT VERIFIED.** Pengguna menyatakan tools bot tidak berjalan untuk mengunggah file ke Box. Jangan mengatakan bot sudah mengunggah file kecuali ada bukti upload dari proses CLOUZER, misalnya log tahap upload dan file ID/metadata yang cocok.
+4. File CLOUZER yang ditemukan di Box dalam rangkaian pengujian terdahulu diunggah manual oleh pengguna setelah mengambil file dari Discord, kecuali ada bukti provenance spesifik yang secara eksplisit menunjukkan uploader/proses bot. Jangan mengatribusikan file tersebut kepada upload otomatis CLOUZER.
+5. Konektor Box ChatGPT boleh dipakai untuk mencari, mengunduh, membaca, dan menginspeksi file yang sudah ada di Box. Keberhasilan tindakan itu hanya membuktikan jalur ChatGPT → Box, bukan jalur CLOUZER → Box.
+6. Bukti OAuth, health endpoint, atau Box API list-folder dari runtime CLOUZER yang tercatat historis hanya membuktikan tahap yang disebutkan pada saat pengujian. Bukti tersebut **tidak** membuktikan fitur upload file dari bot sudah diimplementasikan atau berfungsi, dan tidak boleh dinaikkan menjadi status aktif saat ini tanpa retest.
+7. Di sesi baru, jangan mengaitkan tools ChatGPT yang baru tersedia dengan bot CLOUZER. Mulai dari asumsi bahwa tools ChatGPT dapat membantu membaca Box, sedangkan bot belum otomatis upload ke Box. Jangan meminta pengguna mengulang penjelasan ini.
+8. Sampai integrasi otomatis benar-benar diimplementasikan dan diuji, prosedur aktual adalah pengguna mengunduh attachment dari Discord lalu mengunggahnya sendiri ke Box; ChatGPT kemudian memeriksa file yang sudah ada di Box.
+
 ## A9. Aturan penyimpanan artefak retest dan provenance Box
 
 1. Semua artefak hasil retest CLOUZER diarahkan ke Box `All Files / Test file / CLOUZER_BUANGAN_AUDIT` (folder ID `441172297609`) jika folder tersebut tersedia dan dapat diakses.
@@ -141,7 +152,7 @@
 - Arsitektur yang tercatat: Discord → Python bot → OpenCode Server (historis `127.0.0.1:43127`) → Xingchi API/provider → Responses/SSE → EventHub/DiscordStream → Discord.
 - Model historis: `xingchi/gpt-6.1-sol`.
 - Agent historis: `clouzer` dan `clouzer-full`.
-- Fitur yang tercatat: file generation, image generation/editing, audio/document/attachment reading, Discord attachment delivery, dan integrasi Box.
+- Fitur yang tercatat/direncanakan: file generation, image generation/editing, audio/document/attachment reading, dan Discord attachment delivery. Integrasi Box runtime CLOUZER bersifat parsial/historis (OAuth dan list-folder pernah memiliki bukti); **automatic file upload CLOUZER → Box belum terbukti aktif dan saat ini harus dianggap belum berfungsi/NOT VERIFIED**. Konektor Box ChatGPT adalah alat terpisah untuk membaca/memeriksa file yang sudah diunggah ke Box.
 - Endpoint, model, agent, dan arsitektur dapat berubah; verifikasi source aktual sebelum mengubah konfigurasi.
 
 ## B2. Repository dan branch
@@ -1790,7 +1801,7 @@ Urutan kerja:
 - Belum terbukti: download/read file oleh proses CLOUZER, upload oleh CLOUZER, refresh/token rotation, serta ketahanan token setelah restart.
 - Jangan mengklaim seluruh integrasi Box runtime sudah selesai.
 
-**Kesimpulan alat bantu:** alat bantu yang telah diuji berfungsi untuk tugas yang benar-benar dibuktikan di atas. Jangan membuat klaim umum bahwa semua alat bantu atau semua operasi sudah berfungsi. GPT sesi baru harus memakai alat bantu yang sudah tersedia dan hanya menguji celah yang belum terbukti.
+**Kesimpulan alat bantu:** yang terbukti berfungsi pada §29.2 adalah konektor GitHub dan konektor Box milik sesi ChatGPT untuk tugas yang disebutkan. Ini bukan bukti tools tersebut tersedia di CLOUZER. Box runtime CLOUZER hanya memiliki bukti historis OAuth dan list-folder; upload file otomatis dari bot belum terbukti. GPT sesi baru harus memisahkan kedua lingkungan dan hanya mengklaim operasi yang punya bukti.
 
 ### 29.3 Tes XLSX terbaru — artefak aktual sudah diperiksa
 
@@ -5311,3 +5322,38 @@ Akhir dokumen arsip asli. Jangan menafsirkan rencana historis sebagai pekerjaan 
 - Live PPTX generation/render/Discord delivery dan candidate Wispbyte runtime identity tetap NOT VERIFIED.
 - Production `main.py`, production branch `main`, PR #6 merge, dan Wispbyte restart/deploy tidak disentuh.
 
+
+
+---
+
+## 52.53 Koreksi status tools ChatGPT vs CLOUZER dan provenance upload Box — 28 November 2026
+
+### Koreksi inti dari pengguna
+- Tujuan awal pengguna adalah membuat alur: CLOUZER mengirim file ke Box secara otomatis, lalu ChatGPT membaca/memeriksa file dari Box melalui konektor Box yang tersedia di sesi ChatGPT.
+- Kedua sisi ini berbeda. Konektor Box ChatGPT yang bisa dipakai asisten untuk mencari, mengunduh, dan membaca file **tidak** membuat tools tersebut tersedia di dalam bot Discord CLOUZER.
+- Pengguna mengonfirmasi bahwa tools bot untuk mengunggah file ke Box tidak berfungsi. File-file yang diperiksa pada rangkaian tes Box sebelumnya diunggah manual oleh pengguna; pengguna mengambil/men-download file dari Discord lalu mengunggahnya sendiri ke Box. Jangan salah atribusikan file tersebut sebagai hasil upload otomatis CLOUZER.
+
+### Status operasional yang harus dipakai sesi berikutnya
+| Tahap | Status yang benar | Batas klaim |
+|---|---|---|
+| CLOUZER membuat file | Dinilai per tes/artefak; tidak otomatis lulus hanya karena file muncul di Box | Perlu bukti file-builder dan artefak |
+| CLOUZER mengirim attachment ke Discord | Dinilai terpisah; perlu bukti Discord attachment atau log konfirmasi | Box file tidak membuktikan attachment terkirim |
+| Pengguna mengunduh file dari Discord | Dilakukan manual pada alur yang diklarifikasi pengguna | Jangan klaim dilakukan oleh bot/ChatGPT |
+| Pengguna mengunggah file ke Box | **MANUAL — provenance pengguna** untuk artefak pengujian terdahulu yang dimaksud | Bukan upload otomatis CLOUZER |
+| ChatGPT membaca/menginspeksi Box | Konektor Box ChatGPT tersedia dan pernah berhasil dipakai | Hanya membuktikan jalur ChatGPT → Box |
+| CLOUZER upload otomatis ke Box | **BELUM BERFUNGSI / NOT VERIFIED** | Jangan menyatakan aktif tanpa retest dan bukti upload dari runtime bot |
+
+### Klarifikasi catatan historis
+1. §24–§27 tetap menjadi arsip bukti historis OAuth, health/listener, dan list-folder yang pernah dilaporkan dari runtime CLOUZER. Bukti tersebut tidak membuktikan operasi upload file. Khususnya, daftar nama file pada §27 hanya membuktikan folder dapat di-list; jangan gunakan daftar tersebut untuk menyimpulkan siapa yang membuat atau mengunggah file.
+2. §28–§32 membuktikan konektor Box ChatGPT dapat mengakses dan menginspeksi file yang sudah ada. Keberhasilan konektor ChatGPT tidak boleh disebut sebagai keberhasilan tools bot.
+3. §51, §52.14, dan catatan provenance manual lainnya tetap menjadi bukti bahwa file sampel tertentu diunggah manual oleh pengguna. Klarifikasi pengguna saat ini menegaskan bahwa file-file pengujian Box yang dimaksud tidak boleh diklaim sebagai upload otomatis CLOUZER.
+4. Jika ada catatan lama yang memakai frasa umum seperti “integrasi Box”, “alat bantu Box berfungsi”, atau “file ada di Box”, tafsirkan secara sempit berdasarkan tahap yang benar-benar dibuktikan. Aturan kanonis terbaru adalah A5, A9, A11, B1, dan §52.53.
+
+### Kriteria untuk mengubah status di masa depan
+Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes live membuktikan seluruh rangkaian berikut secara independen: (1) file dibuat oleh pipeline CLOUZER, (2) Discord attachment dikirim bila memang diminta, (3) proses CLOUZER sendiri menjalankan operasi upload Box, (4) log upload mencatat sukses tanpa membocorkan token, dan (5) file ID/nama/ukuran/waktu di Box cocok dengan artefak yang dibuat. File yang diunggah manual oleh pengguna tidak dapat dipakai sebagai bukti tahap (3)–(4).
+
+### Aturan sesi baru
+- Jangan kaitkan tools ChatGPT yang baru tersedia dengan CLOUZER.
+- Jangan bertanya ulang apakah file Box yang pernah diperiksa diunggah bot atau manual: untuk rangkaian artefak pengujian yang diklarifikasi pengguna, provenance-nya manual.
+- Gunakan konektor Box ChatGPT untuk membaca file yang sudah ada. Untuk file baru dari bot, sampai integrasi otomatis terbukti, pengguna masih harus mengunduh dari Discord dan mengunggah manual ke Box.
+- Jangan mengubah kode, restart Wispbyte, atau mengklaim integrasi sudah diperbaiki hanya karena Master Memory ini diperbarui.
