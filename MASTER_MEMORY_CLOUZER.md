@@ -4372,3 +4372,55 @@ The DOCX work is closed. Continue with the order already recorded in §52.38; do
 
 ### Handoff summary
 The Canva design before export is normal according to the user, and the inspected four-page PDF accurately shows the intended presentation appearance (**PDF visual PASS**). The PPTX downloaded from Box is a valid editable four-slide PowerPoint package, but its rendered layout is broken on every slide (**PPTX visual FAIL; overall PARTIAL / NOT PASS**). This is an export-artifact problem, not evidence that the original Canva design or PDF is broken. Exact root cause remains unproven. Preserve all original artifacts and continue with CSV then JSON after the PPTX comparison/remediation decision.
+
+
+---
+
+## 52.45 Operational rule: do not abandon asynchronous Canva work; ordered continuation plan — 27 November 2026
+
+### User instruction — mandatory continuity rule
+- When a Canva design-generation or other asynchronous task has been started and is still pending, **do not end the work merely because the initial tool call returned a pending status**.
+- Continue the workflow until the job reaches a terminal state (completed or failed), subject to tool availability and actual platform responses.
+- Respect the platform's required wait interval before polling. Do not poll early, and do not claim completion while the job is pending.
+- Once complete, inspect the generated result and proceed with the next necessary step. If the job fails, inspect the actual failure and determine the smallest viable recovery; do not silently abandon it or pretend it succeeded.
+- Keep the user informed with concrete results and blockers, not generic progress messages. If a hard tool/platform limitation prevents further work, state exactly what is blocked and what action is required next.
+- This rule applies to the current Canva PPTX remediation and future asynchronous project work. It does not authorize production changes, overwriting originals, or bypassing explicit approval gates.
+
+### Current Canva remediation — pending job record
+- User asked the assistant to fix the newly found Box artifact `clouzer_test.pptx` rather than merely report its problems.
+- Original Box artifact remains unchanged:
+  - Name: `clouzer_test.pptx`
+  - Box file ID: `2619212339844`
+  - Folder: `CLOUZER_BUANGAN_UPLOAD`
+  - Size: 33,186 bytes
+  - SHA-1: `fd17210a03081abee0181f20df13a1e3576db837`
+  - Link: https://account.box.com/file/2619212339844
+- Its text extraction surfaced the five intended sections/slides:
+  1. Pengenalan CLOUZER AI
+  2. Tujuan dan Fungsi Utama
+  3. Cara Kerja Sistem
+  4. Manfaat dan Kemampuan
+  5. Kesimpulan
+- The extraction repeated the label “Slide 1” for all sections with differing trailing numbers. This is a warning that slide numbering/structure needs raw PPTX inspection; it is not yet proof of the actual slide count.
+- A separate Canva presentation design was requested using the five-section content above, concise Indonesian copy, consistent modern blue/cyan styling, whitespace, and editable elements. The design-generation request returned:
+  - Job ID: `4fc1679d-8411-43e4-b748-b5b15e5f3aa6`
+  - Initial status: `pending`
+  - Continuation token was returned in the tool response in the conversation; recover the exact token from that response if required.
+  - Platform instruction: wait at least 15 seconds before the first poll. If Canva's embedded job widget is already polling/displaying the result, do not duplicate manual polling.
+- The design is **not yet confirmed complete**, inspected, exported, or accepted. Do not call it a finished PPTX. The current Canva connector exposes design creation/read/edit tools but no confirmed PPTX export/download action. If that limitation remains, the user will need to export/download PPTX from Canva's UI after the design is inspected and approved; do not claim the assistant has generated a downloadable PPTX.
+- Canva design request was based on the CLOUZER five-section test presentation, not the separate four-slide “Pengujian Sistem CLOUZER” Canva export comparison in §52.44. Do not conflate these two artifacts or their evidence.
+
+### Mandatory ordered continuation — finish this before moving to CSV
+1. **Resume the pending Canva job.** Check whether its embedded widget has completed. Otherwise wait the required interval and poll job `4fc1679d-8411-43e4-b748-b5b15e5f3aa6` using the exact continuation data returned by Canva.
+2. **Inspect the completed design.** Read the design and inspect all five pages/slides, not just the cover or text extraction. Confirm exact slide count and order, distinct correct headings, content completeness, readable text, no clipping/overlap, consistent layout, and editable native elements where available.
+3. **Repair only demonstrated defects.** Preserve the original Box PPTX and source material. Work on the new Canva design or a separate copy. Do not overwrite the original artifact. If Canva requires a transaction or explicit user approval before committing edits, show the preview and obtain that approval before commit.
+4. **Obtain the PPTX export.** If the Canva connector still has no export action, clearly instruct the user to download the inspected design from Canva as Microsoft PowerPoint (.pptx), then place/upload that exported file in the known Box handoff folder or attach it in chat. Do not represent the Canva editable design itself as a delivered PPTX file.
+5. **Validate the actual exported PPTX.** Inspect raw OOXML/ZIP integrity, actual slide count/order, text per slide, editable elements, media, dimensions, and render every slide. Compare layout to the inspected Canva design/reference. Check clipping, overlap, font substitutions, text wrapping, and missing media. Record the actual artifact identity (Box ID, size, hash) and each evidence boundary. A valid package alone is not an overall PASS.
+6. **Close PPTX with a clear verdict.** Only mark PASS if package, structure/content, and visual rendering all meet acceptance criteria. If still defective, document exact failures and the next repair action; do not advance as if PPTX passed.
+7. **Only after PPTX remediation is closed or explicitly documented as blocked**, continue the §52.43 order: reconcile existing CSV artifacts/evidence first; if a genuine gap remains, run one controlled CSV test and inspect it. Then do the same for JSON. Do not repeat already-closed PDF/XLSX/ZIP creation tests without a new specific gap.
+8. Keep reliability work and delivery provenance separate. A successful Canva design, exported PPTX, Box upload, Discord send, and user download are distinct stages; prove each separately.
+
+### Current next action
+The immediate next action is to resume and finish the pending Canva design-generation job, then inspect all five slides. **Do not switch to CSV or JSON yet.** The Canva design job must not be left at “pending” simply because the initial response was asynchronous.
+
+**Handoff summary:** User explicitly requires continuity: when an asynchronous Canva process is pending, keep working until it reaches a terminal state and then determine and execute the next ordered step. Current Canva job `4fc1679d-8411-43e4-b748-b5b15e5f3aa6` remains pending/unverified. Finish, inspect, repair, export, and validate this PPTX path first; only then continue CSV followed by JSON under §52.43.
