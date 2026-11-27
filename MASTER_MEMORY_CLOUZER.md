@@ -4718,3 +4718,49 @@ Whenever the user uploads a file to Box and identifies it by name, description, 
 
 ### Priority
 This instruction applies to all future Box uploads and file-review requests, across file types, and supplements the existing CLOUZER artifact-preservation and verification rules. It does not authorize production code changes, deployment, restart, or other unrelated actions.
+
+
+---
+
+## 52.51 Inspection of latest Box PPTX upload — 28 November 2026
+
+### Artifact
+- Box file ID: `2619453621273`
+- Filename: `clouzer_buat_presentasi_powerpoint_pptx_berj_20261127_185623.pptx`
+- Size: 364,674 bytes
+- Downloaded raw PPTX and inspected package plus all five rendered slides. Original Box file was not modified.
+
+### Technical/package checks
+- ZIP integrity: PASS (`testzip() == None`).
+- Slide count: 5.
+- Canvas: 16:9 (13.333 × 7.5 inches).
+- Embedded media: 5 JPEG files in `ppt/media/`.
+- Picture shapes: exactly 1 on each slide (5 total).
+- Every slide has an image relationship pointing to its corresponding embedded media file.
+- Rendered successfully to PDF using LibreOffice.
+
+### Slide-by-slide visual and text findings
+1. **Teknologi AI: Dari Data Menjadi Inovasi** — Relevant brain/network illustration is embedded. Text has visible raw Markdown markers (`###`, `- **`, `**`) and includes an “Arahan visual” paragraph as slide content. Title wraps into two lines.
+2. **Cara Kerja AI** — Embedded process diagram is relevant, but image itself contains garbled/incorrect generated labels and gibberish text. Slide text also leaks Markdown markers and visual instructions.
+3. **Penerapan AI** — Embedded four-panel illustration is relevant to application areas. Text leaks Markdown and visual-instruction content.
+4. **Manfaat dan Risiko** — Embedded two-sided illustration is relevant in concept, but image contains visibly corrupted/gibberish labels and body text. Text leaks Markdown and visual-instruction content.
+5. **Masa Depan AI** — Embedded human/AI collaboration illustration is relevant. Text leaks Markdown and visual-instruction content.
+
+### Overall verdict
+- Actual embedded images: PASS — all five slides contain one image each.
+- PPTX structural integrity: PASS.
+- Five-slide and 16:9 requirements: PASS.
+- Visual relevance: PARTIAL — images are present and mostly topic-relevant, but slides 2 and 4 have corrupted generated text inside the images.
+- Text quality/rendering: FAIL — raw Markdown syntax is displayed literally and the “Arahan visual” prompt instructions are exposed as presentation bullets/content on all five slides.
+- Layout/design quality: PARTIAL — default white background and simple left-text/right-image layout; does not meet requested modern navy/cyan/purple style. Slide 1 title wraps; slides have oversized text blocks and little hierarchy.
+- Editability: Text is native PowerPoint text and remains editable; images are embedded raster assets.
+- Overall: **FAIL for requested presentation quality**, despite passing image-embedding and package-integrity checks. The main failure is not missing images anymore; it is content-cleaning/prompt leakage and inconsistent image generation quality.
+
+### Next recommended candidate-only work
+- Strip Markdown syntax and parse bullets/headings into proper PowerPoint formatting before building slides.
+- Never expose “Arahan visual” or image-generation instructions as slide body text.
+- Prevent image-generation text artifacts by rejecting/regenerating images with illegible/gibberish labels, or request no text inside images.
+- Implement the requested visual theme and improve typography/layout.
+- Add regression tests for Markdown leakage and visual-instruction leakage.
+- Preserve this Box original; any corrected deck must be a new file.
+- No production branch changes, merge, deployment, or Wispbyte restart authorized by this inspection.
