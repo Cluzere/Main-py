@@ -1575,6 +1575,84 @@ def _make_pptx(content: str, title: str) -> bytes:
     return output.getvalue()
 
 
+def extract_pptx_visual_briefs(data: bytes) -> list[dict[str, str]]:
+    """Extract editable slide text as context for slide-specific visual prompts."""
+    try:
+        from pptx import Presentation
+    except ImportError as exc:
+        raise RuntimeError("python-pptx belum terpasang; PPTX tidak bisa diedit.") from exc
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("Sumber PPTX kosong atau tidak valid.")
+    presentation = Presentation(io.BytesIO(data))
+    if not presentation.slides or len(presentation.slides) > 100:
+        raise ValueError("Jumlah slide PPTX sumber tidak valid.")
+    briefs = []
+    for index, slide in enumerate(presentation.slides, 1):
+        title = ""
+        body_parts = []
+        for shape in slide.shapes:
+            if not getattr(shape, "has_text_frame", False) or not shape.text.strip():
+                continue
+            value = shape.text.strip()
+            if getattr(shape, "is_placeholder", False):
+                try:
+                    if shape.placeholder_format.type == 1:
+                        title = value
+                        continue
+                except Exception:
+                    pass
+            body_parts.append(value)
+        if not title:
+            title = body_parts.pop(0) if body_parts else f"Slide {index}"
+        briefs.append({"title": title[:240], "content": " ".join(body_parts)[:1800]})
+    return briefs
+
+
+def embed_pptx_visuals(data: bytes, image_assets: list[bytes]) -> bytes:
+    """Embed generated visuals while preserving native editable PowerPoint text."""
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError("python-pptx dan Pillow wajib tersedia untuk visual PPTX.") from exc
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("Sumber PPTX kosong atau tidak valid.")
+    if not isinstance(image_assets, list) or not image_assets or len(image_assets) > 100:
+        raise ValueError("Daftar aset visual PPTX kosong atau melewati batas.")
+    presentation = Presentation(io.BytesIO(data))
+    if not presentation.slides or len(image_assets) > len(presentation.slides):
+        raise ValueError("Jumlah aset visual tidak sesuai dengan jumlah slide.")
+    for index, raw_image in enumerate(image_assets):
+        if not isinstance(raw_image, (bytes, bytearray)) or not raw_image or len(raw_image) > 12 * 1024 * 1024:
+            raise ValueError(f"Aset visual slide {index + 1} kosong atau terlalu besar.")
+        try:
+            with Image.open(io.BytesIO(raw_image)) as probe:
+                probe.verify()
+        except Exception as exc:
+            raise ValueError(f"Aset visual slide {index + 1} bukan gambar valid.") from exc
+        slide = presentation.slides[index]
+        for shape in slide.shapes:
+            if not getattr(shape, "is_placeholder", False):
+                continue
+            try:
+                if shape.placeholder_format.idx == 1 and getattr(shape, "has_text_frame", False):
+                    shape.left, shape.top = Inches(0.65), Inches(1.55)
+                    shape.width, shape.height = Inches(7.15), Inches(5.35)
+            except Exception:
+                continue
+        slide.shapes.add_picture(io.BytesIO(bytes(raw_image)), Inches(8.05), Inches(1.85), width=Inches(4.65))
+    output = io.BytesIO()
+    presentation.save(output)
+    result = output.getvalue()
+    if not result or len(result) > MAX_GENERATED_FILE_BYTES:
+        raise RuntimeError("PPTX visual kosong atau melewati batas 8 MB.")
+    check = Presentation(io.BytesIO(result))
+    for index in range(len(image_assets)):
+        if not any(getattr(shape, "shape_type", None) == 13 for shape in check.slides[index].shapes):
+            raise RuntimeError(f"Visual slide {index + 1} tidak ditemukan setelah penyimpanan.")
+    return result
+
 def _unfence(value: str) -> str:
     lines = value.strip().splitlines()
     tick = chr(96) * 3
