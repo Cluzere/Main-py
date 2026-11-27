@@ -6525,6 +6525,17 @@ class _HostResourceTracker:
             self._window_peak_cgroup_cpu = max(self._window_peak_cgroup_cpu, cpu_cgroup)
         if throttle_delta is not None:
             self._window_throttle_events += throttle_delta
+        # Emit an immediate signal for short CPU spikes or quota throttling;
+        # the CSV remains the detailed one-second source of truth.
+        if ((cpu_process is not None and cpu_process >= 80.0)
+                or (cpu_cgroup is not None and cpu_cgroup >= 80.0)
+                or (throttle_delta is not None and throttle_delta > 0)):
+            logging.warning(
+                "[RESOURCE-ALERT] proc_cpu=%s%% one-core cgroup_cpu=%s%% "
+                "throttle_events_delta=%s throttled_usec_total=%s rss_mb=%s",
+                cpu_process, cpu_cgroup, throttle_delta, cg.get("throttled_usec"),
+                round(proc[1] / 1048576, 1) if proc else None,
+            )
         return row
 
     def _run(self):
