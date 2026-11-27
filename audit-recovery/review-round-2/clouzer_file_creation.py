@@ -97,7 +97,7 @@ def detect_requested_file_format(prompt: str) -> str | None:
     return min(matches)[1] if matches else None
 
 
-def build_file_generation_system_instruction(format_name: str) -> str:
+def build_file_generation_system_instruction(format_name: str, prompt: str = "") -> str:
     """Explain the local file-generation architecture to the model for file requests."""
     fmt = str(format_name or "").lower().lstrip(".")
     if fmt not in _FORMAT_PATTERNS:
@@ -123,6 +123,8 @@ def build_file_generation_system_instruction(format_name: str) -> str:
             "Kesimpulan. Pisahkan setiap paragraf dengan satu baris kosong. "
             "Jangan menambah heading lain, jangan menulis NOT VERIFIED, jangan menyatakan hasil lulus/gagal, jumlah halaman, durasi, atau temuan aktual yang belum diberikan oleh backend, dan jangan mengklaim pemeriksaan visual manual, "
             "seleksi/salin manual, atau pengiriman Discord berhasil. Backend akan menyusun bagian non-naratif dan validasi."
+            if fmt == "pdf" and _is_master_final_pdf_prompt(prompt) else
+            " Untuk PDF umum, ikuti seluruh struktur dan cakupan yang diminta pengguna secara utuh. Pertahankan jumlah bab, subbab, tabel, studi kasus, cover, daftar isi, ringkasan eksekutif, dan elemen lain yang diminta. Jangan mengganti permintaan dengan template laporan lain, jangan meringkas dokumen panjang menjadi beberapa paragraf, dan jangan menghilangkan bab. Jika pengguna menetapkan jumlah halaman minimum, susun materi substantif yang cukup untuk memenuhi target tersebut; jangan memakai halaman kosong, pengulangan, atau teks pengisi. Keluarkan heading yang jelas dan isi naratif terperinci."
             if fmt == "pdf" else
             " Untuk PPTX, keluarkan konten bersih yang siap ditampilkan sebagai teks editable PowerPoint. "
             "Pisahkan setiap slide dengan baris persis --- SLIDE ---. Baris pertama setiap bagian adalah judul slide. "
