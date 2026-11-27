@@ -1,3 +1,290 @@
+# CLOUZER AI — MASTER MEMORY (STRUKTUR INDUK)
+
+**Terakhir dirapikan:** 28 November 2026  
+**Repository:** `Cluzere/Main-py`  
+**Branch kerja kandidat:** `audit-recovery-gpt-2026-11-23`  
+**HEAD branch saat restrukturisasi dimulai:** `14fc65ba87bbd3a6da4ce6fa7e798a803222b0cf`  
+**Commit kode PPTX terbaru yang diketahui:** `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`  
+**File induk:** `MASTER_MEMORY_CLOUZER.md`
+
+> **Cara membaca dokumen ini:** Bagian A adalah aturan operasional yang berlaku dan menjadi sumber otoritatif. Bagian B adalah kondisi proyek. Bagian C, D, E, dan F memisahkan pengembangan kandidat, pengujian, hasil yang terbukti, dan planning. Bagian G adalah arsip kronologis asli yang dipertahankan untuk menjaga bukti, detail, SHA, log, dan keputusan lama. Jika ada kalimat aturan lama di arsip yang tampak bertentangan dengan Bagian A, ikuti Bagian A; arsip adalah rekaman historis, bukan sumber aturan yang lebih baru.
+
+---
+
+# A. ATURAN INDUK — WAJIB DIIKUTI
+
+## A1. Prioritas dan otorisasi
+
+1. Master Memory ini adalah sumber handoff utama CLOUZER. Baca Bagian A–F sebelum melanjutkan pekerjaan; buka Bagian G saat perlu bukti atau detail historis.
+2. **Production root `main.py`, production branch `main`, deployment produksi, dan merge PR #6 dilindungi.** Jangan mengubah, menimpa, merge, deploy, atau restart apa pun di produksi tanpa izin eksplisit pengguna untuk tindakan tersebut.
+3. Pekerjaan audit dan perbaikan default hanya pada branch kandidat `audit-recovery-gpt-2026-11-23`. Jangan menganggap izin mengedit kandidat sebagai izin menyentuh produksi.
+4. Pengguna yang mengendalikan restart/reset Wispbyte. Jangan mengklaim atau mencoba melakukan restart/deploy Wispbyte. Minta pengguna menjalankannya hanya setelah kandidat siap dan gerbang CI yang relevan lulus.
+5. Jangan mengubah file yang diberikan pengguna untuk dipasang sebagai `main.py), nama proyek, identifier, model, konfigurasi, nama file, atau struktur yang sudah dipilih tanpa instruksi eksplisit.
+6. Jangan melakukan perubahan kode kandidat hanya karena menemukan defect jika belum ada izin untuk memperbaiki. Setelah pengguna memberi instruksi seperti “benerin langsung”, lakukan perbaikan terbatas pada branch kandidat dan tetap patuhi seluruh batas produksi.
+7. Jangan merge PR #6 tanpa izin eksplisit yang terpisah.
+
+## A2. Aturan CI, GitHub Actions, workflow, dan proses asynchronous — KRITIS
+
+1. **Jangan mengakhiri pekerjaan atau menghentikan pemantauan hanya karena CI/workflow masih berjalan.** Status `queued`, `waiting`, `in_progress`, atau sejenisnya berarti belum ada hasil akhir.
+2. Setelah commit yang memicu CI/workflow dibuat, identifikasi seluruh workflow run yang relevan dengan commit tersebut. Pantau sampai semua run dan job wajib mencapai status terminal: `success`, `failure`, `cancelled`, atau status terminal lain yang dijelaskan GitHub.
+3. **Tunggu sampai workflow selesai.** Jangan meninggalkan proses di tengah jalan, jangan menyebut pekerjaan selesai saat workflow masih berjalan, dan jangan mengganti pemeriksaan hasil dengan asumsi.
+4. Cocokkan SHA commit yang diuji dengan SHA kode terbaru yang relevan. Status hijau dari commit lama tidak membuktikan commit baru lulus. Jika ada commit koreksi baru, pemeriksaan harus mengikuti run yang menguji commit koreksi tersebut.
+5. Jika seluruh pemeriksaan wajib sukses, catat **CI PASS** beserta link run, SHA yang diuji, nama workflow/job, ringkasan tes, dan jumlah tes bila tersedia.
+6. Jika satu atau lebih job gagal:
+   - Buka ringkasan run, job, step, dan log kegagalan.
+   - Temukan akar masalah yang benar-benar didukung log; jangan menebak.
+   - Perbaiki kode, tes, atau workflow pada branch kandidat sesuai izin.
+   - Commit/push koreksi.
+   - Pantau run baru sampai terminal.
+   - Ulangi siklus diagnosis → perbaikan → commit → rerun → tunggu sampai semua pemeriksaan wajib sukses.
+7. **Kegagalan bukan alasan untuk langsung berhenti.** Terus perbaiki sampai lulus. Berhenti hanya jika ada blocker eksternal nyata yang tidak dapat diselesaikan dari akses yang tersedia, misalnya secret tidak tersedia, permission GitHub tidak cukup, runner outage, dependency eksternal down, atau workflow tidak dapat dijalankan. Jika demikian, dokumentasikan bukti dan nyatakan **CI NOT PASS / BLOCKED**, bukan PASS.
+8. Jika workflow tidak muncul, jangan mengarang bahwa workflow sudah berjalan atau lulus. Periksa pemicu workflow, event, branch filter, commit SHA, dan daftar run. Nyatakan dengan tepat apakah workflow tidak terpicu, tidak ditemukan, atau akses pemeriksaannya terbatas.
+9. Jangan hanya memeriksa combined status bila workflow runs dan job logs tersedia. Periksa hasil run dan job yang relevan; gunakan status checks sebagai pelengkap.
+10. Untuk workflow yang memang tidak wajib atau tidak relevan dengan perubahan, jelaskan alasan pengecualiannya. Jangan menyamakan semua workflow repo dengan semua workflow wajib pada setiap commit.
+11. Aturan ini berlaku untuk semua pekerjaan CLOUZER yang memicu CI/workflow, bukan hanya generator file atau PPTX.
+12. Jangan mengubah workflow untuk membuat status hijau secara kosmetik, menonaktifkan tes, menghapus coverage, atau melemahkan acceptance criteria tanpa alasan teknis dan persetujuan yang sesuai.
+
+## A3. Standar bukti dan pelaporan
+
+1. Pisahkan fakta yang diverifikasi langsung, log yang diberikan pengguna, laporan pengguna, hipotesis, dan pekerjaan yang belum dilakukan.
+2. Jangan mengklaim tes lulus, runtime online, file valid, attachment terkirim, upload Box otomatis, deployment, atau keberhasilan visual tanpa bukti spesifik.
+3. Gunakan status konsisten:
+   - **PASS:** acceptance criteria yang disebutkan benar-benar terbukti.
+   - **PARTIAL:** sebagian kriteria terpenuhi; sebutkan tepat apa yang gagal/kurang.
+   - **FAIL:** kriteria inti gagal dengan bukti.
+   - **NOT VERIFIED:** belum ada pemeriksaan yang cukup.
+   - **BLOCKED:** pemeriksaan tidak dapat diselesaikan karena hambatan eksternal yang dinyatakan dengan bukti.
+4. Bedakan tahapan: intent/routing, pembuatan file, validasi struktur/isi, pengiriman Discord attachment, penerimaan/unduhan pengguna, penyimpanan Box, dan pemeriksaan visual. Keberhasilan satu tahap tidak membuktikan tahap lainnya.
+5. Catat branch, commit SHA, blob SHA, file path, workflow URL, run ID, job, test count, artifact ID, ukuran, dan provenance bila tersedia.
+6. Jangan menyebut kandidat aktif di Wispbyte hanya dari keberadaan commit. Perlu log startup yang mengonfirmasi SHA yang benar.
+7. Jangan menyatakan hasil live berdasarkan CI saja. CI dan runtime adalah bukti terpisah.
+
+## A4. Aturan pengujian dan efisiensi kerja
+
+1. Mulai dari status terakhir yang terbukti; jangan mengulang seluruh audit dari awal tanpa alasan.
+2. Jangan mengulang tes yang sudah lulus pada SHA yang sama jika tidak ada perubahan terkait, bukti sudah kedaluwarsa, atau regresi baru yang perlu diperiksa.
+3. Setiap perubahan kode/test/workflow harus memiliki tes terarah dan regresi yang sesuai. Jalankan suite lebih luas sesuai cakupan perubahan dan workflow wajib.
+4. Setelah patch baru, hasil tes lama tidak otomatis berlaku untuk SHA baru.
+5. Jangan meminta pengguna melakukan live retest sebelum CI wajib pada kandidat lulus, kecuali pengguna secara eksplisit meminta investigasi lain.
+6. Hindari membuang kuota pengguna dengan prompt live berulang. Buat satu uji terkontrol dengan acceptance criteria jelas, lalu periksa artefaknya.
+
+## A5. Aturan inspeksi artefak dan Box
+
+1. Saat pengguna mengidentifikasi upload Box, temukan file yang tepat dan periksa artefak aktual, bukan berhenti pada nama file atau preview terbuka.
+2. Jika format memungkinkan, inspeksi seluruh dokumen/halaman/slide/sheet, bukan hanya halaman pertama.
+3. PPTX: periksa jumlah slide, teks, layout, gambar/media, relasi gambar, posisi, overflow/clipping, dan hasil render setiap slide. Deskripsi visual atau placeholder bukan gambar yang tertanam.
+4. PDF/DOCX: periksa isi penuh, heading, paragraf, tabel, struktur, serta layout/render yang relevan.
+5. XLSX/CSV: periksa sheet, dimensi, header, data, tipe cell, formula/value, konsistensi, dan format tampilan yang relevan.
+6. ZIP/arsip/kode/binary: periksa integritas paket, daftar isi, dan konten yang relevan. Nyatakan bagian yang tidak dapat diverifikasi.
+7. Cocokkan teks dengan tampilan aktual. Bedakan teks native/editable, gambar embedded, placeholder, dan deskripsi gambar.
+8. Laporkan nama file, Box ID, ukuran, provenance, ruang lingkup inspeksi, defect, dan verdict PASS/PARTIAL/FAIL/NOT VERIFIED.
+9. Inspeksi bersifat read-only. Jangan menimpa, menghapus, memindahkan, atau mengganti artefak asli. Simpan hasil perbaikan sebagai file baru kecuali pengguna secara eksplisit memerintahkan hal lain.
+10. Jangan menyamakan Box connector ChatGPT dengan integrasi Box runtime CLOUZER. Upload manual oleh pengguna bukan bukti upload otomatis oleh bot.
+
+## A6. Aturan keamanan dan rahasia
+
+1. Jangan menyimpan atau menampilkan Client Secret, API key, access token, refresh token, Developer Token, authorization code, password, atau isi file token di Master Memory.
+2. Jika kredensial muncul di log atau file, redaksi sebelum menyimpan kutipan atau membagikan hasil.
+3. Jangan mengirim kredensial ke chat atau memasukkannya ke commit, test fixture, log, atau artefak.
+4. Pertahankan prinsip least privilege dan jangan memperluas permission hanya untuk menghindari investigasi.
+
+## A7. Aturan intent detection dan routing lintas bot
+
+1. Baca keseluruhan pesan dan tentukan speech act: perintah, pertanyaan kemampuan, pertanyaan informasi, atau permintaan campuran.
+2. Kata seperti `bisa`, `dapat`, `mampu`, `can`, `could`, `able`, dan `support` tidak boleh menjadi negative keyword gate global. Kata tersebut dapat muncul sebagai kriteria penerimaan dalam sebuah perintah.
+3. Jika terdapat imperative/action verb yang jelas seperti `buat`, `bikin`, `create`, `generate`, `export`, `kirim`, `upload`, `run`, atau `execute`, pertahankan intent aksi kecuali konteks gramatikal jelas hipotetis atau negasi.
+4. Bedakan intent dari ketersediaan tool. Identifikasi dahulu apa yang diminta, lalu periksa apakah backend/tool yang dibutuhkan tersedia.
+5. Jika routing gagal, telusuri tahap pertama yang tidak berjalan. Log intent, format/action terdeteksi, keputusan routing, dan alasan penolakan.
+6. Tambahkan tes positif untuk perintah yang memuat kata kemampuan dalam spesifikasi dan tes negatif untuk pertanyaan kemampuan yang sebenarnya.
+7. Jika benar-benar ambigu, ajukan satu klarifikasi ringkas. Jangan diam-diam mengubah perintah eksplisit menjadi chat umum.
+
+## A8. Aturan pemeliharaan Master Memory
+
+1. File kanonis tetap `MASTER_MEMORY_CLOUZER.md` pada repository dan branch kerja yang ditentukan. Jangan membuat dokumen master pengganti.
+2. Setelah audit, perubahan kode, perubahan tes/workflow, live test, atau temuan baru, perbarui Master Memory pada pekerjaan/sesi yang sama.
+3. Sebelum mengedit, fetch versi terbaru dari branch yang benar dan gunakan blob SHA terbaru untuk optimistic concurrency. Jika SHA berubah atau update konflik, fetch ulang dan gabungkan perubahan.
+4. **Jaga struktur Bagian A–F tetap bersih.** Aturan baru masuk Bagian A; perubahan implementasi masuk Bagian C; tes dan status CI masuk Bagian D; hasil yang terbukti masuk Bagian E; pekerjaan belum selesai masuk Bagian F.
+5. Catatan kronologis detail baru boleh ditambahkan di arsip Bagian G dengan nomor berikutnya. Jangan menaruh aturan permanen baru di tengah catatan kandidat.
+6. Restrukturisasi atau koreksi isi diperbolehkan jika diminta pengguna atau diperlukan untuk menghilangkan kontradiksi. Saat merapikan, pertahankan semua fakta, log, SHA, link, keputusan, dan hasil historis; jangan membuang riwayat.
+7. Jika status lama berubah, jangan menghapus bukti status lama. Perbarui status kanonis di Bagian C–F dan rujuk catatan historis terkait.
+8. Setelah update GitHub, fetch ulang file dari branch yang sama dan verifikasi isi, blob SHA, dan commit SHA. Jangan mengklaim tersimpan sebelum verifikasi.
+9. Jika GitHub gagal atau update tidak terkonfirmasi, laporkan bahwa Master Memory belum berhasil diperbarui.
+
+---
+
+# B. KONDISI PROYEK DAN SUMBER KEBENARAN
+
+## B1. Identitas dan arsitektur
+
+- Proyek: **CLOUZER AI**, bot Discord berbasis Python dan `discord.py`.
+- Arsitektur yang tercatat: Discord → Python bot → OpenCode Server (historis `127.0.0.1:43127`) → Xingchi API/provider → Responses/SSE → EventHub/DiscordStream → Discord.
+- Model historis: `xingchi/gpt-6.1-sol`.
+- Agent historis: `clouzer` dan `clouzer-full`.
+- Fitur yang tercatat: file generation, image generation/editing, audio/document/attachment reading, Discord attachment delivery, dan integrasi Box.
+- Endpoint, model, agent, dan arsitektur dapat berubah; verifikasi source aktual sebelum mengubah konfigurasi.
+
+## B2. Repository dan branch
+
+- Repository: `Cluzere/Main-py`.
+- Branch kandidat: `audit-recovery-gpt-2026-11-23`.
+- Candidate entrypoint: `audit-recovery/review-round-2/revisi_audit_final_main.py`.
+- Candidate helper: `audit-recovery/review-round-2/clouzer_file_creation.py`.
+- Candidate tests: `audit-recovery/review-round-2/test_file_creation.py`.
+- Workflow files yang terdaftar pada branch saat pemeriksaan: `.github/workflows/audit-candidate-check.yml`, `audit-recovery.yml`, `clouzer-multiformat-audit.yml`, dan `staging-smoke-test.yml`.
+- Root production `main.py) dan branch `main` tetap dilindungi oleh Bagian A.
+
+## B3. Snapshot Git terakhir sebelum restrukturisasi Master Memory
+
+- Branch HEAD saat pemeriksaan: `14fc65ba87bbd3a6da4ce6fa7e798a803222b0cf`.
+- Commit HEAD tersebut adalah pembaruan dokumentasi Master Memory sebelumnya; parent-nya adalah commit kode PPTX `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
+- Commit kode PPTX `54cc3b8dc43550e08cc9caa97feb2d52747fec2f` adalah commit sumber terakhir yang tercatat untuk patch full-bleed PPTX di §52.52 arsip.
+- Branch HEAD bukan bukti deployment. Status Wispbyte runtime harus dikonfirmasi dari log startup.
+- Detail blob SHA dan commit perubahan file kandidat tercatat di Bagian G, khususnya §52.52.
+
+## B4. Status produksi dan deployment
+
+- Production `main.py` tidak boleh disentuh tanpa izin eksplisit.
+- Production branch `main` tidak boleh diubah atau menerima merge tanpa izin eksplisit.
+- PR #6 tidak boleh di-merge tanpa izin eksplisit.
+- Tidak ada restart/deploy Wispbyte yang dilakukan oleh asisten. Pengguna yang mengendalikan tindakan restart/reset.
+- Jangan menyimpulkan candidate live hanya karena branch memiliki commit baru.
+
+---
+
+# C. KANDIDAT — PENGEMBANGAN / IMPLEMENTASI
+
+Bagian ini hanya mencatat apa yang diubah pada kode kandidat. Hasil pengujian tidak ditetapkan di sini; lihat Bagian D dan E.
+
+## C1. Patch kandidat terbaru — PPTX full-bleed background (28 November 2026)
+
+**Branch:** `audit-recovery-gpt-2026-11-23`  
+**Commit kode terakhir yang tercatat:** `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`
+
+### File helper
+`audit-recovery/review-round-2/clouzer_file_creation.py`
+
+- Menambahkan `_clean_pptx_line` untuk membersihkan Markdown heading/bold/italic/link/code, menormalkan bullet, dan membuang baris instruksi visual berlabel seperti Arahan visual, Visual, Ilustrasi visual, Deskripsi visual, Prompt gambar, dan Image prompt.
+- Membangun slide PPTX blank 16:9 dengan navy background, panel teks gelap, aksen cyan/violet, tipografi judul/body/footer.
+- Judul, body, dan footer tetap berupa native editable PowerPoint text.
+- `embed_pptx_visuals` mensyaratkan tepat satu gambar per slide, mengolah gambar ke rasio 16:9, memberi overlay/gradient agar teks terbaca, memasang gambar full-bleed, dan meletakkannya di belakang teks.
+- Validasi memeriksa satu gambar full-slide per slide dan memastikan teks editable tetap ada.
+- Batas ukuran output 8 MB tetap berlaku.
+
+### File entrypoint kandidat
+`audit-recovery/review-round-2/revisi_audit_final_main.py`
+
+- Instruksi model PPTX melarang Markdown, tabel Markdown, code fence, instruksi desain, deskripsi gambar, dan prompt gambar menjadi konten slide.
+- Prompt Lucid Origin meminta background presentasi full-bleed 16:9; 58% area kiri adalah negative space gelap untuk teks; focal artwork di sisi kanan; palet navy/cyan/violet; tanpa teks, huruf, angka, logo, watermark, UI, chart, atau diagram.
+- Setiap slide mendapat background tersendiri.
+- Batas generasi visual 10 slide; deck lebih dari 10 slide harus gagal secara eksplisit, bukan menghasilkan slide tanpa background secara diam-diam.
+- Aspect ratio provider diubah dari 4:3 ke 16:9.
+
+### File tes kandidat
+`audit-recovery/review-round-2/test_file_creation.py`
+
+- Regression test untuk membersihkan Markdown dan visual directions dari teks slide.
+- Regression test untuk satu background full-bleed per slide, z-order di belakang teks, dan teks editable.
+- Regression test untuk instruksi PPTX yang melarang Markdown dan prompt visual dalam konten slide.
+
+### Commit dan blob yang tercatat
+- Helper redesign: `56b85875945781b4f5a5fe56f6be8e78cd2b0fcb`.
+- Prompt 16:9: `80a4136746b5eaafe822cab55fb268404e5fe180`.
+- Regression tests: `0f94b90ccfcc07a6d3dedbefa45dbac7a55cbba4`.
+- Koreksi properti fill: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
+- Helper blob: `f6af7ccc86e637321bb074e710b19b864f6fb081`.
+- Main candidate blob: `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6`.
+- Test blob: `b49eb5d5f5cab5e5ec0106ca9f44f8880df82b90`.
+
+## C2. Pengembangan kandidat sebelumnya
+
+Riwayat pengembangan lintas format (retry/refusal recovery, XLSX parser/schema, PDF validator/pagination, DOCX rendering/table handling, PPTX title handling, ZIP, CSV, Box integration) dipertahankan rinci dalam arsip Bagian G §§5–21 dan §§30–52.49. Gunakan catatan tersebut untuk mengetahui commit, akar masalah, dan perubahan historis sebelum menyentuh subsistem yang sama.
+
+---
+
+# D. KANDIDAT — PENGUJIAN / CI / WORKFLOW
+
+Bagian ini mencatat status tes, workflow, dan bukti verifikasi. Jangan menyimpulkan PASS hanya dari commit.
+
+## D1. Status terbaru PPTX patch
+
+- Commit kode terbaru yang diuji/dirujuk: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
+- Pemeriksaan GitHub sebelumnya pada SHA ini mengembalikan combined status kosong dan workflow-run lookup kosong.
+- Oleh sebab itu regression tests PPTX yang baru ditambahkan **belum terbukti lulus** pada SHA tersebut.
+- Belum ada bukti live Cloudflare/Lucid Origin generation setelah patch ini.
+- Belum ada bukti post-patch Wispbyte runtime, Discord attachment, Box artifact baru, rendered slide review, atau end-to-end acceptance.
+- Jangan menyebut patch PPTX ini CI PASS sampai workflow terkait benar-benar selesai pada SHA yang relevan.
+
+## D2. Workflow files yang ditemukan di branch kandidat
+
+Empat file terdaftar pada `.github/workflows/` saat snapshot:
+1. `audit-candidate-check.yml`
+2. `audit-recovery.yml`
+3. `clouzer-multiformat-audit.yml`
+4. `staging-smoke-test.yml`
+
+Daftar nama ini belum merupakan audit isi workflow. Pemeriksaan trigger, branch filters, jobs, permissions, secrets, concurrency, timeout, dan langkah tes harus dilakukan pada tahap workflow audit setelah restrukturisasi ini tersimpan.
+
+## D3. Bukti CI historis
+
+- Banyak workflow pada commit sebelumnya tercatat lulus untuk XLSX, PDF, DOCX, dan PPTX. Detail run URL, commit SHA, job, test count, dan log tetap berada di arsip Bagian G.
+- Hasil hijau historis tidak otomatis berlaku untuk patch PPTX terbaru atau commit baru.
+- Khusus PPTX terbaru §52.52: status adalah **NOT VERIFIED**, bukan PASS.
+- Setiap kegagalan workflow berikutnya wajib ditangani mengikuti Bagian A2 sampai semua checks wajib terminal dan lulus, atau ada blocker eksternal yang dibuktikan.
+
+---
+
+# E. KANDIDAT — HASIL YANG SUDAH TERBUKTI
+
+Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rinci tetap di Bagian G.
+
+## E1. Hasil format historis
+
+- XLSX: terdapat beberapa siklus perbaikan parser, schema/header validation, numeric cell typing, formula-like text safety, dan worksheet naming. Sebagian hasil CI dan artefak live tercatat PASS pada kasus tertentu; jangan menggeneralisasi satu workbook menjadi seluruh XLSX.
+- CSV: ada artefak live yang lulus pemeriksaan konten/struktur pada pengujian historis.
+- ZIP: ada pengujian live yang mencatat pembuatan arsip berhasil pada kasus tertentu.
+- PDF: beberapa siklus validator, pagination, render, dan Box inspection telah dilakukan; acceptance spesifik tercatat di arsip dan tidak boleh disamaratakan dengan semua prompt PDF.
+- DOCX: terdapat siklus remediasi dan live artifact acceptance PASS pada kasus tertentu; detail dan batasnya tercatat di §§52.37–52.43.
+- PPTX: ada hasil CI historis untuk title regression dan artifact live lama yang menunjukkan masalah visual/asset. Patch background full-bleed terbaru belum diverifikasi.
+
+## E2. Hasil runtime dan Box
+
+- Box OAuth/runtime pernah mencapai keberhasilan alur OAuth dan list folder pada tahap yang tercatat di §§26–27.
+- Keberhasilan list folder tidak membuktikan read/download/upload/refresh end-to-end.
+- Upload manual pengguna ke Box harus tetap diberi provenance manual, bukan diklaim sebagai upload otomatis CLOUZER.
+- Setiap artefak yang diperiksa harus memakai verdict spesifik sesuai scope pemeriksaannya.
+
+## E3. Batas hasil terbaru
+
+**PPTX full-bleed patch terbaru: NOT VERIFIED.** Kode telah diubah dan commit ada, tetapi CI, background generation live, render visual, dan Discord delivery belum dibuktikan.
+
+---
+
+# F. KANDIDAT — PLANNING / PEKERJAAN BERIKUTNYA
+
+Urutan ini adalah pekerjaan yang belum selesai pada snapshot terakhir. Jangan menganggapnya sudah dilakukan.
+
+1. **Audit workflow GitHub secara menyeluruh** pada empat file di D2: baca isi setiap YAML, event triggers, branch filters, jobs/dependencies, permissions, secrets, concurrency/cancel behavior, timeout, test commands, artifact handling, dan apakah workflow yang diharapkan benar-benar terpicu untuk candidate branch/commit.
+2. Periksa GitHub Actions run aktual pada branch/commit kandidat terbaru setelah restrukturisasi Master Memory tersimpan. Pantau setiap run relevan sampai terminal sesuai Bagian A2.
+3. Jalankan/konfirmasi syntax check, focused PPTX tests, full candidate suite, dan security checks untuk exact code SHA yang diuji. Jangan menyebut PASS jika workflow belum selesai atau commit mismatch.
+4. Jika workflow/test gagal, periksa job logs dan perbaiki akar masalah di branch kandidat. Push correction dan tunggu workflow baru sampai selesai. Ulangi sampai lulus atau blocker eksternal terbukti.
+5. Setelah CI wajib hijau, pengguna dapat melakukan restart/reset candidate Wispbyte sendiri. Sebelum live test, cocokkan startup log dengan exact branch HEAD.
+6. Jalankan satu controlled 5-slide PPTX test: pastikan lima background generation calls berbeda, lima image 16:9 tertanam full-bleed, teks native editable, tidak ada prompt visual/Markdown bocor, dan hasil render semua slide layak.
+7. Inspeksi raw PPTX package dan render setiap slide. Periksa ukuran 8 MB, relasi media, gambar, z-order, teks, contrast, clipping, dan konsistensi.
+8. Verifikasi Discord attachment delivery secara terpisah. Simpan artefak revisi sebagai file Box baru; jangan overwrite file asli.
+9. Perbarui Bagian C–F setelah hasil nyata tersedia, lalu catat detail kronologis di Bagian G.
+
+**Tidak ada izin dalam planning ini untuk menyentuh production `main.py`, merge PR #6, atau melakukan restart/deploy oleh asisten.**
+
+---
+
+# G. ARSIP KRONOLOGIS LENGKAP — RIWAYAT ASLI DIPERTAHANKAN
+
+Bagian berikut adalah salinan lengkap dokumen Master Memory sebelum restrukturisasi. Seluruh catatan, hasil tes, log, link, commit SHA, file ID, keputusan, dan konteks historis dipertahankan. Arsip ini sengaja tidak dipangkas agar tidak ada bukti yang hilang. Untuk aturan yang berlaku, gunakan Bagian A; untuk status ringkas terkini, gunakan Bagian C–F.
+
+---
+
+## G1. Arsip asli sebelum restrukturisasi
+
 # CLOUZER AI — Master Memory / Handoff
 
 **Last updated:** 2026-11-27  
@@ -4819,3 +5106,10 @@ This instruction applies to all future Box uploads and file-review requests, acr
 4. Run one 5-slide live PPTX test; confirm five distinct 16:9 background generation calls and five full-bleed embedded pictures.
 5. Download and inspect the actual result: package integrity, slide count, picture relationships, exact dimensions, editable text, and rendered appearance of every slide.
 6. Verify Discord delivery separately; preserve the original Box file and upload the corrected result as a new artifact.
+
+
+---
+
+## G2. Penutup arsip
+
+Akhir dokumen arsip asli. Jangan menafsirkan rencana historis sebagai pekerjaan yang sudah dilakukan; cocokkan dengan Bagian C–F dan commit terbaru.
