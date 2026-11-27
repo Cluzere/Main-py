@@ -3361,3 +3361,74 @@ Branch: `audit-recovery-gpt-2026-11-23`.
 - Current branch head was confirmed as `3d247ac8afa81507534adf377015072b006b7823`. The Wispbyte startup command already fetches the branch head dynamically, so the next staging reset will pull this exact commit.
 - Production `main` and production `main.py` remain untouched. PR #6 remains unmerged. Do not merge, deploy, or restart production.
 - **Next user action:** staging Wispbyte reset/restart is now appropriate. Ask the user to reset Wispbyte only (not production), then run exactly one MASTER FINAL PDF request. Capture the complete generation log, elapsed time, CPU average/peak if available, final page count, validation matrix, and whether Discord actually attached the PDF. Afterward inspect the actual PDF pages visually and verify searchable/selectable text before claiming acceptance.
+
+
+
+## 52.27 Wispbyte live PDF validation timing — 27 November 2026 (user-supplied logs)
+
+### Runtime/revision evidence
+
+The user supplied two Wispbyte startup-and-runtime captures for the audit candidate. Both used the startup sequence that fetches/resets the audit branch, installs dependencies, and launches:
+
+`/home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py`.
+
+- First capture fetched branch revision `e2ddabd`, commit subject shown by Git as `fix(pdf): scope validation timer to validator`.
+- Second capture fetched revision `bfc4b59`, commit subject shown by Git as `perf(pdf): isolate deep scan substage timings`.
+- Both runs printed `[ONLINE] Clouzer AI Bot aktif`; the Discord bot and Box OAuth callback listener started.
+- This is evidence that the candidate process started. It is not proof that every bot feature passed.
+- Production `/home/container/main.py` was not involved in the shown launch command. Keep production untouched.
+
+### First capture — e2ddabd
+
+Observed PDF timings:
+- Baseline render: 2.779 s; output 1,191,363 bytes.
+- Baseline validation: 0.143 s.
+- Appendix render/merge: 0.966 s; output 1,224,852 bytes.
+- Final PDF: 6 pages; deep validation: 12.751 s; total PDF validation: 12.748 s.
+- Deep scan recorded 79 page records and 77 table cells; the combined page-record/table scan took 12.498 s.
+- Heading/paragraph geometry: 0.022 s; table integrity checks: 0.001 s; body overlap geometry: 0.027 s.
+- Process CPU was repeatedly approximately 95–101% of one core during the deep scan. RSS rose from about 124.9 MB to 143.0 MB; cgroup memory peaked in the supplied sample around 189.7 MB of 703.8 MB. No CPU-throttle events were reported.
+
+### Second capture — bfc4b59
+
+Observed PDF timings:
+- Responses request: first event 3.228 s, first text 4.946 s, completed in 25.578 s. No web calls or function calls were reported for that request.
+- Baseline render: 3.369 s; output 1,191,429 bytes.
+- Baseline validation: 0.121 s.
+- Appendix render/merge: 0.656 s; output 1,224,916 bytes.
+- Final PDF: 6 pages; deep validation: 10.719 s; total PDF validation: 10.717 s.
+- New substage instrumentation isolated the dominant cost:
+  - text-page setup: 0.015 s
+  - text-record extraction: 0.002 s
+  - drawing grouping: 0.002 s
+  - table-row grouping: 0.000 s
+  - **cell text/style inspection: 10.470 s**
+  - total page-record/table scan: 10.491 s
+  - heading/paragraph geometry: 0.021 s
+  - table integrity checks: 0.001 s
+  - body overlap geometry: 0.037 s
+- Process CPU again stayed near 99–101% of one core during most of the cell text/style scan. RSS peaked around 141.5 MB; cgroup memory around 152.3 MB of 703.8 MB. No throttle events were reported.
+- The tracker subsequently reported idle CPU near 0.0% process / 0.2% cgroup at 09:13:17 and 09:13:47, with the process still emitting resource snapshots. This is evidence the process remained alive during those later samples, not proof of a CI run or a successful end-to-end Discord attachment.
+- The quota field changed from `100000 100000` at startup to `35000 100000` in later resource snapshots. Record this as an observed runtime metric; do not infer the platform's reason for changing it.
+
+### Evidence-based interpretation
+
+1. The timer-scope adjustment did not make deep PDF validation cheap: the validator still consumed about 10.7–12.8 seconds for a six-page artifact.
+2. The bfc4b59 instrumentation identifies one highly concentrated hotspot: `cell_text_and_style` accounts for 10.470 of 10.491 seconds in the page-record/table scan (about 99.8% of that substage).
+3. The observed CPU saturation is consistent with a CPU-bound Python/PyMuPDF validation section, not memory pressure: memory remained well below the reported 703.8 MB cgroup limit, and no throttling events were logged.
+4. The Responses model request took about 25.6 seconds in the second capture. Treat model/provider latency separately from local PDF rendering/validation time.
+5. Both captures show a six-page final PDF and completion of the deep-validation log stage. They do not include the final user-facing file-send confirmation, the actual Discord attachment receipt/download, a new artifact inspection, or a CI workflow result. Those outcomes remain **NOT VERIFIED** from these logs.
+6. The second capture is an instrumentation/measurement improvement, not yet proof of a performance fix.
+
+### Required follow-up plan (priority order)
+
+1. **Profile the exact hotspot first.** Inspect the `cell_text_and_style` loop in `audit-recovery/review-round-2/clouzer_file_creation.py` and identify repeated PyMuPDF calls, per-cell text extraction, style/color/drawing lookups, and nested scans. Measure call counts and per-operation time before changing behavior.
+2. **Reduce repeated work without weakening acceptance checks.** Build per-page/per-table caches for text spans, drawings, rectangles, colors, and cell geometry; index drawings/spans once and reuse the indexes across cells. Avoid rescanning all page drawings or spans for every cell. Keep existing checks for placeholders, table integrity, text bounds, overlaps, page density, and final-page requirements.
+3. **Add targeted regression/performance coverage.** Include a representative six-page, 7-column/10-row MASTER FINAL PDF; assert the same validation findings and acceptance behavior as before. Add a non-flaky benchmark or diagnostic threshold for the cell/style scan, but do not make wall-clock timing the only correctness test.
+4. **Compare before/after on the same artifact and runtime class.** Record total validation time, `cell_text_and_style`, CPU peak/average, RSS, cgroup memory, quota, throttle deltas, and page/cell/span/drawing counts. A speedup is valid only if all validation outcomes remain identical.
+5. **Keep model latency separate.** The 25.578 s Responses duration is not caused by the local cell-style scan. Investigate provider latency/rate limits only if repeated request logs show it is a persistent bottleneck.
+6. **Finish the live acceptance chain.** Do not stop at startup or a partial stage log. Confirm the process remains alive, capture the terminal end-of-request outcome, verify that a non-empty PDF was actually attached in Discord, download that exact attachment, inspect its text and all rendered pages, and record whether the PDF acceptance criteria pass.
+7. **Track CI to a terminal state.** For every code commit, identify the exact commit SHA, inspect its GitHub Actions runs/jobs, and keep checking queued/in-progress jobs until they reach success/failure/cancelled. Do not report CI complete based only on workflow creation, startup, or a partial log. The supplied Wispbyte logs are runtime telemetry, not CI evidence.
+8. **Candidate-only discipline.** Make any optimization and regression tests only on `audit-recovery-gpt-2026-11-23`. Re-check the branch head before staging restart. The Wispbyte startup command fetches the branch head, so a new candidate commit can be picked up on the next restart. Do not touch production `main.py`, merge PR #6, or claim production deployment without explicit authorization.
+
+**Current status after these captures:** bot startup observed; six-page PDF deep-validation stage observed; cell/style scan identified as the dominant local CPU hotspot; live attachment acceptance and CI terminal status not established by the supplied logs. Next action is source-level profiling/optimization of the cell/style scan, followed by candidate tests and a fully monitored live retest.
