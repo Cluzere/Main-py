@@ -1386,6 +1386,29 @@ def _is_master_final_pdf_prompt(prompt: str) -> bool:
     return _mentions_ten_products(prompt) and all(item.casefold() in value for item in required)
 
 
+def _first_body_text_overlap(body_records):
+    """Return the first overlapping same-page body-block pair in source order.
+
+    body_records inherits the validator's (page, y0, x0) ordering. Once the
+    next block starts at or below the first block's bottom edge, later blocks
+    cannot intersect it vertically, so scanning that suffix is unnecessary.
+    The exact rectangle intersection and >1 point-squared threshold are kept.
+    """
+    for index, first in enumerate(body_records):
+        first_rect = first["rect"]
+        for second in body_records[index + 1:]:
+            if second["page"] != first["page"]:
+                if second["page"] > first["page"]:
+                    break
+                continue
+            if second["rect"].y0 >= first_rect.y1:
+                break
+            intersection = first_rect & second["rect"]
+            if not intersection.is_empty and intersection.get_area() > 1.0:
+                return first, second
+    return None
+
+
 def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], page_dicts=None, page_drawings=None) -> dict:
     """Validate semantic structure and table fidelity using cached page inspections."""
     import pymupdf
@@ -1648,18 +1671,13 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
                 f"Teks isi PDF keluar dari area cetak/margin pada halaman {record['page'] + 1}: "
                 f"{(round(rect.x0, 1), round(rect.y0, 1), round(rect.x1, 1), round(rect.y1, 1))}."
             )
-    for index, first in enumerate(body_records):
-        for second in body_records[index + 1:]:
-            if second["page"] != first["page"]:
-                if second["page"] > first["page"]:
-                    break
-                continue
-            intersection = first["rect"] & second["rect"]
-            if not intersection.is_empty and intersection.get_area() > 1.0:
-                raise ValueError(
-                    f"Blok teks bertabrakan pada halaman {first['page'] + 1}: "
-                    f"{first['text'][:35]!r} / {second['text'][:35]!r}."
-                )
+    overlap = _first_body_text_overlap(body_records)
+    if overlap:
+        first, second = overlap
+        raise ValueError(
+            f"Blok teks bertabrakan pada halaman {first['page'] + 1}: "
+            f"{first['text'][:35]!r} / {second['text'][:35]!r}."
+        )
 
     table_content_pages = sum(bool(cells) for cells in table_cells_by_page.values())
     return {
