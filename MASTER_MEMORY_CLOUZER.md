@@ -5480,3 +5480,31 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 8. Handoff adalah dokumen operasional untuk sesi berikutnya, bukan pengganti Master Memory. Pastikan Master Memory lebih dahulu diperbarui dan diverifikasi sesuai aturan di atas, lalu susun handoff yang konsisten dengan Master Memory terbaru. Jangan menyalin asumsi yang belum terbukti sebagai fakta.
 9. Jika konteks memungkinkan, tampilkan handoff lengkap dalam bentuk yang mudah disalin di chat. Jika pengguna secara eksplisit meminta file atau penyimpanan handoff, buat/simpan artefak pada lokasi yang disepakati dan verifikasi hasilnya. Jangan mengklaim file tersimpan jika belum dibuat dan diverifikasi.
 10. Jangan menunggu sampai konteks benar-benar habis. Begitu ada sinyal sesi akan ditutup atau dipindah, lakukan pembaruan Master Memory dan siapkan handoff pada kesempatan itu.\n
+
+---
+
+## 52.55 Wispbyte Console bukan terminal interaktif; jalur diagnostik harus melalui Startup — 28 November 2026
+
+### Klarifikasi dan bukti operasional pengguna
+- Pengguna menjelaskan bahwa pada layanan/server Wispbyte yang dipakai untuk CLOUZER, ia tidak dapat menjalankan perintah shell secara interaktif dari Console. Ketika ia mengetik/mengirim command baru di Console, panel tidak mengeksekusinya atau memberi respons.
+- Pemeriksaan dokumentasi troubleshooting resmi Wispbyte pada sesi 28 November 2026 menemukan keterangan bahwa pengetikan di Server Console dinonaktifkan kecuali untuk Minecraft Servers. Ini mendukung pengalaman pengguna untuk server aplikasi/bot Python. Rujukan yang diperiksa dalam sesi: halaman troubleshooting Wispbyte “Can't type in Server Console” dan dokumentasi Startup/Server Management. Console dipakai untuk kontrol server dan melihat output/log, bukan sebagai shell interaktif untuk server bot ini.
+- Batas klaim: jangan menggeneralisasi bahwa tidak ada cara apa pun menjalankan program di Wispbyte. Fakta yang relevan untuk instance CLOUZER adalah command shell tidak dapat diketik langsung di Console; perintah startup dijalankan oleh mekanisme Startup saat server dimulai.
+
+### Aturan operasional untuk diagnosis
+1. Jangan pernah menyuruh pengguna mengetik `pip`, `python`, `pip check`, atau command shell lain langsung ke Wispbyte Console untuk instance ini.
+2. Untuk diagnosis environment, tempatkan pemeriksaan sementara secara terencana di Startup Command, setelah instalasi dependency dan sebelum entrypoint kandidat, lalu baca hasilnya dari Console Logs.
+3. Sebelum menyarankan perubahan Startup, berikan satu command lengkap yang mempertahankan seluruh urutan lama (cd, clone/fetch/reset, instalasi requirements, instalasi paket tambahan, entrypoint). Jangan meminta pengguna menempelkan potongan diagnostik secara terpisah atau menghapus tahapan startup yang sudah ada.
+4. Pemeriksaan yang direncanakan: `pip --version`, `/usr/local/bin/python -m pip --version`, `/usr/local/bin/python -m pip check`, dan import test modul kandidat (`discord`, `aiohttp`, `PIL`, `dotenv`, `requests`, `defusedxml`, `py7zr`, `fitz`, `docx`, `pptx`, `openpyxl`). Belum dijalankan pada Wispbyte; status seluruh hasil tetap NOT VERIFIED.
+5. Diagnostik harus bersifat sementara dan non-destruktif. Jangan mengubah kode bot, mengganti entrypoint, menghapus file, menyentuh production `main.py`, deploy, atau restart server atas inisiatif asisten. Restart tetap dikendalikan pengguna.
+6. Perlu diperhatikan bahwa startup saat ini memakai `pip` untuk instalasi lalu `/usr/local/bin/python` untuk menjalankan kandidat. Hal ini disengaja dan belum terbukti bermasalah; kesamaan environment hanya dapat diputuskan dari output diagnostik, bukan dari asumsi.
+7. Jangan menyimpulkan startup gagal hanya karena Console mengabaikan command yang diketik pengguna. Itu perilaku yang sesuai dengan keterbatasan Console pada layanan ini.
+
+### Status dan next step
+- Console interaktif untuk command shell: **TIDAK DIDUKUNG pada server CLOUZER menurut dokumentasi Wispbyte yang diperiksa**.
+- Console Logs untuk membaca stdout/stderr Startup: jalur observasi yang digunakan.
+- Startup Command yang sekarang: pengguna melaporkan berhasil menjalankan kandidat setelah restart; jangan diubah sebelum ada kebutuhan dan persetujuan.
+- Dependency environment (`pip` vs interpreter Python), `pip check`, dan import test: **NOT VERIFIED**.
+- Next step: siapkan satu versi lengkap Startup Command sementara yang menyisipkan diagnostik di antara instalasi dependency dan entrypoint kandidat. Tampilkan untuk ditinjau pengguna; jangan mengklaim sudah dipasang atau dijalankan sampai pengguna sendiri memperbarui Startup dan memulai server.
+
+### Koreksi arahan sesi ini
+- Arahan sebelumnya yang menyuruh pengguna mengetik empat command langsung ke Console adalah keliru untuk panel Wispbyte yang digunakan. Arahan tersebut dicabut. Gunakan metode Startup + Console Logs saja.
