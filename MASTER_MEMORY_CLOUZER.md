@@ -4764,3 +4764,58 @@ This instruction applies to all future Box uploads and file-review requests, acr
 - Add regression tests for Markdown leakage and visual-instruction leakage.
 - Preserve this Box original; any corrected deck must be a new file.
 - No production branch changes, merge, deployment, or Wispbyte restart authorized by this inspection.
+
+
+---
+
+## 52.52 Candidate PPTX redesign: clean editable text and generated full-bleed backgrounds — 28 November 2026
+
+### Scope and boundaries
+- Changes were made only on candidate branch `audit-recovery-gpt-2026-11-23`.
+- Production root `main.py` and production branch `main` were not modified.
+- PR #6 was not merged. Wispbyte was not restarted/deployed. User's original Box artifact was not modified.
+- Objective: stop Markdown and visual-production instructions leaking into slide content, improve visual design, and generate a separate full-bleed background for each slide while keeping PowerPoint text editable.
+
+### Candidate code changes
+1. `audit-recovery/review-round-2/clouzer_file_creation.py`
+   - Added `_clean_pptx_line` to remove Markdown heading/bold/italic/link/code formatting, normalize list markers, and discard labeled visual-production instructions such as Arahan visual, Visual, Ilustrasi visual, Deskripsi visual, Prompt gambar, and Image prompt.
+   - Rebuilt PPTX slides using a blank 16:9 layout with a deep navy field, dark text panel, cyan/violet accents, clean title/body typography, and footer.
+   - Titles, body text, and footer remain native editable PowerPoint text.
+   - Reworked `embed_pptx_visuals`: exactly one generated image per slide, full-bleed to the complete slide dimensions, processed to 16:9 with a dark overlay and left-to-right navy gradient to preserve text contrast. Background image is moved behind all editable text and decorative shapes.
+   - Final validation checks exactly one full-slide picture per slide and confirms editable text remains present. PPTX remains subject to the existing 8 MB output cap.
+
+2. `audit-recovery/review-round-2/revisi_audit_final_main.py`
+   - PPTX model instructions now explicitly forbid Markdown, Markdown tables, code fences, design instructions, image descriptions, and image prompts in slide content.
+   - Lucid Origin prompt now requests a full-bleed 16:9 background, not a slide screenshot or infographic; left 58% is calm dark negative space for editable text, focal artwork goes on the right, palette is navy/cyan/violet, and text/letters/numbers/logos/watermarks/UI/charts/diagrams are forbidden.
+   - Every slide gets its own generated background. AI background generation is capped at 10 slides per deck to control image cost/time; decks over that limit fail explicitly instead of silently leaving some slides without generated backgrounds.
+   - Provider aspect ratio changed from 4:3 to 16:9.
+
+3. `audit-recovery/review-round-2/test_file_creation.py`
+   - Added regression for removal of Markdown and visual-direction text from slide content.
+   - Added regression for one full-bleed background per slide, background z-order behind text, and preservation of editable text.
+   - Added regression asserting the PPTX system instruction prohibits Markdown and visual prompts in slide content.
+
+### Commits and exact source blobs
+- Helper redesign: `56b85875945781b4f5a5fe56f6be8e78cd2b0fcb`.
+- 16:9 generated-background prompt: `80a4136746b5eaafe822cab55fb268404e5fe180`.
+- PPTX regression tests: `0f94b90ccfcc07a6d3dedbefa45dbac7a55cbba4`.
+- Supported PowerPoint fill-property correction: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
+- Latest commit verified through GitHub fetch_commit: `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
+- Latest helper blob: `f6af7ccc86e637321bb074e710b19b864f6fb081`.
+- Latest main candidate blob: `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6`.
+- Latest test blob: `b49eb5d5f5cab5e5ec0106ca9f44f8880df82b90`.
+
+### Verification status — do not overclaim
+- GitHub confirms the latest commit exists.
+- Combined commit status returned no checks, and the workflow-run lookup returned no runs for the latest SHA. New tests are committed but **NOT VERIFIED as passing**.
+- No live Cloudflare/Lucid Origin background generation has been performed on this patch.
+- No post-patch Wispbyte runtime, Discord attachment, new Box artifact, rendered slide review, or end-to-end visual acceptance has been verified.
+- The 10-slide cap, 8 MB limit, generated-image dimensions, and actual text contrast still require runtime testing.
+
+### Next gates
+1. Run syntax, focused PPTX tests, full test suite, and security checks on exact SHA `54cc3b8dc43550e08cc9caa97feb2d52747fec2f`.
+2. Fix any failures only on candidate branch and repeat tests against the new exact SHA.
+3. After CI is green, user may restart/reset candidate Wispbyte; assistant must not restart it.
+4. Run one 5-slide live PPTX test; confirm five distinct 16:9 background generation calls and five full-bleed embedded pictures.
+5. Download and inspect the actual result: package integrity, slide count, picture relationships, exact dimensions, editable text, and rendered appearance of every slide.
+6. Verify Discord delivery separately; preserve the original Box file and upload the corrected result as a new artifact.
