@@ -1938,5 +1938,32 @@ Jangan menggandakan tabel sebagai teks biasa."""
         self.assertEqual(summary["numbered_lists"], 3)
 
 
+    def test_pptx_visual_embedding_preserves_editable_text_and_adds_picture_relationships(self):
+        from pptx import Presentation
+        from PIL import Image
+        from clouzer_file_creation import embed_pptx_visuals, extract_pptx_visual_briefs
+
+        base = create_document_file(
+            "pptx",
+            "Buat presentasi PPTX 2 slide.",
+            "Pengenalan CLOUZER\\nIsi slide pertama.\\n--- SLIDE ---\\nCara Kerja\\nIsi slide kedua.",
+        )[0]
+        briefs = extract_pptx_visual_briefs(base)
+        self.assertEqual([item["title"] for item in briefs], ["Pengenalan CLOUZER", "Cara Kerja"])
+        visual = io.BytesIO()
+        Image.new("RGB", (800, 600), "navy").save(visual, format="PNG")
+        result = embed_pptx_visuals(base, [visual.getvalue(), visual.getvalue()])
+        prs = Presentation(io.BytesIO(result))
+        self.assertEqual(len(prs.slides), 2)
+        for slide, expected in zip(prs.slides, ("Pengenalan CLOUZER", "Cara Kerja")):
+            texts = [shape.text for shape in slide.shapes if getattr(shape, "has_text_frame", False)]
+            self.assertTrue(any(expected in value for value in texts))
+            self.assertTrue(any("Isi slide" in value for value in texts))
+            self.assertEqual(sum(shape.shape_type == 13 for shape in slide.shapes), 1)
+        with zipfile.ZipFile(io.BytesIO(result)) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertTrue(any(name.startswith("ppt/media/") for name in archive.namelist()))
+
+
 if __name__ == "__main__":
     unittest.main()
