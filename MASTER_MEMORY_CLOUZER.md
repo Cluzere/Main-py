@@ -514,6 +514,8 @@ cd /home/container && if [ ! -d /home/container/clouzer-audit/.git ]; then git c
 
 **Audit statis startup command (belum dieksekusi di Wispbyte):**
 - Alur clone pertama kali vs fetch/reset checkout yang sudah ada konsisten dengan branch kandidat dan entry point yang tercatat.
+- Edge case clone: kondisi hanya memeriksa keberadaan `.git`. Jika folder `/home/container/clouzer-audit` sudah ada tetapi bukan checkout Git dan berisi file non-kosong, `git clone` ke path tersebut akan gagal karena destination sudah ada/tidak kosong. Ini belum terbukti terjadi; jangan otomatis menghapus folder karena mungkin berisi data yang perlu dipertahankan.
+- Isi `/home/container/requirements.txt` berada di luar repository `Cluzere/Main-py`, sehingga tidak dapat diaudit dari file repository ini. Perlu file/log runtime tersendiri untuk memeriksa pin versi, overlap, dan kompatibilitas dependency.
 - `git reset --hard FETCH_HEAD` memang membuang perubahan tracked lokal pada checkout kandidat saat restart; ini disengaja untuk menyamakan tracked files dengan branch remote. Perintah ini tidak menghapus untracked files.
 - URL yang dikirim dalam bentuk Markdown bukan URL shell yang valid. Jika itu hanya format tampilan chat dan panel Wispbyte menyimpan URL polos, tidak ada masalah; jika literal Markdown ditempel ke panel, `git clone` akan gagal.
 - `pip` dipanggil sebagai executable terpisah, sedangkan bot dijalankan dengan `/usr/local/bin/python`. Belum ada bukti keduanya menunjuk interpreter/environment yang sama. Verifikasi yang tepat adalah membandingkan `pip --version` dengan `/usr/local/bin/python -m pip --version` dari runtime; jangan mengubah startup ke `python -m pip` tanpa konfirmasi lingkungan Wispbyte.
