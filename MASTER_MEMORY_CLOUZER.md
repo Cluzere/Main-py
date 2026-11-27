@@ -4519,7 +4519,7 @@ Next: user or an available browser/UI session must open the Canva edit URL and v
 - Updated `_make_pptx()` so the first non-empty line of every slide chunk becomes that slide's title, whether or not it uses Markdown heading syntax. The line is removed from the body to avoid duplication.
 - Added regression test `test_pptx_uses_each_slide_chunk_title_instead_of_repeating_deck_title`, asserting five distinct slide titles and that each title is absent from its own body text.
 - Helper update commit: `8d697c56085be7b44afc55258a701f47b072ba77`.
-- Regression test update commit: `c2509b665a4f55f09240864f81245d03d24da2b6`.
+- Regression test initially added in `c2509b665a4f55f09240864f81245d03d24da2b6`, then hardened to identify the title placeholder by shape ID in `620f405429a00deddbbd04edd0de1dd28e1dc9a8`.
 - Both changes are on `audit-recovery-gpt-2026-11-23`. Production root `main.py` remains untouched. Original Box artifact remains unchanged.
 
 ### Validation and deployment status
