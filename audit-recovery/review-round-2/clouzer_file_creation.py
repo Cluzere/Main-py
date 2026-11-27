@@ -557,10 +557,11 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
             else (6, 5, (8.2 if columns <= 5 else 7.2))
         )
         row_line_factor = 1.4 if is_validation_summary else 1.6
+        header_line_factor = 1.8 if is_validation_summary else row_line_factor
         inner_widths = [max(18, width - 2 * pad_x) for width in widths]
         header_lines = [wrap_cell(value, "hebo", font_size, inner_widths[i])
                         for i, value in enumerate(normalized[0])]
-        header_height = max(len(lines) for lines in header_lines) * (font_size * row_line_factor) + 2 * pad_y
+        header_height = max(len(lines) for lines in header_lines) * (font_size * header_line_factor) + 2 * pad_y
 
         def header():
             nonlocal y
