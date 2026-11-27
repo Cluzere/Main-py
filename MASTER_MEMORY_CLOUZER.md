@@ -4506,3 +4506,52 @@ Observed behavior indicates two distinct problems to investigate; do not collaps
 - Keep the existing PPTX basic-structure PASS separate from visual-enrichment acceptance. Do not downgrade the former because the later visual request failed, and do not mark the latter PASS because a new PPTX file was generated.
 
 **Handoff summary:** The basic five-slide CLOUZER PPTX artifact is structurally valid, has distinct native title placeholders and editable text, and renders to five LibreOffice PDF pages without clipping or overlap. Its visual design is plain and contains no requested visual imagery. After a clarified follow-up, the user reports CLOUZER generated another PPTX but still did not create/embed visuals. The next task is to identify that newest artifact, verify whether media is actually embedded, then trace follow-up artifact-context persistence and image-to-PPTX tool routing in the candidate code. No production deployment or merge is authorized.
+
+
+---
+
+## 52.47 Candidate PPTX visual enrichment implementation — Lucid Origin — 28 November 2026
+
+### User authorization and model selection
+- User explicitly authorized a full candidate-only implementation and selected **Lucid Origin** as the PPTX visual generation model.
+- Source already contained a Cloudflare image generation integration and a default:
+  - `CF_IMAGE_MODEL = @cf/leonardo/lucid-origin`
+  - Cloudflare endpoint: `/client/v4/accounts/{account_id}/ai/run/{model_id}`
+  - Existing model-specific request body branch already recognizes `lucid-origin`.
+- To ensure PPTX visuals use the user's explicit model selection even if a general environment override changes `CF_IMAGE_MODEL`, candidate code now defines `PPTX_IMAGE_MODEL = @cf/leonardo/lucid-origin` and passes it as an explicit model override for PPTX visual generation.
+- PPTX visual generation uses Cloudflare directly; it does not silently fall back to Pollinations or a different model. If Cloudflare credentials/model call fail, the PPTX visual-enrichment operation fails closed rather than claiming visuals were generated.
+
+### Candidate code changes
+- Branch: `audit-recovery-gpt-2026-11-23`
+- Files changed:
+  1. `audit-recovery/review-round-2/revisi_audit_final_main.py`
+  2. `audit-recovery/review-round-2/clouzer_file_creation.py`
+  3. `audit-recovery/review-round-2/test_file_creation.py`
+- New helper `extract_pptx_visual_briefs(data)` extracts slide title/body text from a valid PPTX for topic-specific visual prompts.
+- New helper `embed_pptx_visuals(data, image_assets)` opens the source PPTX, adjusts the native body placeholder to leave room for the visual, embeds picture objects into slides with `add_picture()`, saves a new PPTX, reopens it, and verifies each requested slide contains a picture. Native title/body text remains editable.
+- PPTX visual generation is activated for PPTX creation prompts that explicitly mention visual/image/picture/illustration terms, and for recognized visual follow-ups.
+- Up to six slide visuals are generated per request. Each generation consumes the existing global image budget and the per-user image rate limiter. The image semaphore is used for concurrency control.
+- Visual prompts are derived from the slide's own title and body, use a 4:3 aspect ratio, and explicitly request no embedded lettering/logos/watermarks.
+- After a successful Discord attachment confirmation, the message ID, filename, and owner ID for the latest PPTX are persisted in the conversation's guild/channel/user state.
+- A subsequent visual follow-up can resolve the saved Discord message, read its PPTX attachment, skip the text-generation model, generate slide-specific Lucid Origin assets, embed them into the existing deck, and return a new file named with the `_visual.pptx` suffix.
+- Existing production protections remain: no production root `main.py` or `main` branch changes; no Wispbyte restart/deployment; no PR #6 merge.
+
+### Regression and CI
+- Added `test_pptx_visual_embedding_preserves_editable_text_and_adds_picture_relationships`.
+- First test run exposed a fixture issue: the test prompt requested two slides but the fixture did not create a real line break between slide chunks. This was a test-fixture defect, not a helper failure. The fixture was corrected to include actual newline delimiters.
+- Corrected test run on exact HEAD `5d2e3c8fd46c7668da2f012546cc60b13bf1abc3`:
+  - CLOUZER multi-format file audit: **completed / success** (run `46047063673`).
+  - Audit recovery candidate: **completed / success** (run `46047063580`).
+  - Audit candidate syntax check: still running at the time of this note; do not mark it PASS until a completed/success result is checked.
+- The earlier failure at HEAD `1b20bb2a13eb543d2240f71648d4eecca31effcb` was due to the test fixture; do not treat that failed run as the final code status.
+- Passing CI proves compilation and regression coverage only. It does not prove Cloudflare runtime credentials, actual Lucid Origin response, Discord live attachment behavior, or Wispbyte has fetched this branch.
+
+### Remaining acceptance gates
+1. Confirm the final syntax/security workflow completes successfully on the latest exact HEAD.
+2. User must restart only the candidate service in Wispbyte and provide/inspect startup logs confirming the exact branch HEAD. Assistant cannot restart Wispbyte.
+3. Run a controlled PPTX request explicitly asking for slide visuals; confirm logs show `model=@cf/leonardo/lucid-origin`, generated image count, embedded count, and Discord attachment confirmation.
+4. Independently download the resulting PPTX and inspect package integrity, `ppt/media/`, slide picture relationships, exactly expected slide count/order, editable text, and LibreOffice rendering on every slide.
+5. Test a short follow-up such as “tambah visual” after a PPTX was delivered; verify it retrieves the persisted last PPTX attachment and creates a new `_visual.pptx` without changing the original artifact.
+6. Do not mark visual enrichment fully PASS until the live artifact and follow-up sequence are independently verified.
+
+**Handoff:** Candidate code now routes PPTX visual enrichment through the explicitly pinned Cloudflare Lucid Origin model, embeds image objects into the original slide deck while retaining editable text, and persists the Discord PPTX message reference for follow-up edits. Two CI workflows are green on HEAD `5d2e3c8fd46c7668da2f012546cc60b13bf1abc3`; the syntax/security workflow is pending. Live provider, Discord, and Wispbyte verification remain open.
