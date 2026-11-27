@@ -4475,3 +4475,32 @@ The immediate next action is to resume and finish the pending Canva design-gener
 6. Do not repeat closed PDF/XLSX/ZIP tests without a new concrete acceptance gap. Do not touch production `main.py`, merge PR #6, or restart Wispbyte without explicit authorization.
 
 **Handoff summary:** The pending Canva job was not abandoned; it completed and yielded a five-slide 16:9 design. The suspected missing spaces were actually line breaks in the text elements. Only slide 1 had a retrievable thumbnail, so full visual verification and PPTX export/validation remain open. Next: inspect all five slides in Canva, export a separate PPTX, validate the raw export, then proceed to CSV and JSON in the established order.
+
+
+---
+
+## 52.47 Canva five-slide layout-geometry inspection — 27 November 2026
+
+### Work performed
+- Reopened Canva design `DAHcIACyuPE` (“Pengenalan CLOUZER AI”) and retrieved page metadata plus thumbnail URLs for all five pages using Canva read/page tools.
+- Confirmed exactly five fixed presentation pages, each 1920 × 1080 (16:9).
+- Opened a read-only editing transaction to inspect structured element bounds, text, font sizes, and positions on all five pages. No edit operations were applied. The transaction was explicitly cancelled; the saved design was not changed.
+- Canva supplied thumbnail URLs, but those signed media URLs could not be opened by the available image/web retrieval path in this session. Therefore this was a structured geometry/content inspection, **not a true pixel-level visual inspection**. Do not claim all five slides were visually rendered and checked.
+
+### Findings from structured element geometry
+- Slide 1: the two large title text boxes (“Pengenalan” and “Clouzer AI”) have a small vertical bounding-box intersection of approximately 12.7 px (first box top 177.49, height 137.32; second top 302.44). This may be intentional tight stacking, but without rendered pixels it is a **potential visual collision**, not a confirmed visible defect. Inspect in Canva editor before export.
+- Slide 2: heading, two-line subtitle, and three text bullets have separated vertical bounds; the explicit line break in “digital\nyang lebih mudah...” is intentional. No text-box overlap was evident from the supplied bounds.
+- Slide 3: title/subtitle and four numbered workflow text blocks have separated bounds. Explicit line breaks in “Sistem memproses\nteks dan konteks” and “AI menyusun\nrespons” are intentional. The numbered card shapes sit close vertically but are not evidence of text collision.
+- Slide 4: title, subtitle, and four benefit text blocks have separated vertical bounds; no text-box overlap was evident from the returned geometry.
+- Slide 5: title, two-line conclusion statement, three text bullets, and right-side label/description have separated text bounds. Some decorative horizontal shapes are close to adjacent bullet text; pixel-level appearance remains unverified.
+- Content remains editable native text elements over backgrounds/graphics. Do not “fix” intentional line breaks without a demonstrated defect.
+
+### Current verdict and next action
+- Five-page structure and 16:9 dimensions: **PASS**.
+- Text content and line-break integrity: **PASS for inspected text**.
+- Structured geometry check: **PARTIAL PASS**; no clear text collisions on slides 2–5, but slide 1 title boxes slightly intersect and require visual confirmation.
+- Pixel-level inspection of all five slides: **BLOCKED / NOT COMPLETED** because Canva returned signed thumbnail URLs that the available runtime could not retrieve/render.
+- PPTX export and binary/render validation: **NOT DONE**.
+- No Canva edits were saved; no original Box artifact was overwritten.
+
+Next: user or an available browser/UI session must open the Canva edit URL and verify the slide 1 title spacing plus the five slides visually. If no visible defect, proceed to export a separate PPTX and validate the actual export. If slide 1 visibly collides, stage a small spacing adjustment in a transaction, preview it, and obtain approval before commit. Do not claim overall PPTX PASS or proceed to CSV/JSON until this PPTX path is closed or the visual blocker is explicitly documented.
