@@ -1394,9 +1394,11 @@ def _first_body_text_overlap(body_records):
     cannot intersect it vertically, so scanning that suffix is unnecessary.
     The exact rectangle intersection and >1 point-squared threshold are kept.
     """
+    record_count = len(body_records)
     for index, first in enumerate(body_records):
         first_rect = first["rect"]
-        for second in body_records[index + 1:]:
+        for second_index in range(index + 1, record_count):
+            second = body_records[second_index]
             if second["page"] != first["page"]:
                 if second["page"] > first["page"]:
                     break
