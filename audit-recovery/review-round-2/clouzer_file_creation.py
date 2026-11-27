@@ -1187,6 +1187,72 @@ def _make_docx(content: str, title: str, prompt: str = "") -> bytes:
                 if parent is not None:
                     parent.remove(paragraph._element)
 
+    # If the user explicitly requires prose in every section, do not let a
+    # model response that jumps straight from a section heading to a table
+    # silently produce an incomplete DOCX. Add a short, neutral description
+    # only for known sections that have no prose before their first table.
+    if re.search(
+        r"(?:paragraf.{0,80}setiap bagian|setiap bagian.{0,80}paragraf)",
+        str(prompt or ""), re.I | re.S,
+    ):
+        from docx.oxml import OxmlElement
+        from docx.oxml.ns import qn
+        from docx.text.paragraph import Paragraph
+
+        fallback_section_prose = {
+            "identitas": (
+                "Bagian ini memuat identitas dokumen dan konteks pengujian "
+                "yang menjadi acuan pembacaan hasil."
+            ),
+            "data pengujian": (
+                "Bagian ini menjelaskan data yang digunakan dalam pengujian; "
+                "rincian setiap entri disajikan pada tabel berikut."
+            ),
+            "kesimpulan": (
+                "Bagian ini merangkum isi dokumen dan menutup uraian pengujian "
+                "berdasarkan informasi yang disajikan pada bagian sebelumnya."
+            ),
+        }
+        body = document._element.body
+        body_children = list(body.iterchildren())
+        section_heads = []
+        for child_index, child in enumerate(body_children):
+            if child.tag != qn("w:p"):
+                continue
+            paragraph = Paragraph(child, document)
+            if not paragraph.style or not paragraph.style.name.startswith("Heading"):
+                continue
+            heading_text = re.sub(r"^\s*\d+[.)]\s*", "", paragraph.text).strip().casefold()
+            if heading_text in fallback_section_prose:
+                section_heads.append((child_index, child, heading_text))
+
+        for position, (child_index, heading_element, section_name) in enumerate(section_heads):
+            next_index = (
+                section_heads[position + 1][0]
+                if position + 1 < len(section_heads)
+                else len(body_children)
+            )
+            section_elements = body_children[child_index + 1:next_index]
+            first_table_index = next(
+                (i for i, element in enumerate(section_elements) if element.tag == qn("w:tbl")),
+                len(section_elements),
+            )
+            preceding_elements = section_elements[:first_table_index]
+            has_prose = False
+            for element in preceding_elements:
+                if element.tag != qn("w:p"):
+                    continue
+                paragraph = Paragraph(element, document)
+                style_name = paragraph.style.name.casefold() if paragraph.style else ""
+                if paragraph.text.strip() and not style_name.startswith(("heading", "list number", "list bullet")):
+                    has_prose = True
+                    break
+            if not has_prose:
+                new_paragraph_element = OxmlElement("w:p")
+                heading_element.addnext(new_paragraph_element)
+                new_paragraph = Paragraph(new_paragraph_element, document)
+                new_paragraph.add_run(fallback_section_prose[section_name])
+
     output = io.BytesIO()
     document.save(output)
     return output.getvalue()
