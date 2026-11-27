@@ -1254,6 +1254,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertEqual(filename, "Tes_PDF_Final.pdf")
         self.assertEqual(mime, "application/pdf")
         self.assertGreaterEqual(summary["pages"], 4)
+        self.assertLessEqual(summary["pages"], 4, "MASTER FINAL should fit its report body and validation appendix in four pages.")
         self.assertTrue(summary["master_final_report"])
         self.assertEqual(summary["product_rows"], 10)
         self.assertEqual(summary["table_columns"], 7)
@@ -1281,6 +1282,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertIn("Kirim attachment Discord", extracted)
         page_match = re.search(r"Jumlah halaman sebelum lampiran validasi:\s*(\d+)", extracted)
         self.assertIsNotNone(page_match)
+        self.assertLessEqual(int(page_match.group(1)), 3, "The report body must not strand a sparse fourth page before the appendix.")
         self.assertLessEqual(int(page_match.group(1)), summary["pages"])
 
 
