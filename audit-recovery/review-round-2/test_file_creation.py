@@ -1680,11 +1680,11 @@ Jangan mengklaim berhasil jika file gagal dibuat atau dikirim."""
 <tr><td>3</td><td>Citra</td><td>27</td><td>Staff</td><td>+SUM(1,1)</td></tr>
 </tbody></table>
 <ol><li>Periksa struktur.</li><li>Periksa isi.</li><li>Periksa hasil.</li></ol>
-<p>No\\tNama\\tUmur\\tJabatan\\tCatatan</p>
-<p>1\\tAndi\\t25\\tAdmin\\tNormal</p>
-<p>2\\tBudi\\t30\\tManager\\t=1+1</p>
-<p>3\\tCitra\\t27\\tStaff\\t+SUM(1,1)</p>
-<p>Catatan\\tkhusus\\tini bukan salinan tabel.</p>
+<p>No	Nama	Umur	Jabatan	Catatan</p>
+<p>1	Andi	25	Admin	Normal</p>
+<p>2	Budi	30	Manager	=1+1</p>
+<p>3	Citra	27	Staff	+SUM(1,1)</p>
+<p>Catatan	khusus	ini bukan salinan tabel.</p>
 <h2>Kesimpulan</h2><p>Dokumen selesai diuji.</p>"""
 
         data, _, _ = create_document_file("docx", prompt, content)
