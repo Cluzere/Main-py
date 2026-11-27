@@ -5177,7 +5177,7 @@ class ClouzerBot(commands.Bot):
                 # operations, not model-callable Responses tools. Tell the model to
                 # return document content only and do not expose unrelated tools.
                 payload_messages[0]["content"] += "\n\n" + build_file_generation_system_instruction(
-                    requested_file_format
+                    requested_file_format, clean_content
                 )
                 logging.info(
                     "[FILE-PIPELINE] scope=%s format=%s stage=model_content_request "
@@ -5216,6 +5216,82 @@ class ClouzerBot(commands.Bot):
                             allow_image_tool=allow_img_tool,
                             file_generation=bool(requested_file_format),
                         )
+                    if requested_file_format == "pdf" and reply_text:
+                        _pdf_min_match = re.search(
+                            r"(?:minimal|sekurang-kurangnya|paling sedikit)\\s+(\\d+)\\s+halaman",
+                            clean_content, re.I,
+                        )
+                        _pdf_min_pages = int(_pdf_min_match.group(1)) if _pdf_min_match else 0
+                        _pdf_refusal_markers = (
+                            "tidak menyediakan alat", "tidak tersedia alat", "tidak punya alat",
+                            "tidak memiliki alat", "tidak bisa membuat file", "tidak dapat membuat file",
+                            "belum bisa melampirkan", "tidak bisa melampirkan", "tidak dapat melampirkan",
+                            "cannot create a file", "cannot attach", "no file-generation tool",
+                        )
+                        if _pdf_min_pages >= 20 and not any(
+                            marker in reply_text.casefold() for marker in _pdf_refusal_markers
+                        ):
+                            _pdf_target_chars = min(350_000, _pdf_min_pages * 2_600)
+                            _pdf_total_chars = len(reply_text)
+                            _pdf_continuations = 0
+                            while _pdf_total_chars < _pdf_target_chars and _pdf_continuations < 12:
+                                _pdf_continuations += 1
+                                _pdf_headings = re.findall(r"(?m)^\\s{0,3}#{1,3}\\s+(.+?)\\s*$", reply_text)
+                                _pdf_context_tail = reply_text[-5_000:]
+                                _pdf_continue_messages = copy.deepcopy(payload_messages)
+                                _pdf_continue_messages.append({
+                                    "role": "assistant",
+                                    "content": (
+                                        "[KONTEN PDF YANG SUDAH DISUSUN — JANGAN DIULANG]\n"
+                                        "Heading yang sudah ada: " + "; ".join(_pdf_headings[-40:]) + "\n"
+                                        "Akhir konten saat ini:\n" + _pdf_context_tail
+                                    ),
+                                })
+                                _pdf_continue_messages.append({
+                                    "role": "user",
+                                    "content": (
+                                        "[LANJUTAN DOKUMEN PDF PANJANG]\n"
+                                        "Lanjutkan dokumen asli secara substantif dari titik terakhir. Jangan mengulang judul, "
+                                        "daftar isi, ringkasan eksekutif, paragraf, tabel, atau bab yang sudah selesai. "
+                                        "Pertahankan topik, gaya, fakta, struktur, dan jumlah bab yang diminta pengguna. "
+                                        "Tambahkan pembahasan baru yang mendalam: konsep, cara kerja, perkembangan, manfaat, "
+                                        "risiko, implementasi, contoh nyata yang dapat diverifikasi dari pengetahuan umum, "
+                                        "dan studi kasus yang relevan. Jangan membuat halaman kosong atau mengulang kalimat. "
+                                        "Keluarkan hanya bagian lanjutan dokumen. Target minimum keseluruhan: "
+                                        + str(_pdf_min_pages) + " halaman; panjang konten terkumpul saat ini "
+                                        + str(_pdf_total_chars) + " karakter dari target internal "
+                                        + str(_pdf_target_chars) + " karakter. Lanjutkan dengan materi baru."
+                                    ),
+                                })
+                                try:
+                                    await status_msg.edit(
+                                        content="📄 *Menyusun isi PDF panjang: bagian lanjutan "
+                                        + str(_pdf_continuations) + " dari maksimal 12...*"
+                                    )
+                                except Exception:
+                                    pass
+                                _pdf_part, _pdf_part_calls = await self.run_responses_ai(
+                                    _pdf_continue_messages, status_msg, mode=mode,
+                                    allow_tools=False, allow_image_tool=False, file_generation=True,
+                                )
+                                _pdf_part = str(_pdf_part or "").strip()
+                                if len(_pdf_part) < 800:
+                                    logging.warning(
+                                        "[PDF-CONTINUATION] scope=%s stop=short_chunk pass=%d chars=%d",
+                                        scope_key, _pdf_continuations, len(_pdf_part),
+                                    )
+                                    break
+                                _pdf_total_chars += len(_pdf_part)
+                                reply_text = reply_text.rstrip() + "\n\n" + _pdf_part
+                                logging.info(
+                                    "[PDF-CONTINUATION] scope=%s pass=%d added_chars=%d total_chars=%d target_chars=%d",
+                                    scope_key, _pdf_continuations, len(_pdf_part), _pdf_total_chars, _pdf_target_chars,
+                                )
+                            logging.info(
+                                "[PDF-CONTINUATION] scope=%s complete=%s passes=%d total_chars=%d target_chars=%d",
+                                scope_key, _pdf_total_chars >= _pdf_target_chars, _pdf_continuations,
+                                _pdf_total_chars, _pdf_target_chars,
+                            )
                     if requested_file_format:
                         logging.info(
                             "[FILE-PIPELINE] scope=%s format=%s stage=model_content_received chars=%d function_calls=%d",
@@ -5406,7 +5482,15 @@ class ClouzerBot(commands.Bot):
                             # Once MASTER FINAL source resolution succeeded, subsequent PDF errors
                             # come from deterministic local rendering/validation. Re-querying the
                             # model cannot repair those failures and only burns tokens/CPU.
-                            if is_master_final_pdf_request and file_source_content is not None:
+                            _long_pdf_match = re.search(
+                                r"(?:minimal|sekurang-kurangnya|paling sedikit)\\s+(\\d+)\\s+halaman",
+                                clean_content, re.I,
+                            )
+                            _is_long_pdf_request = bool(
+                                requested_file_format == "pdf" and _long_pdf_match
+                                and int(_long_pdf_match.group(1)) >= 20
+                            )
+                            if (is_master_final_pdf_request or _is_long_pdf_request) and file_source_content is not None:
                                 logging.error(
                                     "[FILE-BUILD-STOP] scope=%s format=pdf stage=local_render_or_validation "
                                     "reason=%s retry=skipped",
