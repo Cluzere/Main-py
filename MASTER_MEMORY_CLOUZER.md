@@ -506,6 +506,22 @@ pip install --no-cache-dir discord.py aiohttp Pillow python-dotenv requests defu
 /usr/local/bin/python /home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py
 ```
 
+**Konfirmasi ulang pengguna pada 28 November 2026:** perintah di atas adalah startup yang digunakan pada Wispbyte. Pengguna mengirim ulang bentuk satu-baris dengan URL GitHub tampil sebagai Markdown link. Untuk catatan operasional, URL wajib berupa teks URL polos (tanpa kurung siku/parentheses Markdown); bentuk kanonis yang dapat ditempel ke shell adalah:
+
+```sh
+cd /home/container && if [ ! -d /home/container/clouzer-audit/.git ]; then git clone --depth 1 --branch audit-recovery-gpt-2026-11-23 https://github.com/Cluzere/Main-py.git /home/container/clouzer-audit || exit 1; else git -C /home/container/clouzer-audit fetch --depth 1 origin audit-recovery-gpt-2026-11-23 && git -C /home/container/clouzer-audit reset --hard FETCH_HEAD || exit 1; fi && pip install --no-cache-dir -r /home/container/requirements.txt && pip install --no-cache-dir discord.py aiohttp Pillow python-dotenv requests defusedxml py7zr PyMuPDF python-docx python-pptx openpyxl && /usr/local/bin/python /home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py
+```
+
+**Audit statis startup command (belum dieksekusi di Wispbyte):**
+- Alur clone pertama kali vs fetch/reset checkout yang sudah ada konsisten dengan branch kandidat dan entry point yang tercatat.
+- `git reset --hard FETCH_HEAD` memang membuang perubahan tracked lokal pada checkout kandidat saat restart; ini disengaja untuk menyamakan tracked files dengan branch remote. Perintah ini tidak menghapus untracked files.
+- URL yang dikirim dalam bentuk Markdown bukan URL shell yang valid. Jika itu hanya format tampilan chat dan panel Wispbyte menyimpan URL polos, tidak ada masalah; jika literal Markdown ditempel ke panel, `git clone` akan gagal.
+- `pip` dipanggil sebagai executable terpisah, sedangkan bot dijalankan dengan `/usr/local/bin/python`. Belum ada bukti keduanya menunjuk interpreter/environment yang sama. Verifikasi yang tepat adalah membandingkan `pip --version` dengan `/usr/local/bin/python -m pip --version` dari runtime; jangan mengubah startup ke `python -m pip` tanpa konfirmasi lingkungan Wispbyte.
+- Dua tahap instalasi pip dapat menyebabkan dependency overlap/version resolution berubah; daftar paket eksplisit belum dipin versinya. Ini risiko reproducibility, bukan bukti startup saat ini gagal.
+- Tidak ada `pip check`, jadi konflik dependency mungkin tidak terdeteksi saat startup. Ini temuan hardening; jangan menambahkan langkah atau mengubah command tanpa izin dan tes.
+- `git reset --hard` tidak membersihkan file untracked. Jangan menambahkan `git clean -fd` secara membabi buta karena dapat menghapus file runtime/config/artifact yang sengaja disimpan.
+- Command tidak membuktikan runtime sudah memuat commit tertentu sampai log startup terbaru menunjukkan SHA hasil fetch/reset dan proses mencapai `[ONLINE]`.
+
 The first shown fetch reset to `55bc65d`. After restart, the next shown fetch reset to:
 
 ```
