@@ -141,3 +141,64 @@ Dokumen ini adalah referensi tunggal (*single source of truth*) untuk melanjutka
 3. **Jangan Ubah Pipeline Audio Cloudflare (`CF_AUDIO_MODEL` & Payload Base64):** Transkripsi `.aac` sudah terbukti jalan memakai `@cf/openai/whisper-large-v3-turbo` dengan payload `{"audio": audio_b64}`. Jangan kembalikan ke endpoint Xingchi `/audio/transcriptions` (terbukti `HTTP 404`).
 4. **Pertahankan `build_failure_tool_continuation()` & Isolasi Mode Edit Gambar:** Jangan hapus pengiriman `function_call_output` untuk setiap `function_call` ke `/v1/responses`, dan jangan pernah mengalihkan kegagalan edit gambar (`Klein 4B`) ke generator gambar baru (`Pollinations FLUX`).
 5. **Komunikasi Langsung, Teknis & Kontekstual:** Gunakan bahasa santai yang ringkas dan akurat, jangan membalikkan pertanyaan dasar yang jawabannya sudah tercatat di dokumen handoff ini, serta bedakan secara tegas antara fakta yang sudah terbukti dan dugaan yang belum diverifikasi.
+
+---
+
+## 9. HANDOFF AKTIF — Pengujian Pembuatan PDF Berat (28 November 2026)
+
+**Tujuan sesi berikutnya:** Melanjutkan pengujian kemampuan CLOUZER membuat PDF panjang/berat. Ini adalah pekerjaan pengujian yang belum selesai, bukan sekadar riwayat percakapan. Sesi berikutnya wajib membaca bagian ini dan melanjutkan dari langkah berikutnya.
+
+### A. Konteks percobaan terakhir
+
+* Pengguna meminta pengujian PDF berat dan menyetujui pengujian langsung dengan beban besar.
+* Prompt uji yang dikirim melalui Discord meminta PDF minimal **100 halaman**.
+* CLOUZER membalas: `PDF hanya memiliki 2 halaman; prompt meminta minimal 100.`
+* Pengguna menegaskan bahwa lonjakan resource awal saat startup / mulai menjalankan pekerjaan dianggap wajar. Fokus investigasi bukan menyimpulkan OOM hanya karena ada lonjakan sesaat.
+* Percobaan berikutnya melalui perintah **Ulangi** menghasilkan kegagalan yang sama. Retry tidak memperbaiki dokumen dan hanya mengulangi proses validasi terhadap hasil 2 halaman.
+
+### B. Bukti log dan interpretasi yang sudah didukung
+
+Data log yang dikirim pengguna:
+
+* Batas memori cgroup: **588.8 MB**.
+* Memori cgroup awal sekitar **170 MB**, puncak sampel yang tercatat sekitar **171.8 MB** pada diagnostik awal; kemudian turun bertahap hingga sekitar **132.3 MB**.
+* RSS proses sekitar **124.9 MB** pada awal pemantauan dan puncak sekitar **133.4 MB**.
+* Diagnostik 131 baris: rata-rata CPU proses sekitar **0.19%**; rata-rata CPU cgroup sekitar **0.95%** pada rentang sampel yang diringkas. Terdapat lonjakan singkat saat pembuatan PDF.
+* CPU quota awal tercatat `100000 100000` lalu berubah menjadi `35000 100000` (sekitar 35% dari satu core). Saat pekerjaan PDF berlangsung, CPU proses/cgroup sempat berada di kisaran **30–40%** dan terjadi throttle events. Setelah pekerjaan selesai, pemakaian kembali rendah.
+* Tahap validasi PDF sangat cepat: ekstraksi teks 2 halaman **0.010 s**, scan drawing **0.004 s**, span bounds **0.001 s**, table drawing scan **0.001 s**, total validasi **0.131 s**.
+* Traceback utama: `create_document_file()` → `validate_document_file()` di `clouzer_file_creation.py`, melempar `ValueError: PDF hanya memiliki 2 halaman; prompt meminta minimal 100.`
+* `process_ai_turn()` mencoba ulang sekali setelah `FILE-RETRY`, tetapi percobaan kedua kembali menghasilkan 2 halaman dan ValueError yang sama.
+
+**Kesimpulan sementara yang boleh dipakai:** kegagalan yang terbukti adalah ketidaksesuaian jumlah halaman hasil PDF (2, padahal minimal 100 diminta). Log menunjukkan lonjakan CPU/throttling singkat saat proses file, tetapi tidak menunjukkan bukti OOM atau kehabisan RAM. Jangan menyebut RAM sebagai akar masalah tanpa bukti baru. Validasi PDF sendiri bukan bottleneck yang berarti. Belum diketahui apakah penyebab hasil 2 halaman adalah instruksi/prompt yang tidak cukup mengikat, pemotongan/ketidaklengkapan konten yang dihasilkan model, atau bug pada pipeline pembuatan dokumen.
+
+### C. Lokasi kode dan batas perubahan
+
+* Runtime traceback menunjukkan kandidat aktif yang diuji berada di:
+  * `audit-recovery/review-round-2/revisi_audit_final_main.py`
+  * `audit-recovery/review-round-2/clouzer_file_creation.py`
+* Fungsi relevan:
+  * `process_ai_turn()` di file kandidat utama, sekitar baris 5335 dan retry sekitar 5467 menurut traceback.
+  * `create_document_file()` di `clouzer_file_creation.py`, sekitar baris 3198.
+  * `validate_document_file()` di `clouzer_file_creation.py`, sekitar baris 2554.
+* Jangan menganggap nomor baris masih sama sebelum membaca file/branch terkini.
+* **Jangan mengubah atau deploy production `main.py`, jangan restart bot, dan jangan mengubah kode apa pun tanpa izin eksplisit pengguna.** Analisis dan usulan pengujian boleh dilakukan terlebih dahulu.
+
+### D. Rencana kerja sesi berikutnya — lanjutkan pengujian, bukan mengulang kegagalan yang sama
+
+1. Baca Master Memory ini terlebih dahulu, lalu periksa branch kandidat dan file `clouzer_file_creation.py` yang benar-benar dipakai pada pengujian. Jangan mengasumsikan branch atau file kandidat tanpa verifikasi.
+2. Telusuri alur PDF dari prompt Discord sampai data yang masuk ke `create_document_file()`: bagaimana model diminta membuat konten, bagaimana konten disimpan/diteruskan, dan bagaimana jumlah halaman target ditentukan.
+3. Periksa implementasi `validate_document_file()` dan mekanisme retry. Pastikan retry tidak sekadar mengirim ulang input identik yang sudah gagal. Jangan mengubah validator untuk meloloskan PDF 2 halaman sebagai 100 halaman.
+4. Rancang uji bertahap yang tetap bermakna: mulai dari PDF 10 halaman, lalu 25, 50, dan akhirnya 100 halaman; gunakan struktur bab, subbab, tabel, dan isi substantif yang jelas agar jumlah halaman tidak tercapai melalui halaman kosong atau pengulangan filler.
+5. Untuk setiap uji, catat jumlah halaman aktual, ukuran file, waktu pembuatan, waktu validasi, CPU/RSS/cgroup memory, throttle events, serta apakah hasil lolos pemeriksaan isi dan tata letak.
+6. Jika perlu menguji ulang target 100 halaman secara langsung, gunakan prompt Discord yang eksplisit meminta dokumen panjang dengan pembagian bab dan target isi per bab. Namun jangan menganggap prompt yang lebih panjang otomatis menyelesaikan masalah; verifikasi output PDF secara objektif.
+7. Setelah akar masalah ditemukan, laporkan bukti dan usulan patch terlebih dahulu. Tunggu izin pengguna sebelum mengubah file atau deployment.
+
+### E. Status pekerjaan
+
+* **Belum lulus:** PDF minimal 100 halaman.
+* **Hasil terakhir:** 2 halaman; ditolak validator.
+* **Retry:** gagal dengan error identik.
+* **RAM/OOM:** tidak terbukti sebagai penyebab.
+* **CPU:** ada lonjakan dan throttling singkat ketika pekerjaan PDF berlangsung; setelahnya kembali rendah.
+* **Akar masalah pipeline:** belum ditemukan.
+* **Langkah aktif berikutnya:** audit alur prompt → konten dokumen → pembuatan PDF → validasi → retry, lalu jalankan pengujian bertahap.
