@@ -4644,3 +4644,52 @@ Observed behavior indicates two distinct problems to investigate; do not collaps
 - Keep the basic PPTX structure test PASS separate from the visual-enrichment failure.
 
 **Handoff summary:** The candidate implementation for Lucid Origin visual enrichment and PPTX embedding passed the recorded CI suite, but the next live Discord/Box result contradicts end-to-end success: user reports the five-slide AI PPTX still has no pictures and CLOUZER returned/inserted Markdown rather than executing visual generation and embedding. New artifact is `clouzer_buatkan_presentasi_powerpoint_pptx_t_20261127_183400.pptx` (Box ID `2619411248600`). The next session must inspect the actual PPTX ZIP/media/slide relationships and render, verify Wispbyte's exact running commit, trace the Markdown-only response and provider/helper handoff, then add a regression test for this failure. No production changes, merge, or Wispbyte restart are authorized.
+
+
+---
+
+## 52.49 Candidate PPTX visuals made default and fail-closed — 28 November 2026
+
+### Confirmed defect from live artifact and source
+- Downloaded and inspected Box file `2619411248600` directly as a ZIP-based PPTX package.
+- Actual package result:
+  - ZIP CRC/integrity: PASS.
+  - Five slides: present.
+  - `ppt/media/`: empty / no media files.
+  - `p:pic`: zero picture shapes across all five slides.
+  - Slide text includes Markdown markers and textual “Ilustrasi visual” descriptions; those descriptions are not actual visual assets.
+- Candidate source review identified a fail-open path: PPTX visual generation/embed exceptions were caught by the generic file-build retry handler, which could regenerate and deliver a plain PPTX after visual generation failed. That behavior could falsely present a no-visual deck as successful.
+
+### Candidate-only code change
+- Branch: `audit-recovery-gpt-2026-11-23`
+- File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
+- Commit: `99ea0fed2f78415fcafdfcae4ad892ebb3d397e1`
+- Changes:
+  1. Every PPTX creation now enters the Lucid Origin visual-generation and embedding path by default, rather than requiring the user's prompt to contain a visual keyword.
+  2. Any PPTX visual generation or embedding `ValueError`/`RuntimeError` now fails closed and is not sent through the generic plain-PPTX retry path.
+  3. Failure is logged as `[PPTX-VISUAL] stage=failed_closed`; the code no longer silently delivers a plain PPTX as if visual enrichment succeeded.
+- Existing model pin remains `@cf/leonardo/lucid-origin`.
+- This is a candidate branch change only. Production `main.py` and production branch `main` remain untouched. PR #6 remains unmerged.
+
+### Verification status after this change
+| Item | Status |
+|---|---|
+| Original Box PPTX package inspected | PASS |
+| Original package contains embedded visual media | FAIL — none |
+| Candidate source change committed | PASS |
+| PPTX visuals requested by default | Implemented; not yet runtime-tested |
+| Silent plain-PPTX fallback after visual failure | Closed in source; regression test/CI pending |
+| Candidate CI for commit `99ea0fed2f78415fcafdfcae4ad892ebb3d397e1` | NOT VERIFIED |
+| Cloudflare Lucid Origin live response | NOT VERIFIED |
+| Wispbyte running commit | NOT VERIFIED |
+| Discord delivery of a visual PPTX | NOT VERIFIED |
+
+### Required next gates
+1. Add a regression test proving PPTX visual failures cannot reach the generic retry/plain-file delivery path.
+2. Run syntax, focused and full tests, security checks, and all relevant GitHub Actions on commit `99ea0fed2f78415fcafdfcae4ad892ebb3d397e1`.
+3. User restarts only the candidate Wispbyte service; confirm startup logs show the exact commit above. Assistant must not claim or perform a restart.
+4. Submit a simple PPTX request. Confirm Lucid Origin call, generated asset count, embedded picture count, PPTX validation, and Discord attachment confirmation.
+5. Download the resulting attachment and verify `ppt/media/`, `p:pic`, image relationships, five-slide content, editable text, and rendered slide layout.
+6. Preserve the Box original; upload any corrected output under a new filename.
+
+**Handoff:** The previous Box artifact is conclusively a five-slide PPTX with no embedded pictures. Candidate source now attempts Lucid Origin enrichment for every PPTX and fails closed instead of silently delivering a plain deck after image failure. This fixes a concrete fail-open defect but is not yet accepted end-to-end: tests/CI, provider runtime, Wispbyte commit, and Discord delivery remain open.
