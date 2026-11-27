@@ -130,20 +130,20 @@ def build_file_generation_system_instruction(format_name: str) -> str:
 
 def _safe_title(content: str, prompt: str) -> str:
     value = str(content or "")
-    html_heading = re.search(r"<h1\\b[^>]*>(.*?)</h1\\s*>", value, re.I | re.S)
+    html_heading = re.search(r"<h1\b[^>]*>(.*?)</h1\s*>", value, re.I | re.S)
     if html_heading:
         from html import unescape
         heading = re.sub(r"<[^>]+>", "", html_heading.group(1))
-        heading = unescape(re.sub(r"\\s+", " ", heading)).strip()
+        heading = unescape(re.sub(r"\s+", " ", heading)).strip()
         if heading:
             return heading[:100]
     for line in value.splitlines():
-        match = re.match(r"^\\s{0,3}#{1,6}\\s+(.+?)\\s*$", line)
+        match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)\s*$", line)
         if match and match.group(1).strip():
             return match.group(1).strip()[:100]
     for line in value.splitlines():
         value_line = line.strip()
-        if value_line and "\\t" not in value_line and not (value_line.startswith("|") and value_line.endswith("|")):
+        if value_line and "\t" not in value_line and not (value_line.startswith("|") and value_line.endswith("|")):
             clean = re.sub(r"<[^>]+>", "", value_line)
             from html import unescape
             clean = unescape(clean).strip()
@@ -742,7 +742,7 @@ def _make_docx(content: str, title: str) -> bytes:
 
     document = Document()
     value = str(content or "")
-    if re.search(r"</?(?:h[1-6]|p|table|thead|tbody|tr|th|td|ol|ul|li|div|strong|b|em|i|br)\\b", value, re.I):
+    if re.search(r"</?(?:h[1-6]|p|table|thead|tbody|tr|th|td|ol|ul|li|div|strong|b|em|i|br)\b", value, re.I):
         from html.parser import HTMLParser
         from html import unescape
 
@@ -882,30 +882,30 @@ def _make_docx(content: str, title: str) -> bytes:
         first_heading = ""
         for node in parser.root["children"]:
             if isinstance(node, dict) and re.fullmatch(r"h[1-6]", node["tag"]):
-                first_heading = re.sub(r"\\s+", " ", node_text(node)).strip()
+                first_heading = re.sub(r"\s+", " ", node_text(node)).strip()
                 break
         first_line = re.sub(r"<[^>]+>", "", value.splitlines()[0]).strip() if value.splitlines() else ""
         if title.casefold() not in {first_heading.casefold(), first_line.casefold()}:
             document.add_heading(title, level=0)
         render_blocks(parser.root["children"])
     else:
-        blocks = [block.strip() for block in re.split(r"\\n\\s*\\n", value) if block.strip()]
-        first_heading = re.sub(r"^#\\s+", "", blocks[0]).strip() if blocks and re.match(r"^#\\s+", blocks[0]) else ""
+        blocks = [block.strip() for block in re.split(r"\n\s*\n", value) if block.strip()]
+        first_heading = re.sub(r"^#\s+", "", blocks[0]).strip() if blocks and re.match(r"^#\s+", blocks[0]) else ""
         first_line = blocks[0].splitlines()[0].strip() if blocks else ""
         if title.casefold() not in {first_heading.casefold(), first_line.casefold()}:
             document.add_heading(title, level=0)
         for block in blocks:
             lines = block.splitlines()
-            if len(lines) == 1 and re.match(r"^#{1,6}\\s+", lines[0]):
-                match = re.match(r"^(#{1,6})\\s+(.*)$", lines[0])
+            if len(lines) == 1 and re.match(r"^#{1,6}\s+", lines[0]):
+                match = re.match(r"^(#{1,6})\s+(.*)$", lines[0])
                 document.add_heading(match.group(2).strip(), level=min(len(match.group(1)), 3))
             else:
                 paragraph = document.add_paragraph()
                 for index, line in enumerate(lines):
                     if index:
                         paragraph.add_run().add_break()
-                    cleaned = re.sub(r"\\*\\*(.*?)\\*\\*", r"\\1", line)
-                    cleaned = re.sub(r"(?<!\\*)\\*([^*]+)\\*(?!\\*)", r"\\1", cleaned)
+                    cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", line)
+                    cleaned = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", cleaned)
                     paragraph.add_run(cleaned)
     output = io.BytesIO()
     document.save(output)
@@ -2156,11 +2156,11 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
     elif fmt == "docx":
         from docx import Document
         doc = Document(io.BytesIO(data))
-        text_content = "\\n".join(p.text for p in doc.paragraphs)
-        text_content += "\\n" + "\\n".join(cell.text for table in doc.tables for row in table.rows for cell in row.cells)
+        text_content = "\n".join(p.text for p in doc.paragraphs)
+        text_content += "\n" + "\n".join(cell.text for table in doc.tables for row in table.rows for cell in row.cells)
         if not text_content.strip():
             raise ValueError("DOCX tidak memiliki teks.")
-        if re.search(r"</?(?:h[1-6]|p|table|thead|tbody|tr|th|td|ol|ul|li)\\b", text_content, re.I):
+        if re.search(r"</?(?:h[1-6]|p|table|thead|tbody|tr|th|td|ol|ul|li)\b", text_content, re.I):
             raise ValueError("DOCX masih berisi tag HTML mentah; konversi struktur Word gagal.")
         heading_count = sum(
             1 for paragraph in doc.paragraphs
@@ -2171,9 +2171,9 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
             1 for paragraph in doc.paragraphs
             if paragraph.style and paragraph.style.name.casefold().startswith("list number")
         )
-        if re.search(r"\\b(?:heading|subheading|judul dengan struktur word)\\b", prompt, re.I) and heading_count == 0:
+        if re.search(r"\b(?:heading|subheading|judul dengan struktur word)\b", prompt, re.I) and heading_count == 0:
             raise ValueError("DOCX diminta memiliki heading Word asli, tetapi tidak ditemukan.")
-        if re.search(r"\\b(?:tabel|table)\\b", prompt, re.I) and table_count == 0:
+        if re.search(r"\b(?:tabel|table)\b", prompt, re.I) and table_count == 0:
             raise ValueError("DOCX diminta memiliki tabel Word asli, tetapi tidak ditemukan.")
         if re.search(r"daftar bernomor|numbered list", prompt, re.I) and numbered_list_count == 0:
             raise ValueError("DOCX diminta memiliki daftar bernomor Word asli, tetapi tidak ditemukan.")
