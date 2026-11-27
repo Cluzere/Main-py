@@ -1766,6 +1766,75 @@ Jangan mengklaim berhasil jika file gagal dibuat atau dikirim."""
         self.assertEqual(summary["tables"], 1)
         self.assertEqual(summary["numbered_lists"], 3)
 
+    def test_docx_adds_missing_section_prose_before_table_when_prompt_requires_it(self):
+        from docx import Document
+        from docx.oxml.ns import qn
+        from docx.text.paragraph import Paragraph
+
+        prompt = """Buat file DOCX dengan tiga bagian Identitas, Data Pengujian, dan Kesimpulan.
+Buat paragraf singkat pada setiap bagian.
+Buat tabel Word asli dengan kolom No, Nama dan data:
+- 1 | Andi
+- 2 | Budi"""
+        model_content = """<h1>LAPORAN PENGUJIAN CLOUZER</h1>
+<h2>Identitas</h2><p>Dokumen ini mencatat identitas pengujian.</p>
+<h2>Data Pengujian</h2>
+<table><tr><th>No</th><th>Nama</th></tr><tr><td>1</td><td>Andi</td></tr><tr><td>2</td><td>Budi</td></tr></table>
+<h2>Kesimpulan</h2><p>Dokumen ini menutup uraian pengujian.</p>"""
+
+        data, _, _ = create_document_file("docx", prompt, model_content)
+        document = Document(io.BytesIO(data))
+        self.assertEqual(len(document.tables), 1)
+        self.assertEqual(
+            [[cell.text for cell in row.cells] for row in document.tables[0].rows],
+            [["No", "Nama"], ["1", "Andi"], ["2", "Budi"]],
+        )
+
+        body_children = list(document._element.body.iterchildren())
+        for heading in ("Identitas", "Data Pengujian", "Kesimpulan"):
+            heading_index = next(
+                index for index, element in enumerate(body_children)
+                if element.tag == qn("w:p")
+                and Paragraph(element, document).text.strip() == heading
+            )
+            next_heading_index = next(
+                (
+                    index for index in range(heading_index + 1, len(body_children))
+                    if body_children[index].tag == qn("w:p")
+                    and Paragraph(body_children[index], document).style.name.startswith("Heading")
+                ),
+                len(body_children),
+            )
+            section_elements = body_children[heading_index + 1:next_heading_index]
+            first_table_index = next(
+                (index for index, element in enumerate(section_elements) if element.tag == qn("w:tbl")),
+                len(section_elements),
+            )
+            prose = [
+                Paragraph(element, document)
+                for element in section_elements[:first_table_index]
+                if element.tag == qn("w:p")
+                and Paragraph(element, document).text.strip()
+                and not Paragraph(element, document).style.name.startswith(("Heading", "List Number", "List Bullet"))
+            ]
+            self.assertTrue(prose, f"Section '{heading}' has no prose paragraph before its table.")
+        data_heading_index = next(
+            index for index, element in enumerate(body_children)
+            if element.tag == qn("w:p")
+            and Paragraph(element, document).text.strip() == "Data Pengujian"
+        )
+        table_index = next(
+            index for index, element in enumerate(body_children)
+            if element.tag == qn("w:tbl")
+        )
+        inserted = Paragraph(body_children[data_heading_index + 1], document)
+        self.assertEqual(
+            inserted.text,
+            "Bagian ini menjelaskan data yang digunakan dalam pengujian; rincian setiap entri disajikan pada tabel berikut.",
+        )
+        self.assertEqual(body_children[data_heading_index + 1].tag, qn("w:p"))
+        self.assertLess(data_heading_index + 1, table_index)
+
     def test_docx_generator_matches_uploaded_user_acceptance_spec(self):
         from docx import Document
 
