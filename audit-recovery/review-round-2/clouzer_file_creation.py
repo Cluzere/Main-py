@@ -417,7 +417,7 @@ def _validate_content(content: str) -> str:
     return content
 
 
-def _make_pdf(content: str, title: str) -> bytes:
+def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
     """Build a readable, selectable-text PDF with real tables and Excel-like styling."""
     try:
         import pymupdf as fitz
@@ -436,7 +436,7 @@ def _make_pdf(content: str, title: str) -> bytes:
     doc = fitz.open()
     page = None
     y = top
-    page_number = 0
+    page_number = max(0, int(page_number_start) - 1)
 
     def new_page():
         nonlocal page, y, page_number
@@ -2339,25 +2339,39 @@ def create_document_file(format_name: str, prompt: str, content: str) -> tuple[b
         raise RuntimeError("File hasil melebihi batas aman 8 MB.")
 
     if fmt == "pdf" and _is_master_final_pdf_prompt(prompt):
-        # Exactly two builds and two validations: inspect the narrative/table
-        # baseline without enforcing the final page minimum, append measured
-        # evidence, then enforce every acceptance rule on the exact final bytes.
-        # The baseline page count is explicitly labeled as pre-appendix data;
-        # the embedded minimum-page PASS is valid only because this function
-        # returns a file after the final-byte validator accepts it.
+        # Render the report body once. After the lightweight baseline inspection,
+        # render only the backend appendix and append those pages to the existing
+        # PDF. Rebuilding the entire report a second time duplicated the most
+        # expensive layout work on constrained Wispbyte CPU quotas.
         stage_started = time.perf_counter()
         baseline_summary = validate_document_file(
             fmt, prompt, data, enforce_minimum_pages=False, deep_inspection=False
         )
         logging.warning("[PDF-STAGE] baseline_validation_seconds=%.3f", time.perf_counter() - stage_started)
-        text = _append_master_final_validation_summary(text, baseline_summary)
+        completed_text = _append_master_final_validation_summary(text, baseline_summary)
+        marker = "### Ringkasan Validasi Otomatis CLOUZER"
+        marker_index = completed_text.find(marker)
+        if marker_index < 0:
+            raise RuntimeError("Lampiran validasi MASTER FINAL tidak berhasil disusun.")
+        appendix_text = completed_text[marker_index:]
         stage_started = time.perf_counter()
-        data = builders[fmt]()
-        logging.warning("[PDF-STAGE] final_render_seconds=%.3f bytes=%d", time.perf_counter() - stage_started, len(data or b""))
+        appendix_data = _make_pdf(
+            appendix_text, title,
+            page_number_start=int(baseline_summary.get("pages", 0)) + 1,
+        )
+        import pymupdf
+        with pymupdf.open(stream=data, filetype="pdf") as report_doc:
+            with pymupdf.open(stream=appendix_data, filetype="pdf") as appendix_doc:
+                report_doc.insert_pdf(appendix_doc)
+            data = report_doc.tobytes(garbage=3, deflate=True)
+        logging.warning(
+            "[PDF-STAGE] appendix_render_merge_seconds=%.3f bytes=%d",
+            time.perf_counter() - stage_started, len(data or b""),
+        )
         if not data:
-            raise RuntimeError("PDF MASTER FINAL kosong setelah ringkasan validasi disisipkan.")
+            raise RuntimeError("PDF MASTER FINAL kosong setelah lampiran validasi disisipkan.")
         if len(data) > MAX_GENERATED_FILE_BYTES:
-            raise RuntimeError("PDF MASTER FINAL melebihi batas aman 8 MB setelah validasi.")
+            raise RuntimeError("PDF MASTER FINAL melebihi batas aman 8 MB setelah lampiran validasi.")
         stage_started = time.perf_counter()
         final_summary = validate_document_file(fmt, prompt, data, enforce_minimum_pages=True, deep_inspection=True)
         logging.warning("[PDF-STAGE] final_deep_validation_seconds=%.3f pages=%s bytes=%d", time.perf_counter() - stage_started, final_summary.get("pages") if isinstance(final_summary, dict) else None, len(data))
