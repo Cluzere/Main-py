@@ -738,17 +738,17 @@ def _docx_table_from_explicit_prompt(prompt: str) -> list[list[str]]:
     """Extract a user-authored DOCX schema and pipe-delimited rows as authoritative data."""
     value = str(prompt or "")
     header_match = re.search(
-        r"\\bkolom\\s+(.+?)\\s+dan\\s+data\\s*:",
+        r"\bkolom\s+(.+?)\s+dan\s+data\s*:",
         value, re.I | re.S,
     )
     if not header_match:
         return []
-    headers = [item.strip(" \\t,;:.") for item in re.split(r"\\s*,\\s*", header_match.group(1).strip())]
+    headers = [item.strip(" \t,;:.") for item in re.split(r"\s*,\s*", header_match.group(1).strip())]
     if len(headers) < 2 or len(headers) > MAX_TABLE_COLUMNS or any(not item for item in headers):
         return []
     rows = [headers]
     for line in value[header_match.end():].splitlines():
-        match = re.match(r"^\\s*[-*]\\s*(.+?)\\s*$", line)
+        match = re.match(r"^\s*[-*]\s*(.+?)\s*$", line)
         if not match:
             continue
         raw = match.group(1).strip()
