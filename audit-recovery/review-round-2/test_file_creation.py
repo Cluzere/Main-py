@@ -148,6 +148,55 @@ Jangan mengklaim berhasil jika file belum benar-benar dibuat dan dikirim."""
         headings = [p.text for p in doc.paragraphs if p.style.name.startswith("Title") or p.style.name.startswith("Heading")]
         self.assertEqual(headings.count("Laporan CLOUZER"), 1)
 
+    def test_docx_converts_html_into_native_word_structure(self):
+        from docx import Document
+        prompt = (
+            "Buat DOCX dengan heading Word, tabel Word asli, dan daftar bernomor. "
+            "Judul hanya satu kali."
+        )
+        content = """<h1>LAPORAN PENGUJIAN CLOUZER</h1>
+<h2>1. Identitas</h2>
+<p>Nama proyek: CLOUZER.</p>
+<h2>2. Data Pengujian</h2>
+<p>Data contoh untuk pemeriksaan tabel.</p>
+<table>
+<thead><tr><th>No</th><th>Nama</th><th>Umur</th><th>Jabatan</th><th>Catatan</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Andi</td><td>25</td><td>Admin</td><td>Normal</td></tr>
+<tr><td>2</td><td>Budi</td><td>30</td><td>Manager</td><td>=1+1</td></tr>
+<tr><td>3</td><td>Citra</td><td>27</td><td>Staff</td><td>+SUM(1,1)</td></tr>
+</tbody></table>
+<ol><li>Periksa judul.</li><li>Periksa tabel.</li><li>Periksa struktur Word.</li></ol>
+<h2>3. Kesimpulan</h2>
+<p>Dokumen pendek untuk tes konversi HTML.</p>"""
+        data, filename, mime = create_document_file("docx", prompt, content)
+        doc = Document(io.BytesIO(data))
+        paragraphs = doc.paragraphs
+        all_text = "\\n".join(p.text for p in paragraphs)
+        self.assertTrue(filename.endswith(".docx"))
+        self.assertIn("application/vnd.openxmlformats-officedocument.wordprocessingml.document", mime)
+        self.assertEqual(all_text.count("LAPORAN PENGUJIAN CLOUZER"), 1)
+        self.assertFalse(any("<h1>" in p.text or "<table>" in p.text or "<li>" in p.text for p in paragraphs))
+        self.assertEqual(sum(p.style.name.startswith("Heading") for p in paragraphs), 4)
+        self.assertEqual(len(doc.tables), 1)
+        self.assertEqual((len(doc.tables[0].rows), len(doc.tables[0].columns)), (4, 5))
+        self.assertEqual(doc.tables[0].cell(2, 4).text, "=1+1")
+        self.assertEqual(sum(p.style.name.casefold().startswith("list number") for p in paragraphs), 3)
+        summary = validate_document_file("docx", prompt, data)
+        self.assertEqual(summary["headings"], 4)
+        self.assertEqual(summary["tables"], 1)
+        self.assertEqual(summary["numbered_lists"], 3)
+
+    def test_docx_validator_rejects_raw_html_and_missing_native_table(self):
+        from docx import Document
+        doc = Document()
+        doc.add_paragraph("<h1>Judul</h1>")
+        output = io.BytesIO()
+        doc.save(output)
+        prompt = "Buat DOCX dengan heading Word dan tabel Word asli."
+        with self.assertRaisesRegex(ValueError, "tag HTML mentah"):
+            validate_document_file("docx", prompt, output.getvalue())
+
     def test_all_remaining_formats_build(self):
         content = "# Dokumen CLOUZER\n\nIsi dokumen yang cukup panjang untuk validasi hasil pembuatan file."
         for fmt in ("txt", "pdf", "docx"):
