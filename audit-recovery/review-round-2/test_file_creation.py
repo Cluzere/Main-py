@@ -2064,7 +2064,7 @@ def test_pptx_request_phrase_routes_to_pptx_file_generation(self):
         failed_closed_log = source.index(
             '"[PPTX-VISUAL] scope=%s stage=failed_closed reason=%s"', pptx_guard
         )
-        fail_closed_raise = source.index("\\n                                raise\\n", failed_closed_log)
+        fail_closed_raise = source.index("\n                                raise\n", failed_closed_log)
         generic_retry_log = source.index(
             '"[FILE-RETRY] scope=%s format=%s reason=%s action=retry_once"', handler_start
         )
