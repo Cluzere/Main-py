@@ -1147,7 +1147,7 @@ def _make_docx(content: str, title: str, prompt: str = "") -> bytes:
     # exists as a native Word table. Do not strip arbitrary tabbed prose or
     # partial rows: the full ordered row sequence must match exactly.
     def _normalized_table_cell(value):
-        return re.sub(r"\\s+", " ", str(value or "")).strip()
+        return re.sub(r"\s+", " ", str(value or "")).strip()
 
     native_table_sequences = []
     for native_table in document.tables:
@@ -1170,10 +1170,10 @@ def _make_docx(content: str, title: str, prompt: str = "") -> bytes:
                 candidate_rows = []
                 for paragraph in candidate_paragraphs:
                     raw_text = paragraph.text
-                    if "\\t" not in raw_text:
+                    if "\t" not in raw_text:
                         candidate_rows = []
                         break
-                    cells = tuple(_normalized_table_cell(cell) for cell in raw_text.split("\\t"))
+                    cells = tuple(_normalized_table_cell(cell) for cell in raw_text.split("\t"))
                     if len(cells) != column_count:
                         candidate_rows = []
                         break
