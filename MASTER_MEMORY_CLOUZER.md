@@ -3937,3 +3937,13 @@ Priority order; all code changes and CI work remain candidate-branch-only:
 - The DOCX artifact remains FAIL until a newly generated live artifact is independently inspected for native heading styles, actual w:tbl table structure, native numbering, content fidelity, and actual Discord attachment delivery. Candidate unit tests/CI do not prove live artifact acceptance.
 
 Status: DOCX failure recorded and candidate code remediation plus regression tests committed. CI for the latest candidate head and live Discord/Wispbyte retest remain pending. Production remains protected; no merge, deployment, or restart performed.
+
+
+### CI update — exact DOCX remediation code commit verified
+- On exact candidate code commit 42be95393567f50b231c5a9a1cdfc6cf07d8d703, all three push-triggered candidate workflows completed SUCCESS:
+  1. Audit recovery candidate — run 45974140992: SUCCESS.
+  2. CLOUZER multi-format file audit — run 45974141195: SUCCESS.
+  3. Audit candidate syntax check — run 45974141123: SUCCESS. The run includes dependency consistency, compilation, security scans, document/file creation tests, ZIP fixture verification, archive regressions, and the existing audit regression suite.
+- This supersedes the intermediate regex-escaping failure for commit 9677467... and confirms candidate CI for the corrected DOCX parser, validator, and regression tests.
+- The later documentation-only Master Memory commit does not change candidate code. Do not confuse its separate push-triggered workflow with the exact code commit's three green results above.
+- Candidate CI PASS is not live Wispbyte/Discord acceptance. A new live DOCX artifact must still be generated and independently inspected after the candidate code is loaded by the user's authorized runtime test.
