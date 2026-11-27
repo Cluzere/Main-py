@@ -4230,3 +4230,66 @@ All three push-triggered workflows reached terminal `completed / success` on exa
 - Do not repeat PDF/XLSX/ZIP tests, do not touch production root `main.py` or production branch `main`, and do not merge PR #6 without explicit authorization.
 
 **Handoff summary:** The DOCX generator now supplies a neutral section paragraph when the user explicitly requires one and a section would otherwise jump straight to its native table. The regression reproducing the missing Data Pengujian paragraph passes, and all three GitHub Actions workflows are green on code/test commit `f380a21e173956e1e3b8390e42a1fa69a7f57f50`. The remaining gate is one live retest after the user authorizes Wispbyte restart and the startup log confirms the candidate commit. Production, PR merge state, and Wispbyte runtime were not changed.
+
+---
+
+## 52.43 DOCX live retest — complete acceptance PASS and next format plan — 27 November 2026
+
+### Artifact identity and provenance
+- User uploaded a new DOCX artifact to Box folder `CLOUZER_BUANGAN_UPLOAD/Tes 10 file`.
+- File: `clouzer_buat_satu_file_docx_yang_bisa_diedit_20261127_124804.docx`.
+- Box file ID: `2618819646650`.
+- Box URL: https://account.box.com/file/2618819646650
+- Size: 37,326 bytes.
+- SHA-1 from Box metadata: `c4d3c63787dd4d853bfffd8ec23331d610bb99f5`.
+- Downloaded the raw binary from Box and inspected it locally; this verdict is based on the actual DOCX package, not Box text preview alone.
+
+### Raw DOCX acceptance results
+- [x] ZIP package integrity: `ZipFile.testzip()` returned `None`; 17 package members.
+- [x] `python-docx` opened the document successfully.
+- [x] Exactly one native Word table; dimensions 4 rows × 5 columns.
+- [x] Exact table contents:
+  - Header: `No | Nama | Umur | Jabatan | Catatan`
+  - `1 | Andi | 25 | Admin | Lulus`
+  - `2 | Budi | 30 | Developer | Perlu review`
+  - `3 | Citra | 28 | Tester | Selesai`
+- [x] One title paragraph: `LAPORAN PENGUJIAN CLOUZER`, styled `Heading 1`.
+- [x] Three section headings each appear once and use `Heading 2`: `Identitas`, `Data Pengujian`, `Kesimpulan`.
+- [x] Each of the three sections has its own non-empty prose paragraph. Crucially, `Data Pengujian` now has a separate introductory paragraph before the native table.
+- [x] Three list items use Word's native `List Number` paragraph style.
+- [x] Literal strings `=SUM(A1:A10)`, `=CMD|'/C calc'!A0`, and `Jangan mengubah teks ini menjadi formula.` remain ordinary document paragraphs, not converted into formulas.
+- [x] No duplicate table paragraphs were present in the document body.
+- [x] The document rendered to one page in the LibreOffice inspection; no clipping or overflow was observed. This is LibreOffice evidence, not a direct Microsoft Word application test.
+
+### Verdict and evidence boundary
+- DOCX package integrity: **PASS**.
+- Native Word table, shape, and exact cell values: **PASS**.
+- Title and section heading structure: **PASS**.
+- Separate prose paragraph in all three sections: **PASS**.
+- Native Word numbering: **PASS**.
+- Literal formula-like text: **PASS**.
+- Duplicate-table cleanup: **PASS**.
+- LibreOffice one-page rendering/no clipping: **PASS (LibreOffice only)**.
+- **Overall DOCX artifact acceptance: PASS.** This closes the previously missing `Data Pengujian` prose criterion from §§52.41–52.42; the older artifact in §52.41 remains historically PARTIAL and is not retroactively changed.
+- Discord attachment send/receipt/download and automatic Box upload provenance remain separate evidence gates. The fact that this artifact is present in Box does not by itself prove CLOUZER's Discord delivery or automatic Box upload path.
+- Runtime commit used to generate this artifact was not established by a matching Wispbyte startup log; do not infer that the deployed runtime was the latest candidate commit.
+
+### Next testing plan — follow the existing Master Memory sequence
+The DOCX work is closed. Continue with the order already recorded in §52.38; do not invent a new order or repeat completed formats.
+
+1. **PPTX — next priority.** Inspect the existing PPTX live artifact/test evidence first. If no matching raw artifact covers the acceptance criteria, perform one controlled PPTX live test and inspect the actual .pptx package, slide count/order, text and layout, editable native elements where required, media/assets, package integrity, rendering, and delivery evidence. Do not assume the file passes merely because it opens.
+2. **CSV — after PPTX.** Reconcile the existing CSV evidence first. If still unverified, run a single focused CSV acceptance test covering valid encoding/delimiter, header and row counts, exact cell values, quoting/commas/newlines, and preservation of literal text.
+3. **JSON — after CSV.** Reconcile the existing JSON artifact/evidence first. If still unverified, test strict JSON parsing, expected object/array structure, data types, escaping/Unicode, and exact values.
+4. Do not repeat the already-closed PDF, XLSX, or ZIP creation artifact tests unless a new specific regression or uncovered criterion justifies it. Keep the known ZIP extraction/security cases distinct from ZIP creation.
+5. Keep the reliability workstream separate from format acceptance: retry/context persistence, SSE interruption recovery, provider rate-limit backoff, and explicit stage-by-stage operation outcomes. Do not mix these into PPTX/CSV/JSON testing unless a reproducible failure connects them.
+6. Keep Discord attachment send/receipt/download and automatic Box upload provenance as separate checks; never infer one from another.
+7. Before each new live test, inspect the existing Master Memory evidence/checklist and use one controlled prompt only when a real evidence gap remains. Avoid wasting the user's quota on duplicate tests.
+
+### Protected boundaries
+- Repository: `Cluzere/Main-py`; audit branch: `audit-recovery-gpt-2026-11-23`.
+- Production root `main.py`, production branch `main`, and production runtime remain untouched unless the user explicitly authorizes a production change.
+- PR #6 remains draft/unmerged unless explicitly authorized.
+- User controls Wispbyte restart; do not restart or claim a candidate is live without explicit permission and startup-log evidence for the fetched HEAD.
+- Preserve append-only Master Memory history; future updates must fetch the latest file and blob SHA before appending.
+
+**Handoff summary:** The newest raw Box DOCX artifact passes every defined DOCX artifact criterion, including the formerly missing separate paragraph under `Data Pengujian`. DOCX is closed. The next format is PPTX, followed by CSV and JSON only after reconciling whether existing raw artifacts already cover them. PDF/XLSX/ZIP creation tests are not to be repeated without a specific uncovered criterion. Reliability and delivery-provenance work remain separate.
