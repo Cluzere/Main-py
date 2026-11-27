@@ -341,9 +341,10 @@ Dokumen selesai diuji."""
         actual_titles = [slide.shapes.title.text for slide in prs.slides]
         self.assertEqual(actual_titles, slide_titles)
         for slide, expected_title in zip(prs.slides, slide_titles):
+            title_shape_id = slide.shapes.title.shape_id
             body_text = " ".join(
                 shape.text for shape in slide.shapes
-                if getattr(shape, "has_text_frame", False) and shape is not slide.shapes.title
+                if getattr(shape, "has_text_frame", False) and shape.shape_id != title_shape_id
             )
             self.assertNotIn(expected_title, body_text)
             self.assertIn("Isi khusus untuk " + expected_title, body_text)
