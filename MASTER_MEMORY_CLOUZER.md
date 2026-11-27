@@ -4073,3 +4073,42 @@ All three required workflows reached terminal `completed / success` on the exact
 - The prior uploaded live artifact remains **PASS for core DOCX structure/content; PARTIAL for presentation cleanliness**. CI does not retroactively change that artifact's verdict.
 - Live DOCX retest remains pending. After the user explicitly authorizes and performs a Wispbyte restart that fetches this exact branch HEAD (or a later descendant), run one controlled DOCX prompt and inspect the resulting raw DOCX bytes for: one native 4×5 table, exact cell values, headings, native numbering, no duplicate tab-delimited rows, preserved non-table prose, valid OOXML package, and Discord attachment delivery evidence.
 - Do not claim deployment, live artifact PASS, Discord delivery, or automatic Box upload until separately evidenced.
+
+
+---
+
+## 52.40 DOCX assertion fixture correction and exact-head CI closeout — 27 November 2026
+
+### Current branch and source identity
+- Re-read this Master Memory from the live audit branch before continuing. Its pre-update blob SHA was `60fff746ae6798f4c3569c9fcd9f6254a7a32af9`.
+- Audit branch `audit-recovery-gpt-2026-11-23` advanced to code/test commit `76fca8da1be2e982b5933e2d77a908b7e02a5432` (parent `28fc4f0786764a74fd15d8baa431776bafb1bdea`).
+- Current helper blob remains `7e3ce0986c5cfda0687d57c371aaa3ef68023ab8`, matching the helper recorded in §52.39.
+- Current test file blob is `126ef4486b0ac9632d1940750c5952037c827bc0`.
+- Candidate entrypoint blob is `1cb994fd2760d7e653cfee83588696a985c9c371`.
+
+### Verified test-fixture correction
+- In `audit-recovery/review-round-2/test_file_creation.py`, two DOCX acceptance assertions had used a Python source literal that produced the two characters backslash-plus-t instead of an actual tab separator.
+- Corrected only those two assertions to use the actual tab character (`"\\t".join(row)` in source notation).
+- This was a test-fixture defect, not evidence of a defect in the DOCX generator or inspected DOCX artifact. No helper, candidate entrypoint, production file, or Wispbyte setting was changed in this commit.
+- The tests now compare complete tab-delimited table rows against ordinary document paragraphs using real tab characters, so the duplicate-table assertion can detect the actual regression.
+
+### Exact-head CI evidence — commit 76fca8d
+All three push-triggered candidate workflows completed successfully on exact branch HEAD `76fca8da1be2e982b5933e2d77a908b7e02a5432`:
+1. Audit candidate syntax check — run `45996972957`: https://github.com/Cluzere/Main-py/actions/runs/45996972957. Full file-creation suite: **161 tests, OK**. DOCX generator, duplicate-table cleanup, and uploaded-artifact acceptance tests all passed. Candidate syntax/security checks also passed.
+2. Audit recovery candidate — run `45996972999`: https://github.com/Cluzere/Main-py/actions/runs/45996972999. Full file-creation suite: **161 tests, OK**; focused archive regression suite also passed.
+3. CLOUZER multi-format file audit — run `45996973008`: https://github.com/Cluzere/Main-py/actions/runs/45996973008. Full file-creation suite: **161 tests, OK**.
+- An expected simulated parser exception is logged inside `test_on_message_processes_ten_mixed_attachments_and_isolates_one_failure`; the test itself reports `ok`. It is not a workflow failure.
+- All three workflow runs reached terminal `completed / success`; the job logs were inspected and the DOCX-specific tests were confirmed as executed and passing.
+
+### Current DOCX acceptance boundary and next user action
+- Candidate code/test CI: **PASS** for the exact duplicate tab-delimited table cleanup regression and the uploaded DOCX structural acceptance test.
+- The already-inspected live DOCX artifact described in §52.38 remains **PASS for core native structure/content; PARTIAL for presentation cleanliness**. A green CI run does not retroactively alter that artifact's verdict.
+- The latest code/test commit `76fca8d` has not been confirmed loaded by Wispbyte. The Master Memory's last confirmed Wispbyte runtime revision remains `266d05c8c80e3c167de2627d1ccad43779b385f8`; no restart/deployment was performed as part of this CI/test correction.
+- The startup configuration recorded in §4 fetches the audit branch and launches `audit-recovery/review-round-2/revisi_audit_final_main.py`. The user controls Wispbyte restart and must authorize/perform it; do not ask the user to create a separate staging bot, and do not claim the new commit is deployed.
+- Next live DOCX gate, only after the user chooses to restart Wispbyte: confirm startup log HEAD is `76fca8d` or a later descendant, run one controlled DOCX prompt, and inspect the actual raw DOCX attachment for one native 4×5 table, exact cell values, headings, native numbering, literal strings, no duplicate tab-delimited table paragraphs, valid OOXML, and evidence of Discord attachment delivery.
+- Do not repeat PDF/XLSX/ZIP artifact tests already closed in §§52.35–52.36. After DOCX live closeout, follow §52.38's next-format checklist (PPTX, then any still-unverified CSV/JSON) rather than inventing a new sequence.
+
+### Protected boundaries
+- Production root `main.py`, production branch `main`, and production runtime remain untouched.
+- PR #6 was rechecked: open, draft, unmerged; base `main`, head `audit-recovery-gpt-2026-11-23` at code/test commit `76fca8d` before this documentation-only append.
+- No Wispbyte restart, deploy, PR merge, or production change was performed.
