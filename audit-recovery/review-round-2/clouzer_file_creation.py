@@ -1798,9 +1798,9 @@ def _append_master_final_validation_summary(content: str, summary: dict) -> str:
         ("Lapisan teks PDF", "PASS" if summary.get("text_layer") and summary.get("text_chars", 0) > 0 else "FAIL", f"{summary.get('text_chars', 0)} karakter teks dapat diekstrak."),
         ("Elemen vektor PDF", "PASS" if summary.get("vector_drawings", 0) >= 6 else "FAIL", f"{summary.get('vector_drawings', 0)} elemen gambar vektor terdeteksi; garis sel tabel divalidasi terpisah."),
         ("Pengulangan header tabel saat tabel berlanjut", "NOT APPLICABLE" if table_pages <= 1 else "PASS" if repeated_header_ok else "FAIL", f"{summary.get('table_header_pages', 0)} header untuk {table_pages} halaman tabel."),
-        ("Inspeksi visual manual seluruh halaman", "NOT VERIFIED", "Pemeriksaan otomatis tidak menggantikan inspeksi visual halaman demi halaman."),
-        ("Seleksi/salin manual di aplikasi pembaca PDF", "NOT VERIFIED", "Lapisan teks tersedia; interaksi manual pada pembaca PDF belum diuji."),
-        ("Pengiriman attachment Discord", "NOT VERIFIED", "Status pengiriman baru dapat dipastikan setelah pesan Discord berhasil dikirim."),
+        ("Inspeksi visual manual", "NOT VERIFIED", "Belum diperiksa manusia."),
+        ("Seleksi/salin di PDF reader", "NOT VERIFIED", "Uji manual belum dilakukan."),
+        ("Kirim attachment Discord", "NOT VERIFIED", "Konfirmasi pengiriman belum tersedia."),
     ]
     rows = [
         "### Ringkasan Validasi Otomatis CLOUZER",
