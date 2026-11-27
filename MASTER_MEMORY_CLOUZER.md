@@ -4555,3 +4555,92 @@ Observed behavior indicates two distinct problems to investigate; do not collaps
 6. Do not mark visual enrichment fully PASS until the live artifact and follow-up sequence are independently verified.
 
 **Handoff:** Candidate code now routes PPTX visual enrichment through the explicitly pinned Cloudflare Lucid Origin model, embeds image objects into the original slide deck while retaining editable text, and persists the Discord PPTX message reference for follow-up edits. All three CI workflows are green on exact code HEAD `5d2e3c8fd46c7668da2f012546cc60b13bf1abc3`: audit recovery run `46047063580`, multi-format audit run `46047063673`, and syntax check run `46047063513`. The multi-format run executed **164 tests; all passed**, including the new PPTX image-embedding regression. The later HEAD `41f0b7d0c8f9ebfc6f23a9668221e39ebb6c6629` only appends this memory record; no runtime source changed after the green code HEAD. Live provider, Discord, and Wispbyte verification remain open.
+
+
+---
+
+## 52.48 Live visual-enrichment failure after Lucid Origin candidate implementation — 28 November 2026
+
+### New Box artifact identified
+- User uploaded a new PowerPoint after being instructed to test a five-slide presentation with visuals.
+- Identified file:
+  - Filename: `clouzer_buatkan_presentasi_powerpoint_pptx_t_20261127_183400.pptx`
+  - Box file ID: `2619411248600`
+  - Folder: `CLOUZER_BUANGAN_UPLOAD`
+  - Reported size: 34,489 bytes
+  - Box URL: https://account.box.com/file/2619411248600
+- The presentation contains five AI-topic slides:
+  1. Mengenal AI
+  2. Cara Kerja AI
+  3. Penerapan AI
+  4. Manfaat dan Tantangan
+  5. Penggunaan AI secara Bertanggung Jawab
+- The file's text/content was inspected through Box. This text inspection does NOT establish that pictures are embedded or visually rendered.
+
+### Latest live-test outcome (user report)
+- User reports the resulting PPTX still contains no visual images.
+- Instead of producing/inserting slide visuals, CLOUZER added Markdown describing or responding to the visual instruction.
+- Therefore the live visual-enrichment feature is **NOT ACCEPTED / FAIL in this test**, despite the earlier candidate CI passing.
+- Do not describe this artifact as visually enriched. Do not mark Lucid Origin generation, picture embedding, or live follow-up editing as PASS based on the file's existence or extracted text.
+- Distinguish this result from the earlier basic PPTX structural PASS and from the candidate unit/CI tests.
+
+### Important discrepancy against §52.47
+- §52.47 records that candidate code was changed to pin `@cf/leonardo/lucid-origin`, create slide-specific image assets, embed images with `add_picture()`, persist the latest Discord PPTX message reference, and pass 164 tests.
+- The newly reported live result demonstrates that these CI/unit-test results have not yet translated into a successful end-to-end Discord/Wispbyte visual-enrichment workflow.
+- Possible failure points remain hypotheses until logs/source/artifact are examined:
+  1. Wispbyte may not be running exact candidate HEAD `5d2e3c8fd46c7668da2f012546cc60b13bf1abc3`.
+  2. The incoming request may be classified as a generic text/Markdown response rather than PPTX visual-enrichment intent.
+  3. The model/tool call may not execute or its output may not be handed to the PPTX embedding helper.
+  4. The PPTX artifact context may not be resolved from the prior Discord message.
+  5. The image generation request may fail at Cloudflare/provider level and the failure may be mishandled.
+  6. The generated PPTX may be created without embedding media, or the wrong artifact may have been uploaded to Box.
+- Do not state any one of these as the confirmed root cause without direct evidence.
+
+### Required next investigation
+1. Retrieve/download Box file `2619411248600` and inspect its actual bytes, not only extracted text.
+2. Inspect ZIP package:
+   - list `ppt/media/*`;
+   - inspect each `ppt/slides/slideN.xml` for picture elements (`p:pic`);
+   - inspect slide relationship files for valid image targets;
+   - distinguish embedded but unreferenced media from images actually placed on slides.
+3. Render all five slides to PDF/PNG with LibreOffice and verify whether visual images are visibly present.
+4. Obtain Wispbyte startup log and confirm exact running branch/commit. Expected candidate code HEAD from §52.47: `5d2e3c8fd46c7668da2f012546cc60b13bf1abc3`; do not assume this is what Wispbyte is running.
+5. Capture safe diagnostic logs for the exact Discord request:
+   - recognized intent / selected handler;
+   - resolved source PPTX message ID and attachment filename;
+   - selected image model (`@cf/leonardo/lucid-origin`);
+   - provider request outcome and generated asset count;
+   - handoff into PPTX embedding helper;
+   - embedded picture count and validation outcome;
+   - final output filename and Discord attachment confirmation.
+   Never log API keys, tokens, or secrets.
+6. Inspect the candidate code path responsible for the Markdown response. Determine why the visual instruction is being emitted as text instead of being executed as an image-generation-plus-PPTX-edit workflow.
+7. Add a regression test for this exact failure mode: a visual-enrichment request must not terminate as Markdown-only output; it must either produce a new PPTX with validated embedded pictures or return a clear actionable error without claiming success.
+8. After fixing, rerun syntax/compile, focused tests, full regression, security checks, and all relevant GitHub Actions. Then user may restart candidate Wispbyte; verify exact startup HEAD and repeat live Discord test.
+9. Preserve the original Box artifact. Save every revised deck under a new filename.
+
+### Current status matrix
+| Item | Status |
+|---|---|
+| Candidate Lucid Origin integration code | Implemented according to §52.47 |
+| Candidate CI at code HEAD `5d2e3c8fd46c7668da2f012546cc60b13bf1abc3` | PASS (164 tests; three workflows green as recorded in §52.47) |
+| New live Box PPTX located | PASS — file ID `2619411248600` |
+| Five-slide AI presentation content identified | PASS |
+| Actual embedded media in newest PPTX | NOT VERIFIED |
+| User-reported visual images in final slides | FAIL — user reports none |
+| Markdown emitted instead of visual execution | FAIL — user reports Markdown response |
+| Exact Wispbyte running commit | NOT VERIFIED |
+| Live Lucid Origin provider call | NOT VERIFIED |
+| Live image-to-PPTX embedding | NOT PASS |
+| Final Discord attachment after visual enrichment | NOT VERIFIED |
+
+### Protected boundaries
+- Work only on branch `audit-recovery-gpt-2026-11-23` and candidate files.
+- Do not modify production root `main.py` or production branch `main`.
+- Do not merge PR #6.
+- Do not restart/deploy Wispbyte; user controls the restart.
+- Preserve Box originals and create new output files.
+- CI PASS is not equivalent to live feature PASS.
+- Keep the basic PPTX structure test PASS separate from the visual-enrichment failure.
+
+**Handoff summary:** The candidate implementation for Lucid Origin visual enrichment and PPTX embedding passed the recorded CI suite, but the next live Discord/Box result contradicts end-to-end success: user reports the five-slide AI PPTX still has no pictures and CLOUZER returned/inserted Markdown rather than executing visual generation and embedding. New artifact is `clouzer_buatkan_presentasi_powerpoint_pptx_t_20261127_183400.pptx` (Box ID `2619411248600`). The next session must inspect the actual PPTX ZIP/media/slide relationships and render, verify Wispbyte's exact running commit, trace the Markdown-only response and provider/helper handoff, then add a regression test for this failure. No production changes, merge, or Wispbyte restart are authorized.
