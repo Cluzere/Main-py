@@ -148,7 +148,7 @@ def build_file_generation_system_instruction(format_name: str, prompt: str = "")
 def build_pdf_retry_instruction(prompt: str, previous_error: object = "") -> str:
     """Build targeted PDF recovery guidance without weakening page-count validation."""
     match = re.search(
-        r"(?:minimal|sekurang-kurangnya|paling sedikit)\\s+(\\d+)\\s+halaman",
+        r"(?:minimal|sekurang-kurangnya|paling sedikit)\s+(\d+)\s+halaman",
         str(prompt or ""),
         re.I,
     )
