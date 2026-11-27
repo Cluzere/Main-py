@@ -6417,7 +6417,7 @@ async def on_message(message: discord.Message):
 # Lightweight hosting resource tracker. Reads Linux procfs/cgroup files only; no extra dependency.
 class _HostResourceTracker:
     def __init__(self):
-        self.interval = max(2.0, min(15.0, _env_float("RESOURCE_TRACK_INTERVAL_SECONDS", 5.0, 2.0)))
+        self.interval = max(1.0, min(5.0, _env_float("RESOURCE_TRACK_INTERVAL_SECONDS", 1.0, 1.0)))
         self.log_path = os.path.join(BASE_DIR, "resource_trace.csv")
         self._stop = threading.Event()
         self._thread = None
@@ -6426,6 +6426,9 @@ class _HostResourceTracker:
         self._last_cgroup = None
         self._started_at = time.monotonic()
         self._last_report = self._started_at
+        self._window_peak_process_cpu = 0.0
+        self._window_peak_cgroup_cpu = 0.0
+        self._window_throttle_events = 0
 
     @staticmethod
     def _read_text(path):
@@ -6516,6 +6519,12 @@ class _HostResourceTracker:
         }
         self._last_proc, self._last_sys, self._last_cgroup = proc, system, cg
         self._last_report_sample = now
+        if cpu_process is not None:
+            self._window_peak_process_cpu = max(self._window_peak_process_cpu, cpu_process)
+        if cpu_cgroup is not None:
+            self._window_peak_cgroup_cpu = max(self._window_peak_cgroup_cpu, cpu_cgroup)
+        if throttle_delta is not None:
+            self._window_throttle_events += throttle_delta
         return row
 
     def _run(self):
@@ -6533,10 +6542,15 @@ class _HostResourceTracker:
                     )) + "\n")
                     if time.monotonic() - self._last_report >= 30:
                         logging.warning(
-                            "[RESOURCE] proc_cpu=%s%% one-core | cgroup_cpu=%s%% | RSS=%s MB | cgroup_mem=%s/%s MB | throttle_events+%s",
-                            row["process_cpu_one_core_pct"], row["cgroup_cpu_pct"], row["rss_mb"],
-                            row["cgroup_memory_mb"], row["cgroup_memory_limit_mb"], row["cpu_throttle_events_delta"]
+                            "[RESOURCE] proc_cpu_now=%s%% peak_30s=%s%% one-core | cgroup_cpu_now=%s%% peak_30s=%s%% | RSS=%s MB | cgroup_mem=%s/%s MB | throttle_events_30s=%s | throttled_usec_total=%s | quota=%s",
+                            row["process_cpu_one_core_pct"], round(self._window_peak_process_cpu, 1),
+                            row["cgroup_cpu_pct"], round(self._window_peak_cgroup_cpu, 1),
+                            row["rss_mb"], row["cgroup_memory_mb"], row["cgroup_memory_limit_mb"],
+                            self._window_throttle_events, row["cpu_throttled_usec_total"], row["cpu_quota"]
                         )
+                        self._window_peak_process_cpu = 0.0
+                        self._window_peak_cgroup_cpu = 0.0
+                        self._window_throttle_events = 0
                         self._last_report = time.monotonic()
         except Exception:
             logging.exception("[RESOURCE] Resource tracker stopped unexpectedly.")
