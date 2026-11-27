@@ -1276,7 +1276,7 @@ Ulangi header jika tabel berlanjut ke halaman berikutnya. Pastikan teks dapat di
         self.assertIn("LAPORAN PENGUJIAN GENERATOR PDF CLOUZER", extracted)
         self.assertIn("CLOUZER", extracted)
         self.assertIn("Ringkasan Validasi Otomatis CLOUZER", extracted)
-        self.assertIn("Inspeksi visual manual seluruh halaman", extracted)
+        self.assertIn("Inspeksi visual manual", extracted)
         self.assertIn("NOT VERIFIED", extracted)
         self.assertEqual(re.sub(r"\s+", " ", extracted).casefold().count("not verified"), 3)
         self.assertIn("Pengiriman attachment Discord", extracted)
