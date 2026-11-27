@@ -556,7 +556,7 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
             (4, 2.5, 7.0) if is_validation_summary
             else (6, 5, (8.2 if columns <= 5 else 7.2))
         )
-        row_line_factor = 1.4 if is_validation_summary else 1.6
+        row_line_factor = 1.8 if is_validation_summary else 1.6
         header_line_factor = 1.8 if is_validation_summary else row_line_factor
         inner_widths = [max(18, width - 2 * pad_x) for width in widths]
         header_lines = [wrap_cell(value, "hebo", font_size, inner_widths[i])
