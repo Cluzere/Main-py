@@ -1758,12 +1758,6 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
             result["pages"] = doc.page_count
             result["text_chars"] = len(extracted.strip())
 
-            # Cache each expensive PyMuPDF inspection once per page.
-            page_dicts = [page.get_text("dict") for page in doc]
-            page_drawings = [page.get_drawings() for page in doc]
-            result["vector_drawings"] = sum(len(items) for items in page_drawings)
-            if re.search(r"\b(?:tabel|table)\b", prompt, re.I) and result["vector_drawings"] < 6:
-                raise ValueError("PDF diminta memiliki tabel, tetapi struktur tabel visual tidak ditemukan.")
             page_sizes = [(round(page.rect.width), round(page.rect.height)) for page in doc]
             result["page_sizes"] = page_sizes
             if re.search(r"\bA4\b", prompt, re.I) and any(
@@ -1782,8 +1776,12 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
             # below. The baseline pass only gathers cheap facts needed to build
             # the appendix; it is never returned or attached to Discord.
             if _is_master_final_pdf_prompt(prompt) and not deep_inspection:
+                if "not verified" in extracted.casefold() and "ringkasan validasi otomatis clouzer" not in extracted.casefold():
+                    raise ValueError(
+                        "Konten sumber tidak boleh berisi placeholder NOT VERIFIED; backend menyusun status berdasarkan hasil validasi nyata."
+                    )
                 page_body_chars = [
-                    len(re.sub(r"\\s+", "", re.sub(r"(?i)\\bHalaman\\s+\\d+\\b", "", page_text)))
+                    len(re.sub(r"\s+", "", re.sub(r"(?i)\bHalaman\s+\d+\b", "", page_text)))
                     for page_text in page_texts
                 ]
                 result.update({
@@ -1795,6 +1793,15 @@ def validate_document_file(format_name: str, prompt: str, data: bytes, enforce_m
                     "valid": True,
                 })
                 return result
+
+            # Only the final MASTER FINAL artifact performs this deep pass.
+            # Keep expensive PyMuPDF text dictionaries and vector drawings out
+            # of the baseline inspection entirely.
+            page_dicts = [page.get_text("dict") for page in doc]
+            page_drawings = [page.get_drawings() for page in doc]
+            result["vector_drawings"] = sum(len(items) for items in page_drawings)
+            if re.search(r"\b(?:tabel|table)\b", prompt, re.I) and result["vector_drawings"] < 6:
+                raise ValueError("PDF diminta memiliki tabel, tetapi struktur tabel visual tidak ditemukan.")
 
             spans = []
             for page_index, (page, page_dict) in enumerate(zip(doc, page_dicts), 1):
