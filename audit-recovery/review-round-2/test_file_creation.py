@@ -317,6 +317,37 @@ Dokumen selesai diuji."""
         with self.assertRaisesRegex(ValueError, "tepat 2"):
             create_document_file("csv", prompt, "id,nama\n1,A\n2,B\n3,C")
 
+    def test_pptx_uses_each_slide_chunk_title_instead_of_repeating_deck_title(self):
+        from pptx import Presentation
+
+        prompt = "Buat presentasi PowerPoint 5 slide tentang CLOUZER"
+        slide_titles = [
+            "Slide 1 — Pengenalan CLOUZER AI",
+            "Slide 2 — Tujuan dan Fungsi Utama",
+            "Slide 3 — Cara Kerja Sistem",
+            "Slide 4 — Manfaat dan Kemampuan",
+            "Slide 5 — Kesimpulan",
+        ]
+        sections = [
+            title + "\nIsi khusus untuk " + title + "."
+            for title in slide_titles
+        ]
+        content = "\n--- SLIDE ---\n".join(sections)
+
+        data, _, _ = create_document_file("pptx", prompt, content)
+        prs = Presentation(io.BytesIO(data))
+
+        self.assertEqual(len(prs.slides), 5)
+        actual_titles = [slide.shapes.title.text for slide in prs.slides]
+        self.assertEqual(actual_titles, slide_titles)
+        for slide, expected_title in zip(prs.slides, slide_titles):
+            body_text = " ".join(
+                shape.text for shape in slide.shapes
+                if getattr(shape, "has_text_frame", False) and shape is not slide.shapes.title
+            )
+            self.assertNotIn(expected_title, body_text)
+            self.assertIn("Isi khusus untuk " + expected_title, body_text)
+
     def test_pptx_preserves_lines_beyond_old_truncation_limit(self):
         from pptx import Presentation
         prompt = "Buat presentasi PowerPoint 2 slide"
