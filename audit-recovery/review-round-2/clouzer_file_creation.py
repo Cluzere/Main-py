@@ -1494,11 +1494,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
                 bbox = span.get("bbox")
                 if not bbox:
                     continue
-                center = pymupdf.Point(
-                    (bbox[0] + bbox[2]) / 2,
-                    (bbox[1] + bbox[3]) / 2,
-                )
-                if inner.contains(center):
+                span_rect = pymupdf.Rect(bbox)
+                if span_rect.intersects(inner):
                     selected.append((bbox[1], bbox[0], str(span.get("text", ""))))
             selected.sort(key=lambda item: (round(item[0], 1), item[1]))
             return " ".join(item[2] for item in selected).strip()
@@ -1515,11 +1512,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
                     bbox = span.get("bbox")
                     if not bbox or span.get("color") != 0xFFFFFF or not span.get("flags", 0) & 16:
                         continue
-                    center = pymupdf.Point(
-                        (bbox[0] + bbox[2]) / 2,
-                        (bbox[1] + bbox[3]) / 2,
-                    )
-                    if any(cell["rect"].contains(center) for cell in cells):
+                    span_rect = pymupdf.Rect(bbox)
+                    if any(span_rect.intersects(cell["rect"]) for cell in cells):
                         white_bold_spans += 1
                 header_style_checks.append(header_fill_ok and white_bold_spans >= 7)
                 break
