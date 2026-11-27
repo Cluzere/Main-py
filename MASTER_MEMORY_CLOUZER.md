@@ -3688,3 +3688,33 @@ Intermediate candidate CI runs failed while iterating on stale test labels, insu
 - PR #6 remains DRAFT and UNMERGED. No production deploy/restart or production `main.py` modification was performed or authorized.
 
 **Status:** pagination optimization and a strict regression assertion are committed to the existing audit branch; CI and a fresh staging artifact are pending. Do not mark PDF closeout complete yet.
+
+
+## 52.33 CI workflow audit and staging smoke-test correction — 27 November 2026
+
+### Workflow files inspected on the audit branch
+- `.github/workflows/audit-candidate-check.yml`
+- `.github/workflows/audit-recovery.yml`
+- `.github/workflows/clouzer-multiformat-audit.yml`
+- `.github/workflows/staging-smoke-test.yml`
+
+### Findings
+- The three candidate CI workflows have push triggers targeting `audit-recovery-gpt-2026-11-23`. Their path filters include the PDF helper and/or candidate regression test files changed in §52.32. The multi-format workflow runs on every push to the audit branch. The trigger/path configuration therefore covers the pagination helper and regression-test commits.
+- The staging smoke test is deliberately `workflow_dispatch` only; it is not an automatic push CI job. It validates the staging Discord secret/authentication and provider API credentials.
+- A concrete stale endpoint defect was found in `staging-smoke-test.yml`: it still called Xingchi `/v1/chat/completions` with a Chat Completions payload even though the confirmed provider integration for this project requires the Responses API.
+- Replaced it with `POST https://api.xingchiapi.com/v1/responses`, payload fields `model`, `input`, `max_output_tokens`, and `stream: false`, OpenCode-compatible User-Agent/client headers, and a 120-second timeout (matching the prior verified staging smoke-test correction in commit `7e1f4c3...` and timeout correction `52b8948...`).
+- Corrected the HTTP error credential-redaction regexes. The initial conversion accidentally over-escaped the regex; a follow-up commit corrected it to match whitespace and redact Bearer/API-key/token values properly.
+- Commits:
+  - `7dc35d558ccbe76c20e39fe1a704029b7fd6004c` — switch smoke test to Responses API and 120-second timeout.
+  - `239f51cd2de23d5a0641ef12a569e4cab586b0f9` — correct credential-redaction regex escaping.
+- Final workflow blob SHA: `af44a2feadf96b6cb8436128852b42dda1ed8b92`.
+
+### CI verification status and tool limitation
+- Exact commit lookups for pagination commits `a47214e...`, `f9a995d...`, and workflow correction `239f51c...` returned no workflow runs from the available `fetch_commit_workflow_runs` wrapper and no combined commit statuses. That wrapper explicitly filters to pull-request-triggered runs only; it cannot establish whether push-triggered runs were created.
+- The available GitHub Actions connector exposes workflow-run lookup only by commit (PR-triggered filter), job/log retrieval when a run ID is known, and rerun operations. It does not expose a list-all-runs or workflow-dispatch action. Direct browser access to the Actions page was unavailable in this session.
+- Therefore no claim is made that the new commits have passed CI. Workflow YAML/trigger configuration was inspected and the stale staging endpoint was fixed, but an actual run for the latest candidate SHA remains unverified.
+- The staging smoke test requires repository secrets `STAGING_DISCORD_BOT_TOKEN` and `STAGING_XINGCHI_API_KEY`; no secret values were read or exposed. It has not been dispatched, so live Discord/provider authentication is not tested.
+- The final Responses API workflow script has been read back from GitHub and its corrected regex lines verified in the committed file. Live YAML runner execution is still pending.
+- PR #6 remains DRAFT and UNMERGED. No production branch/file/runtime changes, deployment, or restart occurred.
+
+**Status:** one real workflow defect corrected and committed; candidate workflow triggers appear correctly scoped. Actual latest-head Actions run results and staging secret smoke test remain unverified because the available connector cannot list push-triggered runs or dispatch workflow_dispatch.
