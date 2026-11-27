@@ -2051,3 +2051,23 @@ Deskripsi visual: Gambar robot dengan teks AI besar."""
 
 if __name__ == "__main__":
     unittest.main()
+
+def test_pptx_request_phrase_routes_to_pptx_file_generation(self):
+        prompt = "Buatkan presentasi PowerPoint PPTX 5 slide tentang keamanan AI."
+        self.assertEqual(detect_requested_file_format(prompt), "pptx")
+
+    def test_pptx_visual_failure_guard_precedes_generic_file_retry(self):
+        candidate_path = Path(__file__).with_name("revisi_audit_final_main.py")
+        source = candidate_path.read_text(encoding="utf-8")
+        handler_start = source.index("except (ValueError, RuntimeError) as build_exc:")
+        pptx_guard = source.index('if requested_file_format == "pptx":', handler_start)
+        failed_closed_log = source.index(
+            '"[PPTX-VISUAL] scope=%s stage=failed_closed reason=%s"', pptx_guard
+        )
+        fail_closed_raise = source.index("\\n                                raise\\n", failed_closed_log)
+        generic_retry_log = source.index(
+            '"[FILE-RETRY] scope=%s format=%s reason=%s action=retry_once"', handler_start
+        )
+        self.assertLess(pptx_guard, failed_closed_log)
+        self.assertLess(failed_closed_log, fail_closed_raise)
+        self.assertLess(fail_closed_raise, generic_retry_log)
