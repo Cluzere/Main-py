@@ -1470,11 +1470,15 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
         return bool(actual and len(actual) >= 3 and all(abs(actual[i] - expected[i]) <= tolerance for i in range(3)))
 
     _deep_stage_started = time.perf_counter()
+    _scan_timers = {"textpage_setup": 0.0, "text_record_extraction": 0.0, "drawing_grouping": 0.0, "table_row_grouping": 0.0, "cell_text_and_style": 0.0}
     for page_index, page in enumerate(doc):
         # Reuse one full-page TextPage for all table-cell extraction on this page.
         # TextPage.extractTextbox applies the same rectangle selection without
         # rebuilding a clipped TextPage for every individual cell.
+        _scan_started = time.perf_counter()
         page_textpage = page.get_textpage()
+        _scan_timers["textpage_setup"] += time.perf_counter() - _scan_started
+        _scan_started = time.perf_counter()
         for block in page_dicts[page_index]["blocks"]:
             if "lines" not in block:
                 continue
@@ -1488,6 +1492,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
                     "rect": pymupdf.Rect(block["bbox"]),
                     "text": block_text,
                 })
+        _scan_timers["text_record_extraction"] += time.perf_counter() - _scan_started
+        _scan_started = time.perf_counter()
         grouped = {}
         for drawing in page_drawings[page_index]:
             rect = drawing.get("rect")
@@ -1501,6 +1507,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
                 "stroke": drawing.get("color"),
                 "width": drawing.get("width", 0),
             })
+        _scan_timers["drawing_grouping"] += time.perf_counter() - _scan_started
+        _scan_started = time.perf_counter()
         page_rows = []
         for y, cells in sorted(grouped.items()):
             cells.sort(key=lambda cell: cell["rect"].x0)
@@ -1508,6 +1516,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
                 page_rows.append((y, cells))
         table_cells_by_page[page_index] = [cell["rect"] for _, cells in page_rows for cell in cells]
         all_table_cells.extend(cell for _, cells in page_rows for cell in cells)
+        _scan_timers["table_row_grouping"] += time.perf_counter() - _scan_started
+        _scan_started = time.perf_counter()
 
         header_index = None
         for row_index, (_, cells) in enumerate(page_rows):
@@ -1551,6 +1561,8 @@ def _validate_master_final_pdf_report(doc, prompt: str, page_texts: list[str], p
                     page_data.append((values, cells))
             data_rows.extend(values for values, _ in page_data)
             data_row_fills.extend(cells[0]["fill"] for _, cells in page_data)
+        _scan_timers["cell_text_and_style"] += time.perf_counter() - _scan_started
+    logging.warning("[PDF-DEEP-STAGE] scan_substage_seconds textpage_setup=%.3f text_record_extraction=%.3f drawing_grouping=%.3f table_row_grouping=%.3f cell_text_and_style=%.3f", _scan_timers["textpage_setup"], _scan_timers["text_record_extraction"], _scan_timers["drawing_grouping"], _scan_timers["table_row_grouping"], _scan_timers["cell_text_and_style"])
     logging.warning("[PDF-DEEP-STAGE] page_records_and_table_scan_seconds=%.3f records=%d table_cells=%d", time.perf_counter() - _deep_stage_started, len(records), len(all_table_cells))
 
     _deep_stage_started = time.perf_counter()
