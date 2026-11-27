@@ -129,16 +129,27 @@ def build_file_generation_system_instruction(format_name: str) -> str:
 
 
 def _safe_title(content: str, prompt: str) -> str:
-    for line in str(content or "").splitlines():
-        match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)\s*$", line)
+    value = str(content or "")
+    html_heading = re.search(r"<h1\\b[^>]*>(.*?)</h1\\s*>", value, re.I | re.S)
+    if html_heading:
+        from html import unescape
+        heading = re.sub(r"<[^>]+>", "", html_heading.group(1))
+        heading = unescape(re.sub(r"\\s+", " ", heading)).strip()
+        if heading:
+            return heading[:100]
+    for line in value.splitlines():
+        match = re.match(r"^\\s{0,3}#{1,6}\\s+(.+?)\\s*$", line)
         if match and match.group(1).strip():
             return match.group(1).strip()[:100]
-    for line in str(content or "").splitlines():
-        value = line.strip()
-        if value and "\t" not in value and not (value.startswith("|") and value.endswith("|")):
-            return value[:100]
+    for line in value.splitlines():
+        value_line = line.strip()
+        if value_line and "\\t" not in value_line and not (value_line.startswith("|") and value_line.endswith("|")):
+            clean = re.sub(r"<[^>]+>", "", value_line)
+            from html import unescape
+            clean = unescape(clean).strip()
+            if clean:
+                return clean[:100]
     return "Dokumen CLOUZER"
-
 
 def _requested_sheet_title(prompt: str) -> str | None:
     """Extract an explicitly requested worksheet name without capturing instruction words."""
@@ -728,25 +739,174 @@ def _make_docx(content: str, title: str) -> bytes:
         from docx import Document
     except ImportError as exc:
         raise RuntimeError("python-docx belum terpasang; DOCX tidak bisa dibuat.") from exc
+
     document = Document()
-    blocks = [block.strip() for block in re.split(r"\n\s*\n", content) if block.strip()]
-    first_heading = re.sub(r"^#\s+", "", blocks[0]).strip() if blocks and re.match(r"^#\s+", blocks[0]) else ""
-    first_line = blocks[0].splitlines()[0].strip() if blocks else ""
-    if title.casefold() not in {first_heading.casefold(), first_line.casefold()}:
-        document.add_heading(title, level=0)
-    for block in blocks:
-        lines = block.splitlines()
-        if len(lines) == 1 and re.match(r"^#{1,6}\s+", lines[0]):
-            match = re.match(r"^(#{1,6})\s+(.*)$", lines[0])
-            document.add_heading(match.group(2).strip(), level=min(len(match.group(1)), 3))
-        else:
-            paragraph = document.add_paragraph()
-            for index, line in enumerate(lines):
-                if index:
+    value = str(content or "")
+    if re.search(r"</?(?:h[1-6]|p|table|thead|tbody|tr|th|td|ol|ul|li|div|strong|b|em|i|br)\\b", value, re.I):
+        from html.parser import HTMLParser
+        from html import unescape
+
+        class _TreeParser(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.root = {"tag": "root", "children": []}
+                self.stack = [self.root]
+
+            def handle_starttag(self, tag, attrs):
+                node = {"tag": tag.lower(), "attrs": dict(attrs), "children": []}
+                self.stack[-1]["children"].append(node)
+                if tag.lower() not in {"br", "hr", "img", "meta", "link", "input", "source", "wbr"}:
+                    self.stack.append(node)
+
+            def handle_startendtag(self, tag, attrs):
+                self.stack[-1]["children"].append({"tag": tag.lower(), "attrs": dict(attrs), "children": []})
+
+            def handle_endtag(self, tag):
+                for index in range(len(self.stack) - 1, 0, -1):
+                    if self.stack[index]["tag"] == tag.lower():
+                        del self.stack[index:]
+                        break
+
+            def handle_data(self, data):
+                if data:
+                    self.stack[-1]["children"].append(data)
+
+        parser = _TreeParser()
+        parser.feed(value)
+        parser.close()
+
+        def node_text(node):
+            if isinstance(node, str):
+                return node
+            return "".join(node_text(child) for child in node.get("children", []))
+
+        def add_inline(paragraph, children, bold=False, italic=False, underline=False):
+            for child in children:
+                if isinstance(child, str):
+                    if child:
+                        run = paragraph.add_run(unescape(child))
+                        run.bold = True if bold else None
+                        run.italic = True if italic else None
+                        run.underline = True if underline else None
+                    continue
+                tag = child["tag"]
+                if tag == "br":
                     paragraph.add_run().add_break()
-                cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", line)
-                cleaned = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", cleaned)
-                paragraph.add_run(cleaned)
+                    continue
+                add_inline(
+                    paragraph, child.get("children", []),
+                    bold or tag in {"b", "strong"},
+                    italic or tag in {"i", "em"},
+                    underline or tag == "u",
+                )
+
+        def table_rows(node):
+            rows = []
+            for child in node.get("children", []):
+                if isinstance(child, dict):
+                    if child["tag"] == "tr":
+                        cells = [cell for cell in child.get("children", []) if isinstance(cell, dict) and cell["tag"] in {"td", "th"}]
+                        if cells:
+                            rows.append(cells)
+                    elif child["tag"] in {"thead", "tbody", "tfoot"}:
+                        rows.extend(table_rows(child))
+            return rows
+
+        def render_table(node):
+            rows = table_rows(node)
+            if not rows:
+                return
+            columns = max(len(row) for row in rows)
+            table = document.add_table(rows=0, cols=columns)
+            try:
+                table.style = "Table Grid"
+            except KeyError:
+                pass
+            for source_row in rows:
+                cells = table.add_row().cells
+                for index, source_cell in enumerate(source_row):
+                    paragraph = cells[index].paragraphs[0]
+                    paragraph.clear()
+                    add_inline(paragraph, source_cell.get("children", []), bold=source_cell["tag"] == "th")
+
+        def render_list(node, numbered):
+            for child in node.get("children", []):
+                if not isinstance(child, dict) or child["tag"] != "li":
+                    continue
+                paragraph = document.add_paragraph(style="List Number" if numbered else "List Bullet")
+                for part in child.get("children", []):
+                    if isinstance(part, dict) and part["tag"] in {"ol", "ul"}:
+                        continue
+                    add_inline(paragraph, [part] if isinstance(part, str) else [part])
+                for nested in child.get("children", []):
+                    if isinstance(nested, dict) and nested["tag"] in {"ol", "ul"}:
+                        render_list(nested, nested["tag"] == "ol")
+
+        def render_blocks(nodes):
+            for node in nodes:
+                if isinstance(node, str):
+                    if node.strip():
+                        paragraph = document.add_paragraph()
+                        paragraph.add_run(unescape(node.strip()))
+                    continue
+                tag = node["tag"]
+                children = node.get("children", [])
+                if tag in {"head", "title", "meta", "style", "script"}:
+                    continue
+                if tag in {"body", "html", "root", "thead", "tbody", "tfoot"}:
+                    render_blocks(children)
+                elif re.fullmatch(r"h[1-6]", tag):
+                    paragraph = document.add_heading("", level=min(int(tag[1]), 3))
+                    add_inline(paragraph, children)
+                elif tag == "p":
+                    paragraph = document.add_paragraph()
+                    add_inline(paragraph, children)
+                elif tag == "table":
+                    render_table(node)
+                elif tag in {"ol", "ul"}:
+                    render_list(node, tag == "ol")
+                elif tag == "li":
+                    paragraph = document.add_paragraph(style="List Bullet")
+                    add_inline(paragraph, children)
+                elif tag in {"div", "section", "article", "main"}:
+                    render_blocks(children)
+                elif tag in {"br", "hr"}:
+                    document.add_paragraph()
+                else:
+                    if any(isinstance(child, dict) and child["tag"] in {"p", "div", "table", "ol", "ul", "h1", "h2", "h3", "h4", "h5", "h6"} for child in children):
+                        render_blocks(children)
+                    else:
+                        paragraph = document.add_paragraph()
+                        add_inline(paragraph, [node])
+
+        first_heading = ""
+        for node in parser.root["children"]:
+            if isinstance(node, dict) and re.fullmatch(r"h[1-6]", node["tag"]):
+                first_heading = re.sub(r"\\s+", " ", node_text(node)).strip()
+                break
+        first_line = re.sub(r"<[^>]+>", "", value.splitlines()[0]).strip() if value.splitlines() else ""
+        if title.casefold() not in {first_heading.casefold(), first_line.casefold()}:
+            document.add_heading(title, level=0)
+        render_blocks(parser.root["children"])
+    else:
+        blocks = [block.strip() for block in re.split(r"\\n\\s*\\n", value) if block.strip()]
+        first_heading = re.sub(r"^#\\s+", "", blocks[0]).strip() if blocks and re.match(r"^#\\s+", blocks[0]) else ""
+        first_line = blocks[0].splitlines()[0].strip() if blocks else ""
+        if title.casefold() not in {first_heading.casefold(), first_line.casefold()}:
+            document.add_heading(title, level=0)
+        for block in blocks:
+            lines = block.splitlines()
+            if len(lines) == 1 and re.match(r"^#{1,6}\\s+", lines[0]):
+                match = re.match(r"^(#{1,6})\\s+(.*)$", lines[0])
+                document.add_heading(match.group(2).strip(), level=min(len(match.group(1)), 3))
+            else:
+                paragraph = document.add_paragraph()
+                for index, line in enumerate(lines):
+                    if index:
+                        paragraph.add_run().add_break()
+                    cleaned = re.sub(r"\\*\\*(.*?)\\*\\*", r"\\1", line)
+                    cleaned = re.sub(r"(?<!\\*)\\*([^*]+)\\*(?!\\*)", r"\\1", cleaned)
+                    paragraph.add_run(cleaned)
     output = io.BytesIO()
     document.save(output)
     return output.getvalue()
