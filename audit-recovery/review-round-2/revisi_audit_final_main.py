@@ -268,7 +268,7 @@ CF_ACCOUNTS: list[dict[str, str]] = load_cf_accounts()
 
 CF_IMAGE_MODEL = os.getenv("CF_IMAGE_MODEL", "@cf/leonardo/lucid-origin").strip()
 PPTX_IMAGE_MODEL = "@cf/leonardo/lucid-origin"
-PPTX_MAX_VISUALS = 6
+PPTX_MAX_VISUALS = 10
 CF_EDIT_MODEL = os.getenv("CF_EDIT_MODEL", "@cf/black-forest-labs/flux-2-klein-4b").strip()
 CF_AUDIO_MODEL = os.getenv("CF_AUDIO_MODEL", "@cf/openai/whisper-large-v3-turbo").strip()
 
@@ -5345,6 +5345,11 @@ class ClouzerBot(commands.Bot):
                                 slide_briefs = extract_pptx_visual_briefs(visual_source)
                                 if not slide_briefs:
                                     raise RuntimeError("PPTX tidak memiliki slide untuk diberi visual.")
+                                if len(slide_briefs) > PPTX_MAX_VISUALS:
+                                    raise RuntimeError(
+                                        "PPTX dengan background AI dibatasi maksimal "
+                                        + str(PPTX_MAX_VISUALS) + " slide agar biaya dan waktu generasi terkendali."
+                                    )
                                 image_allowed, image_wait = self.rate_limiter.acquire("image", user.id)
                                 if not image_allowed:
                                     raise RuntimeError(
@@ -5352,13 +5357,16 @@ class ClouzerBot(commands.Bot):
                                         + format_wait(image_wait) + "."
                                     )
                                 image_assets = []
-                                for visual_index, brief in enumerate(slide_briefs[:PPTX_MAX_VISUALS], 1):
+                                for visual_index, brief in enumerate(slide_briefs, 1):
                                     visual_prompt = (
-                                        "Create a polished, presentation-ready 4:3 editorial illustration for a PowerPoint slide. "
-                                        "Subject: " + brief["title"] + ". Context: " + brief["content"][:900] + ". "
-                                        "Use a clean professional composition, coherent lighting, crisp details, no text, no letters, "
-                                        "no logos, no watermark, and a clear focal subject. The image must specifically support "
-                                        "the slide topic rather than depict a generic stock photo."
+                                        "Create a premium full-bleed 16:9 PowerPoint BACKGROUND image, NOT a slide screenshot, "
+                                        "NOT an infographic, and NOT a poster. Topic: " + brief["title"] + ". Context: "
+                                        + brief["content"][:900] + ". Build a cinematic, sophisticated visual metaphor specific "
+                                        "to this slide. Keep the LEFT 58 percent calm, dark, low-detail negative space for editable "
+                                        "PowerPoint text; place the main subject and visual interest on the RIGHT third. "
+                                        "Use deep navy, cyan and restrained violet lighting, layered depth, subtle gradients, "
+                                        "refined geometric details, professional editorial art direction. Absolutely no text, "
+                                        "letters, numbers, typography, labels, logos, watermark, UI, charts or diagrams."
                                     )
                                     budget_ok, budget_wait = await asyncio.to_thread(self.global_budget.acquire, "images")
                                     if not budget_ok:
@@ -5368,14 +5376,14 @@ class ClouzerBot(commands.Bot):
                                         )
                                     async with self.image_semaphore:
                                         visual_bytes, _visual_name, _visual_mime, visual_engine = await self.generate_cloudflare_image(
-                                            visual_prompt, aspect_ratio="4:3", model_override=PPTX_IMAGE_MODEL
+                                            visual_prompt, aspect_ratio="16:9", model_override=PPTX_IMAGE_MODEL
                                         )
                                     image_assets.append(visual_bytes)
                                     logging.info(
                                         "[PPTX-VISUAL] scope=%s slide=%d model=%s engine=%s bytes=%d",
                                         scope_key, visual_index, PPTX_IMAGE_MODEL, visual_engine, len(visual_bytes),
                                     )
-                                expected_visuals = min(len(slide_briefs), PPTX_MAX_VISUALS)
+                                expected_visuals = len(slide_briefs)
                                 if len(image_assets) != expected_visuals:
                                     raise RuntimeError("Jumlah visual yang dihasilkan tidak sesuai jumlah slide target.")
                                 generated_bytes = await asyncio.to_thread(embed_pptx_visuals, visual_source, image_assets)
