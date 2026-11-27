@@ -4504,3 +4504,25 @@ The immediate next action is to resume and finish the pending Canva design-gener
 - No Canva edits were saved; no original Box artifact was overwritten.
 
 Next: user or an available browser/UI session must open the Canva edit URL and verify the slide 1 title spacing plus the five slides visually. If no visible defect, proceed to export a separate PPTX and validate the actual export. If slide 1 visibly collides, stage a small spacing adjustment in a transaction, preview it, and obtain approval before commit. Do not claim overall PPTX PASS or proceed to CSV/JSON until this PPTX path is closed or the visual blocker is explicitly documented.
+
+
+---
+
+## 52.48 PPTX repeated slide-title bug identified and candidate patch — 27 November 2026
+
+### Evidence
+- Inspected the actual Box artifact `clouzer_test.pptx` (Box file ID `2619212339844`) via Box text extraction. The extracted text shows the deck title `Slide 1 — Pengenalan CLOUZER AI` repeated as the title on later slides (with suffixes `— 2` through `— 5`), while the actual slide-specific titles (Slide 2 through Slide 5) appear in body text.
+- Inspected candidate helper `audit-recovery/review-round-2/clouzer_file_creation.py`, function `_make_pptx()`. Confirmed logic only promotes the first line to slide title when it is a Markdown heading or when `index == 0`. For slides 2+, a plain-text first line is left in the body and the generic deck title is reused. This explains the observed artifact defect.
+- This is a confirmed local PPTX builder defect; it is not evidence that Canva or Wispbyte caused the repeated titles.
+
+### Candidate-only remediation committed
+- Updated `_make_pptx()` so the first non-empty line of every slide chunk becomes that slide's title, whether or not it uses Markdown heading syntax. The line is removed from the body to avoid duplication.
+- Added regression test `test_pptx_uses_each_slide_chunk_title_instead_of_repeating_deck_title`, asserting five distinct slide titles and that each title is absent from its own body text.
+- Helper update commit: `8d697c56085be7b44afc55258a701f47b072ba77`.
+- Regression test update commit: `c2509b665a4f55f09240864f81245d03d24da2b6`.
+- Both changes are on `audit-recovery-gpt-2026-11-23`. Production root `main.py` remains untouched. Original Box artifact remains unchanged.
+
+### Validation and deployment status
+- Regression test has been added but has **not yet been executed** in this session. Do not claim PASS until runtime test output is collected.
+- No direct Wispbyte panel/console connector is available in this session. The Wispbyte startup command previously recorded in §4 fetches the latest `audit-recovery-gpt-2026-11-23` branch and runs the candidate entrypoint. A restart is therefore required for the running service to pick up the new helper. User controls that panel restart and must provide startup/test logs.
+- Do not touch production `main.py`, merge PR #6, or modify unrelated Canva artifacts. Next: user restarts the existing audit candidate service on Wispbyte, confirms the fetched commit includes the two latest commits, then runs the five-slide PPTX regression/live test and shares logs plus the new artifact for independent validation.
