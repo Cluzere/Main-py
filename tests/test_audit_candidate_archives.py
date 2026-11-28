@@ -15,9 +15,15 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 
+def make_bot():
+    bot = module.ClouzerBot.__new__(module.ClouzerBot)
+    bot.workload_manager = module.WorkloadManager()
+    return bot
+
+
 class ArchiveReaderTests(unittest.TestCase):
     def setUp(self):
-        self.bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        self.bot = make_bot()
 
     @staticmethod
     def make_zip(entries):
@@ -309,7 +315,7 @@ class ArchiveReaderTests(unittest.TestCase):
         import asyncio
         from types import SimpleNamespace
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         bot.attachment_semaphore = asyncio.Semaphore(1)
         active = 0
         maximum_active = 0
@@ -336,7 +342,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_retry_once_for_explicit_gateway_failure_before_stream(self):
         import asyncio
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
 
         class Budget:
             def __init__(self):
@@ -366,7 +372,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_retry_once_for_known_http_500_upstream_stream_failure(self):
         import asyncio
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
 
         class Budget:
             def __init__(self):
@@ -396,7 +402,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_no_retry_after_stream_event_has_started(self):
         import asyncio
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
 
         class Budget:
             def __init__(self):
@@ -425,7 +431,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_gateway_retry_is_suppressed_if_global_budget_is_exhausted(self):
         import asyncio
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
 
         class Budget:
             def __init__(self):
@@ -455,7 +461,7 @@ class ArchiveReaderTests(unittest.TestCase):
         import asyncio
 
         for status in (503, 504):
-            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+            bot = make_bot()
 
             class Budget:
                 def __init__(self):
@@ -486,7 +492,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_http500_upstream_forwarding_error_is_retried_once(self):
         import asyncio
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
 
         class Budget:
             def __init__(self):
@@ -517,7 +523,7 @@ class ArchiveReaderTests(unittest.TestCase):
         import asyncio
 
         for status in (429, 500):
-            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+            bot = make_bot()
 
             class Budget:
                 def __init__(self):
@@ -663,7 +669,7 @@ class ArchiveReaderTests(unittest.TestCase):
                     FakeAttachment("second.docx", 3),
                 ]
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
 
         async def fake_encode(attachment):
             return ("CONTENT-" + attachment.filename, [], [], "docx")
@@ -813,7 +819,7 @@ class ArchiveReaderTests(unittest.TestCase):
             attachments = [FakeAttachment("broken.png"), FakeAttachment("good.png")]
             embeds = []
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
 
         async def fake_encode(attachment):
             if attachment.filename == "broken.png":
@@ -843,7 +849,7 @@ class ArchiveReaderTests(unittest.TestCase):
         class FakeMessage:
             attachments = [FakeAttachment("a.txt"), FakeAttachment("b.txt")]
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
 
         async def fake_encode(attachment):
             return "CONTENT-" + attachment.filename, [], [], "text"
@@ -872,7 +878,7 @@ class ArchiveReaderTests(unittest.TestCase):
         class FakeMessage:
             attachments = [FakeAttachment()]
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
 
         async def fake_encode(attachment):
             return "0123456789", [], [], "text"
@@ -977,7 +983,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_same_user_queue_lock_is_fifo_and_cleans_up_after_cancellation(self):
         import asyncio
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         bot.guild_locks = {}
         bot.guild_lock_refs = {}
 
@@ -1018,7 +1024,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_conversation_scope_is_separated_by_user(self):
         from types import SimpleNamespace
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         guild = SimpleNamespace(id=123)
         first = bot.get_scope_key(guild, user_id=10, channel_id=20)
         second = bot.get_scope_key(guild, user_id=11, channel_id=20)
@@ -1080,7 +1086,7 @@ class ArchiveReaderTests(unittest.TestCase):
                 event = b'data: {"type":"response.output_text.delta","delta":"PARTIAL ANSWER"}\n'
                 return FakeRequest(FakeResponse(FakeStream([event, b""])))
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         bot.http_session = FakeSession()
         bot.to_responses_input = lambda messages: ("", [])
 
@@ -1104,7 +1110,7 @@ class ArchiveReaderTests(unittest.TestCase):
             async def fetch_message(self, message_id):
                 raise LookupError("message unavailable")
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         message = SimpleNamespace(
             reference=SimpleNamespace(message_id=555, resolved=None),
             channel=FakeChannel(),
@@ -1157,7 +1163,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_same_scope_lock_processes_waiters_in_fifo_order(self):
         import asyncio
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         bot.guild_locks = {}
         bot.guild_lock_refs = {}
 
@@ -1180,7 +1186,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_different_user_scopes_can_run_concurrently(self):
         import asyncio
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         bot.guild_locks = {}
         bot.guild_lock_refs = {}
 
@@ -1280,7 +1286,7 @@ class ArchiveReaderTests(unittest.TestCase):
         class FakeMessage:
             attachments = [FakeAttachment("bad.png"), FakeAttachment("good.png")]
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         calls = []
 
         async def fake_encode(attachment):
@@ -1422,7 +1428,7 @@ class ArchiveReaderTests(unittest.TestCase):
         import asyncio
         from unittest.mock import patch
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         bot.guild_locks = {}
         bot.guild_lock_refs = {}
 
@@ -1477,7 +1483,7 @@ class ArchiveReaderTests(unittest.TestCase):
         import asyncio
         from unittest.mock import patch
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         bot.guild_locks = {}
         bot.guild_lock_refs = {}
 
@@ -1513,7 +1519,7 @@ class ArchiveReaderTests(unittest.TestCase):
     def test_cancelled_queue_waiter_updates_status_and_releases_reference(self):
         import asyncio
 
-        bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        bot = make_bot()
         bot.guild_locks = {}
         bot.guild_lock_refs = {}
 
@@ -1722,7 +1728,7 @@ class ArchiveReaderTests(unittest.TestCase):
 
     def test_ingress_lock_preserves_fifo_before_attachment_work(self):
         async def run():
-            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+            bot = make_bot()
             bot.ingress_locks = {}
             bot.ingress_lock_refs = {}
             order = []
@@ -1753,7 +1759,7 @@ class ArchiveReaderTests(unittest.TestCase):
 
     def test_ingress_lock_rejects_excess_waiters(self):
         async def run():
-            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+            bot = make_bot()
             bot.ingress_locks = {}
             bot.ingress_lock_refs = {}
             lock = asyncio.Lock()
@@ -1769,7 +1775,7 @@ class ArchiveReaderTests(unittest.TestCase):
 
     def test_ingress_lock_cancellation_cleans_waiter_and_preserves_next_turn(self):
         async def run():
-            bot = module.ClouzerBot.__new__(module.ClouzerBot)
+            bot = make_bot()
             bot.ingress_locks = {}
             bot.ingress_lock_refs = {}
             lock = asyncio.Lock()
@@ -2105,7 +2111,7 @@ class NestedVectorSignatureCoverageTests(unittest.TestCase):
         return buffer.getvalue()
 
     def setUp(self):
-        self.bot = module.ClouzerBot.__new__(module.ClouzerBot)
+        self.bot = make_bot()
 
     def test_invalid_svg_eps_and_ai_members_are_rejected_by_signature(self):
         raw = self.make_zip([
