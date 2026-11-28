@@ -1757,6 +1757,20 @@ class ArchiveReaderTests(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_ingress_lock_enforces_global_active_plus_pending_cap(self):
+        async def run():
+            bot = make_bot()
+            bot.ingress_locks = {}
+            bot.ingress_lock_refs = {
+                "other-scope": module.GWM_MAX_ACTIVE + module.GWM_MAX_PENDING
+            }
+            async with bot.ingress_lock("new-scope") as (acquired, reason):
+                self.assertFalse(acquired)
+                self.assertEqual(reason, "global_full")
+            self.assertNotIn("new-scope", bot.ingress_lock_refs)
+
+        asyncio.run(run())
+
     def test_ingress_lock_rejects_excess_waiters(self):
         async def run():
             bot = make_bot()
