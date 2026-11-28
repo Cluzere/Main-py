@@ -7011,6 +7011,9 @@ class _HostResourceTracker:
         self._window_peak_process_cpu = 0.0
         self._window_peak_cgroup_cpu = 0.0
         self._window_throttle_events = 0
+        self._gwm_pressure_high_samples = 0
+        self._gwm_pressure_low_samples = 0
+        self._gwm_pressure_active = False
 
     @staticmethod
     def _read_text(path):
@@ -7101,6 +7104,46 @@ class _HostResourceTracker:
         }
         self._last_proc, self._last_sys, self._last_cgroup = proc, system, cg
         self._last_report_sample = now
+
+        # Feed sustained host pressure into GWM. Compare cgroup CPU usage with
+        # the actual cpu.max quota, not a fixed 80% that is impossible on small quotas.
+        quota_limit_pct = None
+        quota_parts = str(cg.get("cpu_quota") or "").split()
+        if len(quota_parts) == 2 and quota_parts[0] != "max":
+            try:
+                quota_value, period_value = int(quota_parts[0]), int(quota_parts[1])
+                if quota_value > 0 and period_value > 0:
+                    quota_limit_pct = (quota_value / period_value) * 100.0
+            except (TypeError, ValueError):
+                quota_limit_pct = None
+        cpu_pressure = (
+            cpu_cgroup is not None and quota_limit_pct is not None
+            and cpu_cgroup >= quota_limit_pct * 0.85
+        )
+        process_pressure = cpu_process is not None and cpu_process >= 90.0
+        memory_pressure = (
+            cg.get("memory_bytes") is not None and cg.get("memory_limit") is not None
+            and cg["memory_limit"] > 0
+            and cg["memory_bytes"] / cg["memory_limit"] >= 0.90
+        )
+        if cpu_pressure or process_pressure or memory_pressure:
+            self._gwm_pressure_high_samples += 1
+            self._gwm_pressure_low_samples = 0
+        else:
+            self._gwm_pressure_low_samples += 1
+            self._gwm_pressure_high_samples = 0
+        if not self._gwm_pressure_active and self._gwm_pressure_high_samples >= 2:
+            self._gwm_pressure_active = True
+            try:
+                bot.workload_manager.set_host_pressure(True)
+            except Exception:
+                logging.debug("[GWM] unable to apply host pressure signal", exc_info=True)
+        elif self._gwm_pressure_active and self._gwm_pressure_low_samples >= 3:
+            self._gwm_pressure_active = False
+            try:
+                bot.workload_manager.set_host_pressure(False)
+            except Exception:
+                logging.debug("[GWM] unable to clear host pressure signal", exc_info=True)
         if cpu_process is not None:
             self._window_peak_process_cpu = max(self._window_peak_process_cpu, cpu_process)
         if cpu_cgroup is not None:
