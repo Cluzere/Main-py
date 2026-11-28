@@ -5853,3 +5853,15 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Fakta dan next action dari handoff sudah tercatat pada C1.1, D5, E, F, dan §52.65; status tetap: patch source/test committed dan fetch-back verified, exact-head CI untuk `c4007796...` **NOT VERIFIED**, live 100-page PDF retest **NOT VERIFIED**, Discord delivery **NOT VERIFIED**.
 - Sesuai A0.12–A0.14, hanya blok sementara `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` yang dibersihkan. Catatan permanen A–G, aturan, riwayat, SHA, dan bukti historis dipertahankan.
 - Tidak ada perubahan kode kandidat, tes, workflow, Wispbyte Startup Command, runtime, production `main.py`, production branch `main`, PR #6, deployment, merge, atau restart. Tidak ada tindakan runtime dilakukan dalam penerimaan handoff ini.
+
+## 52.67 Verifikasi GitHub Actions exact commit PDF output-budget — 28 November 2026
+
+- User memerintahkan eksekusi langsung; pemeriksaan dilakukan terhadap commit kode/tes yang tepat, bukan hanya HEAD dokumentasi: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9` pada branch `audit-recovery-gpt-2026-11-23`.
+- GitHub Actions API mengembalikan tepat 3 workflow runs untuk `head_sha=c4007796...`; ketiganya berstatus `completed` dan conclusion `success`:
+  1. `Audit candidate syntax check`, run `46087677904`, job `compile`. Seluruh langkah sukses, termasuk compile candidate, dependency consistency, vulnerability/security scans, document file creation tests, archive regression tests, dan existing audit regression tests.
+  2. `Audit recovery candidate`, run `46087677753`, job `final-candidate-syntax-regressions-and-attachment-audit`. Seluruh langkah sukses, termasuk compile, high-severity security scan, install runtime dependencies, dan focused regression tests.
+  3. `CLOUZER multi-format file audit`, run `46087677798`, job `candidate-syntax-and-file-tests`. Seluruh langkah sukses, termasuk compile, high-severity security scan, dan complete candidate regression suite.
+- Ketiga check runs pada commit yang sama juga `completed/success`: `compile` (check `140800994628`), `candidate-syntax-and-file-tests` (`140800994254`), dan `final-candidate-syntax-regressions-and-attachment-audit` (`140800994240`).
+- Kesimpulan: **GitHub Actions exact commit c4007796 = PASS** untuk workflow/check yang terdaftar. Ini membuktikan pemeriksaan CI tersebut lulus; ini **bukan** bukti live runtime Wispbyte, sukses generasi PDF 100 halaman, atau keberhasilan attachment Discord.
+- Link run: https://github.com/Cluzere/Main-py/actions/runs/46087677904 ; https://github.com/Cluzere/Main-py/actions/runs/46087677753 ; https://github.com/Cluzere/Main-py/actions/runs/46087677798
+- Next action: user perlu mengendalikan restart/reload kandidat Wispbyte sesuai prosedur aman yang telah disepakati. Jangan restart sendiri, jangan ubah Startup Command, jangan deploy/merge, dan jangan sentuh production. Setelah kandidat hidup, verifikasi SHA yang benar-benar berjalan lalu jalankan ulang skenario PDF minimal 100 halaman dan kumpulkan log rinci, metrik CPU/RAM/quota/throttling, jumlah halaman, validator, serta attachment Discord.
