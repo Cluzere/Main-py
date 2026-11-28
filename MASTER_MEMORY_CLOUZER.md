@@ -391,7 +391,7 @@ File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
 - Source blob: `df7ab40e655d14e2fb6ffd19358ddb0931d7d8da`.
 - Test commit berikutnya: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
 - Test blob: `93b478c67664686764c926447d35e9f87858f9fb`.
-- Exact candidate head setelah patch dan regression test: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
+- Exact candidate code/test commit setelah patch dan regression test: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`. Subsequent commits update only Master Memory; fetch live branch HEAD when resuming.
 
 ## C2. Pengembangan kandidat sebelumnya## C2. Pengembangan kandidat sebelumnya
 
@@ -574,7 +574,7 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 - SSE append paths select per-request cap.
 - Retry log now includes exception type/message.
 - Regression test added.
-Exact candidate head: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`. CI and live retest NOT VERIFIED.
+Exact candidate code/test commit: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`. CI and live retest NOT VERIFIED.
 
 1. **PDF 100-page stream fix — priority 1.**
    - First verify all required GitHub Actions on exact SHA `c4007796...` reach terminal SUCCESS; if a test/workflow fails, inspect logs, fix candidate only, commit, and repeat.
@@ -5826,7 +5826,7 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - `[FILE-RETRY]` now logs exception type and truncated exception message in addition to partial character count.
 - Test commit `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`; test blob `93b478c67664686764c926447d35e9f87858f9fb`.
 - Added `test_long_file_stream_has_separate_output_budget` to `audit-recovery/review-round-2/test_file_creation.py`; it checks the normal-chat cap, file-generation cap, cap enforcement, per-request stream wiring, and diagnostic fields.
-- Source/test were fetched back from GitHub and blob/content checks passed. Exact candidate branch head is `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
+- Source/test were fetched back from GitHub and blob/content checks passed. Exact candidate code/test commit is `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
 
 ### CI and live status
 - `clouzer-multiformat-audit.yml` push trigger includes `audit-recovery/review-round-2/test_*.py`.
@@ -5847,7 +5847,7 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 
 ### Status kanonis saat handoff dibuat
 - Repo `Cluzere/Main-py`, candidate branch `audit-recovery-gpt-2026-11-23`.
-- Latest exact branch head: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
+- Latest exact code/test commit: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`. The previous Master Memory documentation commit is `88c4477e5d79af06110daa24ff721bd29cbbaa6c`; always fetch actual branch HEAD on resume.
 - Candidate entrypoint: `audit-recovery/review-round-2/revisi_audit_final_main.py`, blob `df7ab40e655d14e2fb9a063fdbadf8527393736`.
 - Candidate tests: `audit-recovery/review-round-2/test_file_creation.py`, blob `93b478c67664686764c926447d35e9f87858f9fb`.
 - Master Memory is this file, `MASTER_MEMORY_CLOUZER.md`; handoff is temporary and must be reconciled/removed only after the next session reads it, following A0.12–A0.14.
@@ -5868,7 +5868,7 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 
 ### First actions for next session
 1. Fetch latest `MASTER_MEMORY_CLOUZER.md` from the candidate branch. Read all of A–F, this active handoff, and relevant G §52.65. Reconcile with live GitHub branch state.
-2. Verify branch HEAD is still `c4007796...`; if newer, inspect its diff and preserve any later changes.
+2. Verify actual branch HEAD. The latest code/test commit should be `c4007796...`; previous Master Memory documentation commit `88c4477...` is a docs-only descendant. If newer, inspect its diff and preserve later changes.
 3. Inspect GitHub Actions runs/jobs for exact SHA `c4007796...`; connector status currently **NOT VERIFIED**. Wait until required push workflows reach terminal status. If failed, inspect logs, fix only candidate branch, commit, and recheck all required workflows.
 4. Only after CI PASS, tell the user the candidate is ready for a user-controlled Wispbyte candidate restart/reload. Do not restart/deploy it yourself; do not alter Startup Command.
 5. After user restart, verify startup fetch SHA. Run the same 100-page PDF prompt once. Collect new `[FILE-RETRY]` error type/message, `[PDF-CONTINUATION]` progress, resource trace CPU/RAM/quota/throttling, final PDF page count/validator outcome, and Discord attachment evidence.
