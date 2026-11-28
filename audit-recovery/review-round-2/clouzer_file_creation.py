@@ -65,7 +65,10 @@ def normalize_pending_retry_task(raw: object) -> dict | None:
     source_message_id = raw.get("source_message_id")
     if isinstance(source_message_id, int) and not isinstance(source_message_id, bool) and source_message_id > 0:
         task["source_message_id"] = source_message_id
-    for key in ("guild_id", "channel_id", "user_id"):
+    guild_id = raw.get("guild_id")
+    if isinstance(guild_id, int) and not isinstance(guild_id, bool) and guild_id >= 0:
+        task["guild_id"] = guild_id
+    for key in ("channel_id", "user_id"):
         value = raw.get(key)
         if isinstance(value, int) and not isinstance(value, bool) and value > 0:
             task[key] = value
