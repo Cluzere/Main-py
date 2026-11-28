@@ -10,57 +10,7 @@
 > **Cara membaca dokumen ini:** Bagian A adalah aturan operasional yang berlaku dan menjadi sumber otoritatif. Bagian B adalah kondisi proyek. Bagian C, D, E, dan F memisahkan pengembangan kandidat, pengujian, hasil yang terbukti, dan planning. Bagian G adalah arsip kronologis asli yang dipertahankan untuk menjaga bukti, detail, SHA, log, dan keputusan lama. Jika ada kalimat aturan lama di arsip yang tampak bertentangan dengan Bagian A, ikuti Bagian A; arsip adalah rekaman historis, bukan sumber aturan yang lebih baru.
 
 
-# HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
 
-**Tanggal:** 28 November 2026  
-**Proyek:** CLOUZER AI — audit candidate Wispbyte  
-**Sumber kanonis:** https://github.com/Cluzere/Main-py/blob/audit-recovery-gpt-2026-11-23/MASTER_MEMORY_CLOUZER.md  
-**Branch:** audit-recovery-gpt-2026-11-23  
-**Candidate entrypoint:** /home/container/clouzer-audit/audit-recovery/review-round-2/revisi_audit_final_main.py
-
-## Status terakhir dan keputusan penting
-- Pengguna menghentikan live testing untuk menghindari peringatan tambahan dari Wispbyte. Pengguna menyatakan sudah menerima 1 peringatan; dua peringatan berikutnya berisiko memicu banned 5 jam. Jangan menyarankan atau memulai tes runtime tambahan, stress test, global-workload test, restart, atau eksperimen CPU tanpa persetujuan eksplisit dan rencana aman yang disepakati.
-- Pengguna meminta rencana global workload ditentukan, tetapi kemudian menyatakan “cukup testing” karena risiko peringatan. Global workload tetap pekerjaan desain/engineering tertunda; jangan menjalankan beban buatan untuk mengujinya. Mulai dari audit source/read-only dan rencana pengukuran ringan hanya jika diminta.
-- Production /home/container/main.py, branch main, PR #6, deployment, dan merge tetap dilindungi. Jangan mengubah atau restart Wispbyte tanpa izin eksplisit. Jangan ubah Startup Command.
-- Pengguna memulai sesi baru. Protokol A0 berlaku: Master Memory diperbarui dahulu, handoff ini disimpan di dalamnya, diverifikasi, baru handoff diberikan.
-
-## Bukti runtime terbaru yang diberikan pengguna
-- Startup Wispbyte mengambil branch kandidat dan reset ke 519395e — commit penuh dari tree saat pembacaan: 519395eef23005433e2d5dc3a97d49c8266e3f81, commit message: “Record exact-source passing CI for PDF workflow fixes”. Dependency terpasang/“already satisfied”; bot mencetak [ONLINE].
-- Bot menampilkan status Discord “🌐 Sedang menelusuri web secara live...” selama beberapa menit. Pengguna melaporkan status itu masih tertahan sekitar 5 menit.
-- Log request 1576142976252518576:
-  - mode=fast, allow_tools=False, allow_image_tool=False, function_calls=0.
-  - Dua web search calls selesai: 4.592s dan 1.827s; total web 6.419s; tidak ada function call.
-  - Headers/first event: 2.847s; first text: 54.631s.
-  - response_completed=586.667s (sekitar 9 menit 47 detik total menurut logger), walau pengguna melihat indikator web sekitar 5 menit.
-  - web_last_to_first_text=12.293s.
-- Resource log: RSS sekitar 125.7–128.4 MB; cgroup memory sekitar 139–169 MB dari 588.8 MB. CPU awal rendah, lalu naik hingga sekitar 40.7% one-core; quota cgroup berubah dari 100000 100000 ke 35000 100000. Throttling bertambah, dengan throttled_usec_total mencapai sekitar 8.34 juta pada log terakhir.
-- Pengguna menghentikan server; Wispbyte menampilkan Server marked as stopping lalu traceback asyncio.exceptions.CancelledError dan KeyboardInterrupt saat bot.start()/Discord websocket sedang dibatalkan. Ini konsisten dengan proses dihentikan oleh panel, bukan bukti crash aplikasi.
-- Startup juga mencatat [PDF-STARTUP-RESUME] untuk scope tertentu dan [OPERATION-RETRY-CONTEXT] kind=file format=pdf replay_failed_prompt. Jangan menyimpulkan task PDF itu penyebab request web berikutnya atau lonjakan CPU; korelasinya belum dibuktikan.
-
-## Diagnosis yang boleh dan tidak boleh diklaim
-- Terbukti: dua web searches selesai dalam total 6.419 detik; status UI masih terlihat “menelusuri web”; respons keseluruhan memakan 586.667 detik menurut logger; first text muncul pada 54.631 detik; CPU/throttling meningkat belakangan.
-- Belum terbukti: penyebab pasti status Discord tidak berubah setelah web search selesai; apakah status stuck berasal dari progress-message lifecycle, update/edit Discord yang gagal, event streaming yang tertunda, atau model/provider yang lama menghasilkan jawaban. Jangan menyebut web search sebagai penyebab 9 menit hanya karena teks statusnya.
-- Hipotesis untuk audit source read-only: cek seluruh lifecycle status/progress indicator native web search—set status, callback/event completion, final text arrival, exception/cancellation, dan cleanup/finally. Pastikan indikator “Sedang menelusuri web secara live...” dihapus/diganti segera setelah seluruh web calls complete atau ketika jawaban final mulai tersedia. Periksa apakah progress message terikat ke response.web_search_call.* dan apakah jalur terminal response.completed selalu membersihkannya.
-- Request berjalan lama meskipun dua pencarian selesai; perlu pisahkan latensi provider/model/generation dari latensi tool search dan dari kegagalan update status Discord.
-
-## Langkah berikutnya untuk sesi penerima
-1. Baca seluruh Bagian A–F Master Memory dan handoff ini; lihat G §52.74 untuk bukti kronologis.
-2. Jangan menjalankan tes runtime atau meminta pengguna restart. Jangan membuat CPU spike atau global workload load test.
-3. Jika pengguna ingin melanjutkan diagnosis, lakukan source inspection read-only pada lifecycle web-search progress indicator dan telemetry yang sudah ada. Laporkan fungsi, event, jalur cleanup, dan titik kemungkinan status tertinggal dengan bukti source; jangan patch sebelum diminta.
-4. Global workload scheduler tetap backlog. Tentukan desain dari source dan bukti yang tersedia dahulu; instrumentasi tambahan harus minimal, low-overhead, dan tidak menimbulkan beban. Hard CPU cap tidak dapat dijanjikan karena quota ditentukan host.
-5. Jika nantinya pengguna secara eksplisit mengizinkan satu live test, sepakati dulu satu uji minimal dengan kriteria berhenti, tanpa stress/load test; tetap pertimbangkan risiko kebijakan hosting.
-6. Jangan meminta pengguna mengulang server, checkout, branch, entrypoint, atau Startup Command yang sudah tercatat di B2A.
-
-## Status
-- Candidate startup pada log yang dikirim: PASS sampai ONLINE.
-- Web search tool calls: 2/2 completed.
-- Respons request keseluruhan: 586.667s menurut logger; kualitas/kelengkapan jawaban akhir tidak dapat dinilai dari log ini saja.
-- Progress indicator lifecycle: NOT VERIFIED / kemungkinan stale UI state.
-- Global workload design/implementation: PENDING; no code changes authorized.
-- Further live testing: STOPPED by user due to Wispbyte warning risk.
-- Production/deploy/restart: NOT AUTHORIZED.
-
----
 
 # A. ATURAN INDUK — WAJIB DIIKUTI
 
@@ -6138,3 +6088,13 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Production main.py, branch main, PR #6, deployment, dan Startup Command tidak disentuh.
 - Handoff aktif untuk sesi berikutnya dibuat pada bagian awal Master Memory sesuai A0.
 
+
+
+## 52.75 Penerimaan handoff sesi 28 November 2026 dan rekonsiliasi Master Memory
+
+- Sesi penerima fetch ulang Master Memory dari branch kerja dan membaca seluruh blok HANDOFF AKTIF di bagian awal, seluruh aturan Bagian A, Bagian B–F, serta arsip Bagian G sampai catatan terakhir.
+- Handoff mengonfirmasi status yang sudah dicatat secara permanen pada §52.74: live testing dihentikan atas keputusan pengguna karena risiko warning Wispbyte; request web memiliki dua pencarian selesai dalam total 6.419 detik, first text 54.631 detik, dan response_completed 586.667 detik; penyebab indikator Discord tertahan serta akar durasi request tetap NOT VERIFIED; tidak ada izin untuk restart, deploy, mengubah Startup Command, atau menyentuh production.
+- Rekonsiliasi menunjukkan fakta, keputusan, batas otorisasi, dan langkah audit read-only dalam handoff telah tercakup pada Bagian A serta §52.74. Tidak ada fakta baru dari handoff yang perlu dipindahkan ke bagian permanen lain.
+- Setelah pembacaan dan rekonsiliasi selesai, hanya blok sementara `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` di bagian awal dokumen yang dihapus. Bagian A–G dan seluruh arsip historis dipertahankan.
+- Tidak ada perubahan kode kandidat, tes, workflow, Wispbyte Startup Command/runtime, production `main.py`, production branch `main`, PR #6, deployment, merge, atau restart.
+- Pembaruan ini adalah penerimaan/pembersihan dokumentasi handoff saja. Verifikasi fetch-back memastikan blok sementara tidak ada dan catatan §52.75 tersimpan.
