@@ -2196,6 +2196,7 @@ Deskripsi visual: Gambar robot dengan teks AI besar."""
 
 
 class PdfWorkflowFixRegressionTests(unittest.TestCase):
+    # Isolated CI trigger: exercise the candidate code inherited from the base branch.
     def test_pdf_layout_uses_actual_html_measurement_and_page_retry(self):
         import pymupdf
         from clouzer_file_creation import _make_pdf
