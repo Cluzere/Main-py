@@ -5990,3 +5990,33 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Status kandidat: perubahan sudah di-commit dan perlu exact-head CI/regression verification sebelum dinyatakan siap untuk restart kandidat. Setelah CI lulus, restart tetap dilakukan pengguna sendiri; assistant tidak restart/deploy.
 
 - Fetch-back setelah seluruh penulisan mengonfirmasi blob kandidat entry point `78a014d2e213f2c919d3db3e65876b3e40f60339`, helper `b3b460862bedc9ea3844d74223383c3bad0c0af3`, test `b7692ea7492341dd1713e72d1326dbe1c012f045`, dan Master Memory `8b3a889c3d048608fbdccd4ee83974465e9a8bce`. HEAD branch setelah catatan ini adalah commit `a90a032909d3f447f22de32f6864f37ed425b302`. Perbandingan dari HEAD dokumentasi sebelumnya `a26166bf0da3305f5ab2e9f54f3f6c9d6b72af6b` menunjukkan tidak ada perubahan pada root production `main.py` atau production branch `main`.
+
+
+## 52.73 Audit workflow end-to-end, PDF delivery idempotency guard, dan exact-head CI — 28 November 2026
+
+- Pengguna meminta workflow diperiksa sampai tuntas sebelum restart. Audit dilakukan pada kandidat branch saja; tidak ada restart/deploy/merge atau perubahan production.
+- Exact-head code/test commit setelah perbaikan konsistensi delivery: `3ff2de83f362cdc72060e99f4ec96aebf8bffdab`.
+- Audit menyusuri alur: Discord ingress → deteksi format → persist pending task sebelum provider call → Responses content generation → continuation PDF panjang → retry stream interruption → source resolution → local PDF render → format/page/deep validation → Discord attachment edit → verifikasi attachment filename → hapus pending task dan persist hasil.
+- Batas minimum halaman tidak dilemahkan. `validate_document_file()` tetap memeriksa jumlah halaman berdasarkan frasa minimum pada prompt; MASTER FINAL tetap melalui validasi mendalam, lima bagian wajib, paragraf per bagian, tabel 10 produk/7 kolom, A4, nomor halaman, geometri teks, dan ringkasan validasi backend. Tes `test_pdf_validator_enforces_minimum_pages_a4_and_required_styles` tetap ada.
+- Temuan tambahan: setelah Discord mengonfirmasi attachment, proses menghapus pending task dari memory lalu menyimpan memory. Jika save setelah delivery gagal, file sudah terkirim tetapi disk dapat tetap menyimpan task lama; startup sebelumnya berisiko mengirim duplikat.
+- Perbaikan delivery guard:
+  - Normalizer `normalize_pending_retry_task()` kini mempertahankan boolean `delivery_started`.
+  - Tepat sebelum efek samping Discord upload, PDF task diberi `delivery_started=true` dan disimpan secara durable.
+  - Startup worker tidak meng-auto-resume task yang memiliki `delivery_started=true`; worker menulis `stage=delivery_reconciliation_required` agar operator memeriksa Discord secara manual, mencegah duplicate upload saat status eksternal belum dapat dipastikan.
+  - Jika attachment sudah terkonfirmasi tetapi persist penghapusan task gagal, worker menulis `attachment_confirmed_cleanup_persist_failed`; delivery tidak salah dilabeli cleanup-persisted.
+  - Trade-off yang disengaja: crash setelah delivery gate tersimpan tetapi sebelum upload selesai akan memerlukan pemeriksaan/manual `Ulangi`, bukan auto-resume buta. Ini memilih pencegahan duplikasi daripada klaim exactly-once yang tidak dapat dijamin oleh transaksi lintas Discord dan filesystem.
+- Regression test tambahan: metadata `delivery_started` round-trip; static ordering test membuktikan gate disimpan sebelum Discord attachment edit; startup worker menolak auto-resume dan meminta reconciliation. Test baru `test_pdf_delivery_gate_is_persisted_before_discord_send` PASS.
+- Fetch-back blobs setelah perubahan:
+  - Helper `clouzer_file_creation.py`: `a53d4371617891869c065cab484360b27da7e478`.
+  - Entry point `revisi_audit_final_main.py`: `0bcde8205950023174be5d628990627939180c1b`.
+  - Regression test `test_file_creation.py`: `e0148a4fdf3f372a4cb71d111b7890a1cf70f59b`.
+- Exact-head GitHub Actions untuk commit `3ff2de83f362cdc72060e99f4ec96aebf8bffdab`: **3/3 SUCCESS**:
+  1. Audit recovery candidate — run `46118914673`, job `140898841584`: 176 tests, OK; high-severity Bandit scan completed.
+  2. CLOUZER multi-format file audit — run `46118914639`, job `140898841464`: 176 tests, OK; Bandit scan completed.
+  3. Audit candidate syntax check — run `46118914633`, job `140898841279`: dependency consistency passed (`No broken requirements found`); compile passed; dependency vulnerability scan passed (`No known vulnerabilities found`); medium/high Bandit scan passed; document/file tests 100 OK; archive regressions 93 OK; audit regressions 176 OK.
+- Earlier code-fix commit `f8720fc08644ea1179e4d0f3d7f349161ae6967a` also passed all three workflows, but final authoritative code/test commit is `3ff2de83f362cdc72060e99f4ec96aebf8bffdab`.
+- Exact-head run links:
+  - https://github.com/Cluzere/Main-py/actions/runs/46118914673
+  - https://github.com/Cluzere/Main-py/actions/runs/46118914639
+  - https://github.com/Cluzere/Main-py/actions/runs/46118914633
+- Final verdict: source-level workflow and automated CI regression/security checks for the candidate are **PASS**. Live Wispbyte stop/start persistence, actual startup auto-resume, provider output, real 100-page artifact generation under Wispbyte quota, real Discord attachment delivery, and CPU/RAM/throttling remain **NOT VERIFIED** and cannot be certified by GitHub CI. User must perform any Wispbyte restart; assistant must not restart/deploy. Before restart, confirm Startup Command targets this exact candidate entrypoint and deployed helper file is the matching candidate helper. Production `main.py`, production branch `main`, and PR #6 remain untouched/unmerged.
