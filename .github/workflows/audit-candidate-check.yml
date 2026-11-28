@@ -11,6 +11,15 @@ on:
       - ".github/workflows/audit-candidate-check.yml"
       - "tests/test_audit_candidate_*.py"
       - "audit-recovery/review-round-2/test_*.py"
+  pull_request:
+    branches:
+      - ci-validation-base-2026-11-28
+    paths:
+      - "audit-recovery/review-round-2/revisi_audit_final_main.py"
+      - "audit-recovery/review-round-2/clouzer_file_creation.py"
+      - ".github/workflows/audit-candidate-check.yml"
+      - "tests/test_audit_candidate_*.py"
+      - "audit-recovery/review-round-2/test_*.py"
   workflow_dispatch:
 
 jobs:
