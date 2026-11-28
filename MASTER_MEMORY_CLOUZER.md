@@ -528,7 +528,7 @@ Dua regression test baru ditambahkan ke `test_file_creation.py`:
 
 - Exact code/test SHA: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
 - Added `test_long_file_stream_has_separate_output_budget` in `test_file_creation.py`. It compiles the actual bounded-append function from the candidate entrypoint in isolation, checks that normal chat retains the 65.536-character limit, checks file-generation can append beyond 65.536 up to 350.000, checks the file cap still raises, and asserts both SSE append paths use the per-request budget plus detailed retry diagnostics.
-- Test blob: `93b478c67664686764c926447d35e9f87858f9fb`; source blob: `df7ab40e655d14e2fb9a063fdbadf8527393736`.
+- Test blob: `93b478c67664686764c926447d35e9f87858f9fb`; source blob: `df7ab40e655d14e2fb6ffd19358ddb0931d7d8da`.
 - Candidate source and test files were fetched back from the branch and their blob SHAs/content markers matched the committed changes.
 - Workflow file `.github/workflows/clouzer-multiformat-audit.yml` confirms push trigger includes `audit-recovery/review-round-2/test_*.py`; test commit should trigger the multi-format suite.
 - GitHub connector's `fetch_commit_workflow_runs` returned an empty list for this push commit, and combined status returned no checks. This connector method is documented to return PR-triggered runs only; therefore push-workflow terminal state is **NOT VERIFIED**, not evidence that no workflow ran and not CI PASS. Next session must inspect Actions runs/jobs for exact SHA `c4007796...` and wait for terminal status per A2.
@@ -5820,7 +5820,7 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - No PDF validator minimum, renderer, CPU cache, or startup command was changed.
 
 ### Candidate patch committed
-- Source commit `b5eebf5aeb1947af4f30a236fbc5af14f94dbaaf`; entrypoint blob `df7ab40e655d14e2fb9a063fdbadf8527393736`.
+- Source commit `b5eebf5aeb1947af4f30a236fbc5af14f94dbaaf`; entrypoint blob `df7ab40e655d14e2fb6ffd19358ddb0931d7d8da`.
 - File generation now has separate bounded output budget `MAX_FILE_RESPONSES_OUTPUT_CHARS`, default 350,000, minimum 65,536, maximum 500,000. Normal chat retains 65,536.
 - Both SSE delta and completed output-item append paths use the selected per-request limit.
 - `[FILE-RETRY]` now logs exception type and truncated exception message in addition to partial character count.
@@ -5843,42 +5843,13 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - CPU optimization/cache retained; Wispbyte CPU quota remains an external host constraint and is not altered by this patch.
 - Next: exact-head CI → user-controlled candidate restart → one same-prompt 100-page live retest → inspect logs/artifact/attachment. Keep validator minimum intact.
 
-## HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
+## 52.66 Penerimaan handoff sesi baru dan rekonsiliasi Master Memory — 28 November 2026
 
-### Status kanonis saat handoff dibuat
-- Repo `Cluzere/Main-py`, candidate branch `audit-recovery-gpt-2026-11-23`.
-- Latest exact code/test commit: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`. The previous Master Memory documentation commit is `88c4477e5d79af06110daa24ff721bd29cbbaa6c`; always fetch actual branch HEAD on resume.
-- Candidate entrypoint: `audit-recovery/review-round-2/revisi_audit_final_main.py`, blob `df7ab40e655d14e2fb9a063fdbadf8527393736`.
-- Candidate tests: `audit-recovery/review-round-2/test_file_creation.py`, blob `93b478c67664686764c926447d35e9f87858f9fb`.
-- Master Memory is this file, `MASTER_MEMORY_CLOUZER.md`; handoff is temporary and must be reconciled/removed only after the next session reads it, following A0.12–A0.14.
-
-### What was done in this session
-1. Read current Master Memory A–F and relevant G evidence, including CPU history, PDF closeout, Wispbyte startup, and prior resource diagnostics.
-2. Investigated user-provided 100-page PDF failure logs.
-3. Confirmed candidate global output buffer cap was 65,536 characters for all Responses calls; exceptions after partial output become `ResponsesStreamInterrupted`.
-4. Implemented separate file-generation cap 350,000 characters (max 500,000) while retaining 65,536 for ordinary chat; added detailed stream failure logging.
-5. Added regression test `test_long_file_stream_has_separate_output_budget`.
-6. Committed source and test separately; fetched both back and verified their blob SHAs/content markers.
-
-### Key interpretation — do not lose this
-- CPU optimizations from the prior 15.98% Wispbyte incident are existing PDF-work reductions (deduplicated validation and PyMuPDF caching), not a Python CPU throttling feature. Keep them.
-- Latest supplied pre-patch log showed no throttle events and low/moderate CPU, but Wispbyte quota was `35000 100000`; do not assume CPU has unlimited capacity.
-- `partial_chars=65536` exactly matches the old global response character cap. This strongly suggests an internal cap-triggered false stream interruption, but old history includes genuine SSE timeouts/rate limiting; new detailed error fields will distinguish these in the next live run.
-- Do not change/relax minimum-100-page PDF validation or renderer/CPU optimizations without a new specific finding.
-
-### First actions for next session
-1. Fetch latest `MASTER_MEMORY_CLOUZER.md` from the candidate branch. Read all of A–F, this active handoff, and relevant G §52.65. Reconcile with live GitHub branch state.
-2. Verify actual branch HEAD. The latest code/test commit should be `c4007796...`; previous Master Memory documentation commit `88c4477...` is a docs-only descendant. If newer, inspect its diff and preserve later changes.
-3. Inspect GitHub Actions runs/jobs for exact SHA `c4007796...`; connector status currently **NOT VERIFIED**. Wait until required push workflows reach terminal status. If failed, inspect logs, fix only candidate branch, commit, and recheck all required workflows.
-4. Only after CI PASS, tell the user the candidate is ready for a user-controlled Wispbyte candidate restart/reload. Do not restart/deploy it yourself; do not alter Startup Command.
-5. After user restart, verify startup fetch SHA. Run the same 100-page PDF prompt once. Collect new `[FILE-RETRY]` error type/message, `[PDF-CONTINUATION]` progress, resource trace CPU/RAM/quota/throttling, final PDF page count/validator outcome, and Discord attachment evidence.
-6. If failure remains, classify it from the detailed exception (internal cap, SSE read timeout, provider rate limit, or transport error) before patching. Do not assume CPU is the root cause.
-7. Do not touch production `/home/container/main.py`, production branch `main`, PR #6 merge, deployment, or production restart. No such permission was granted. Keep PR #6 draft/unmerged.
-
-### Acceptance state at handoff
-- Candidate patch and regression test: committed and fetch-back verified.
-- Exact-head CI: **NOT VERIFIED**.
-- Wispbyte live 100-page PDF retest: **NOT VERIFIED**.
-- PDF 100-page acceptance and Discord attachment delivery: **NOT VERIFIED**.
-- Production unchanged; no deploy/restart performed.
-
+- Sesi penerima melakukan fetch langsung terhadap `MASTER_MEMORY_CLOUZER.md` pada branch `audit-recovery-gpt-2026-11-23`; blob sebelum pembaruan: `e0b0497ac7b2943de1f6dcb0a3a336219b75c516`. Panjang dokumen yang dibaca: 571,555 karakter.
+- Seluruh Bagian A–F telah dibaca, termasuk aturan A0–A12, kondisi proyek/runtime Wispbyte di B, implementasi kandidat C, status CI/workflow D, hasil yang terbukti E, dan backlog F. Blok HANDOFF AKTIF juga dibaca penuh dan direkonsiliasikan dengan isi permanen serta branch GitHub aktual.
+- Arsip G yang relevan untuk pekerjaan aktif dibaca, khususnya §§52.57–52.65. Detail historis lainnya tetap tersedia dan dipertahankan; tidak ada arsip yang dihapus.
+- Branch aktual saat fetch: HEAD dokumentasi `4fa8aaa202645729b6b4c1ae28c5753759715d08`, parent `88c4477e5d79af06110daa24ff721bd29cbbaa6c`; code/test PDF commit yang relevan tetap `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`. Tidak ditemukan commit lebih baru dari HEAD tersebut saat pemeriksaan.
+- Candidate entrypoint blob diverifikasi ulang sebagai `df7ab40e655d14e2fb6ffd19358ddb0931d7d8da`; test blob `93b478c67664686764c926447d35e9f87858f9fb`. Koreksi referensi blob entrypoint yang sebelumnya salah di catatan D5/arsip dilakukan agar sama dengan SHA yang dikembalikan GitHub.
+- Fakta dan next action dari handoff sudah tercatat pada C1.1, D5, E, F, dan §52.65; status tetap: patch source/test committed dan fetch-back verified, exact-head CI untuk `c4007796...` **NOT VERIFIED**, live 100-page PDF retest **NOT VERIFIED**, Discord delivery **NOT VERIFIED**.
+- Sesuai A0.12–A0.14, hanya blok sementara `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` yang dibersihkan. Catatan permanen A–G, aturan, riwayat, SHA, dan bukti historis dipertahankan.
+- Tidak ada perubahan kode kandidat, tes, workflow, Wispbyte Startup Command, runtime, production `main.py`, production branch `main`, PR #6, deployment, merge, atau restart. Tidak ada tindakan runtime dilakukan dalam penerimaan handoff ini.
