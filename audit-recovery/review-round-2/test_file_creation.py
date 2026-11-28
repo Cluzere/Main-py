@@ -7,10 +7,85 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file, resolve_document_source, build_file_generation_system_instruction, _xlsx_formula_specs, _requested_sheet_title
+from clouzer_file_creation import create_document_file, detect_requested_file_format, validate_document_file, resolve_document_source, build_file_generation_system_instruction, normalize_pending_retry_task, _xlsx_formula_specs, _requested_sheet_title
 
 
 class FileCreationTests(unittest.TestCase):
+    def test_pending_pdf_resume_metadata_round_trips(self):
+        raw = {
+            "kind": "file",
+            "format": "pdf",
+            "prompt": "Buat PDF minimal 100 halaman",
+            "guild_id": 123,
+            "channel_id": 456,
+            "user_id": 789,
+            "source_message_id": 987,
+            "source_has_attachments": True,
+            "auto_resume": True,
+            "auto_resume_attempts": 1,
+            "created_at": 1234.5,
+        }
+        task = normalize_pending_retry_task(raw)
+        self.assertIsNotNone(task)
+        for key, value in raw.items():
+            self.assertEqual(task.get(key), value)
+
+        # Reject malformed IDs/counters and clamp the retry budget to two boots.
+        malformed = normalize_pending_retry_task({
+            **raw, "guild_id": -1, "channel_id": True, "user_id": "789",
+            "auto_resume_attempts": 99,
+        })
+        self.assertNotIn("guild_id", malformed)
+        self.assertNotIn("channel_id", malformed)
+        self.assertNotIn("user_id", malformed)
+        self.assertEqual(malformed["auto_resume_attempts"], 2)
+
+    def test_pdf_job_is_durable_and_resumed_once_per_startup(self):
+        source_path = Path(__file__).with_name("revisi_audit_final_main.py")
+        source = source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(source_path))
+        bot_class = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "ClouzerBot"
+        )
+        methods = {
+            node.name: node for node in bot_class.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        self.assertIn("_resume_one_startup_pdf_job", methods)
+        self.assertIn("schedule_startup_pdf_resume", methods)
+
+        worker = ast.get_source_segment(source, methods["_resume_one_startup_pdf_job"])
+        self.assertIn('task.get("format") != "pdf"', worker)
+        self.assertIn('task.get("auto_resume") is not True', worker)
+        self.assertIn('int(task.get("auto_resume_attempts", 0)) >= 2', worker)
+        self.assertIn("candidates.sort", worker)
+        self.assertIn("await self.process_ai_turn(", worker)
+        self.assertIn('"[PDF-STARTUP-RESUME]"', worker)
+
+        process = next(
+            node for node in bot_class.body
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "process_ai_turn"
+        )
+        process_source = ast.get_source_segment(source, process)
+        task_pos = process_source.index('"auto_resume": requested_file_format == "pdf"')
+        persist_pos = process_source.index("await self.save_memory()", task_pos)
+        provider_pos = process_source.index("await self.run_responses_ai(", persist_pos)
+        self.assertLess(task_pos, persist_pos)
+        self.assertLess(persist_pos, provider_pos)
+        for metadata in ('"guild_id"', '"channel_id"', '"user_id"', '"source_message_id"', '"source_has_attachments"'):
+            self.assertIn(metadata, process_source)
+
+        on_ready = next(
+            node for node in tree.body
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "on_ready"
+        )
+        on_ready_source = ast.get_source_segment(source, on_ready)
+        self.assertIn("bot.schedule_startup_pdf_resume()", on_ready_source)
+
+        failure_pos = process_source.index('"auto_resume": False')
+        self.assertGreater(failure_pos, provider_pos)
+
     def test_long_file_stream_has_separate_output_budget(self):
         source_path = Path(__file__).with_name("revisi_audit_final_main.py")
         source = source_path.read_text(encoding="utf-8")
