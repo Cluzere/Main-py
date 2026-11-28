@@ -18,6 +18,7 @@ from defusedxml import ElementTree as DefusedET
 from html.parser import HTMLParser
 from collections import defaultdict, OrderedDict, deque
 from contextlib import asynccontextmanager
+from clouzer_workload import WorkloadManager
 from typing import NamedTuple
 import discord
 from discord import app_commands
@@ -159,6 +160,9 @@ QUEUE_WAIT_TIMEOUT_SECONDS = min(600.0, _env_float("QUEUE_WAIT_TIMEOUT_SECONDS",
 MAX_CONCURRENT_AI_CALLS = _env_int_capped("MAX_CONCURRENT_AI_CALLS", 4, minimum=1, maximum=8)
 MAX_CONCURRENT_IMAGE_CALLS = _env_int_capped("MAX_CONCURRENT_IMAGE_CALLS", 2, minimum=1, maximum=4)
 MAX_CONCURRENT_AUDIO_CALLS = _env_int_capped("MAX_CONCURRENT_AUDIO_CALLS", 2, minimum=1, maximum=4)
+GWM_MAX_ACTIVE = _env_int_capped("GWM_MAX_ACTIVE", 3, minimum=1, maximum=5)
+GWM_MAX_PENDING = _env_int_capped("GWM_MAX_PENDING", 24, minimum=4, maximum=100)
+GWM_QUEUE_TIMEOUT_SECONDS = min(600.0, _env_float("GWM_QUEUE_TIMEOUT_SECONDS", 300.0, minimum=1.0))
 PROMPT_HISTORY_MAX_CHARS = _env_int_capped("PROMPT_HISTORY_MAX_CHARS", 240_000, minimum=20_000, maximum=500_000)
 
 # Deteksi secret: file dengan >= N secret berbeda ditolak total (bukan hanya disensor).
@@ -2285,6 +2289,12 @@ class ClouzerBot(commands.Bot):
         self.ai_semaphore = asyncio.Semaphore(MAX_CONCURRENT_AI_CALLS)
         self.image_semaphore = asyncio.Semaphore(MAX_CONCURRENT_IMAGE_CALLS)
         self.audio_semaphore = asyncio.Semaphore(MAX_CONCURRENT_AUDIO_CALLS)
+        self.workload_manager = WorkloadManager(
+            max_active=GWM_MAX_ACTIVE,
+            max_pending=GWM_MAX_PENDING,
+            queue_timeout=GWM_QUEUE_TIMEOUT_SECONDS,
+            heavy_max_active=1,
+        )
         self.view_states = ViewStateStore(
             VIEW_STATE_FILE,
             max_entries=VIEW_STATE_MAX_ENTRIES,
@@ -2937,8 +2947,9 @@ class ClouzerBot(commands.Bot):
         source_images: list[str] | None = None,
         aspect_ratio: str | None = None,
     ) -> tuple[bytes, str, str, str]:
-        async with self.image_semaphore:
-            return await self._generate_or_edit_image_impl(prompt, source_images, aspect_ratio)
+        async with self.workload_manager.slot("image", heavy=True):
+            async with self.image_semaphore:
+                return await self._generate_or_edit_image_impl(prompt, source_images, aspect_ratio)
 
     async def _generate_or_edit_image_impl(
         self,
@@ -3882,8 +3893,9 @@ class ClouzerBot(commands.Bot):
         return self._wrap_doc_content(ext.lstrip(".").upper(), filename, body[:25000])
 
     async def transcribe_audio_bytes(self, audio_bytes: bytes, filename: str) -> str:
-        async with self.audio_semaphore:
-            return await self._transcribe_audio_bytes_impl(audio_bytes, filename)
+        async with self.workload_manager.slot("audio", heavy=True):
+            async with self.audio_semaphore:
+                return await self._transcribe_audio_bytes_impl(audio_bytes, filename)
 
     async def _transcribe_audio_bytes_impl(self, audio_bytes: bytes, filename: str) -> str:
         if not audio_bytes:
@@ -4228,13 +4240,18 @@ class ClouzerBot(commands.Bot):
         if reason:
             return self._blocked_attachment_result(filename, reason)
 
-        # Wait in the semaphore's FIFO waiter queue instead of dropping the
-        # user's attachment and asking them to upload it again.
-        await self.attachment_semaphore.acquire()
-        try:
-            text, local_imgs, http_urls, ftype = await self._encode_attachment_impl(attachment)
-        finally:
-            self.attachment_semaphore.release()
+        # GWM admission happens before attachment parsing.
+        ext = os.path.splitext(filename.lower())[1]
+        attachment_heavy = (
+            ext in (OFFICE_DOC_EXTS | set(AUDIO_EXTS) | set(IMAGE_EXTS))
+            or int(getattr(attachment, "size", 0) or 0) >= 2 * 1024 * 1024
+        )
+        async with self.workload_manager.slot("attachment", heavy=attachment_heavy):
+            await self.attachment_semaphore.acquire()
+            try:
+                text, local_imgs, http_urls, ftype = await self._encode_attachment_impl(attachment)
+            finally:
+                self.attachment_semaphore.release()
 
         # Cabang teks sudah dipindai (dan dipotong) di dalam _encode_attachment_impl.
         if text and ftype not in ("text", "blocked"):
@@ -4782,73 +4799,93 @@ class ClouzerBot(commands.Bot):
         extra_input: list[dict] | None = None,
         file_generation: bool = False,
     ) -> tuple[str, list[dict]]:
-        """Pembungkus: batasi anggaran global, konkurensi Xingchi, dan sensor output model."""
+        """GWM admission precedes quota consumption and provider concurrency."""
         _diag_loop = asyncio.get_running_loop()
         _diag_start = _diag_loop.time()
-        allowed, wait = await asyncio.to_thread(self.global_budget.acquire, "responses")
-        _diag_budget_done = _diag_loop.time()
-        if not allowed:
-            raise RuntimeError(f"Anggaran API global harian tercapai; coba lagi sekitar {format_wait(wait)}.")
-        _diag_semaphore_start = _diag_loop.time()
-        async with self.ai_semaphore:
-            _diag_semaphore_done = _diag_loop.time()
-            diag = {
-                "started": _diag_start,
-                "request_id": getattr(target_msg, "id", None),
-                "budget_seconds": _diag_budget_done - _diag_start,
-                "semaphore_seconds": _diag_semaphore_done - _diag_semaphore_start,
-            }
-            text = ""
-            calls: list[dict] = []
-            for attempt in range(2):
-                attempt_diag = dict(diag)
-                attempt_diag["attempt"] = attempt + 1
-                try:
-                    text, calls = await self._run_responses_ai_impl(
-                        messages, target_msg, mode,
-                        allow_tools=allow_tools, allow_image_tool=allow_image_tool, extra_input=extra_input,
-                        _diag_timing=attempt_diag,
-                        file_generation=file_generation,
-                    )
-                    diag.update(attempt_diag)
-                    break
-                except Exception as exc:
-                    # Retry only explicit upstream gateway failures before any
-                    # SSE event. Never replay a stream that may have emitted text
-                    # or a function call; that could duplicate visible output or
-                    # a tool operation.
-                    error_text = str(exc)
-                    safe_gateway_failure = (
-                        isinstance(exc, RuntimeError)
-                        and (
-                            re.match(r"^Responses HTTP (?:502|503|504):", error_text) is not None
-                            or (
-                                re.match(r"^Responses HTTP 500:", error_text) is not None
-                                and "unable to forward upstream stream" in error_text.lower()
+        prompt_chars = 0
+        has_image_payload = False
+        for message in messages or []:
+            content = message.get("content", "") if isinstance(message, dict) else ""
+            if isinstance(content, str):
+                prompt_chars += len(content)
+                has_image_payload = has_image_payload or "data:image/" in content.lower()
+            elif isinstance(content, list):
+                for part in content:
+                    if isinstance(part, dict):
+                        prompt_chars += len(str(part.get("text", "")))
+                        has_image_payload = has_image_payload or str(part.get("type", "")).lower() in {
+                            "input_image", "image_url"
+                        }
+        if extra_input:
+            prompt_chars += sum(len(str(item)) for item in extra_input)
+        heavy_ai = bool(file_generation or prompt_chars >= 12000 or has_image_payload or extra_input)
+        _diag_gwm_start = _diag_loop.time()
+        async with self.workload_manager.slot("ai", heavy=heavy_ai):
+            _diag_gwm_admitted = _diag_loop.time()
+            allowed, wait = await asyncio.to_thread(self.global_budget.acquire, "responses")
+            _diag_budget_done = _diag_loop.time()
+            if not allowed:
+                raise RuntimeError(
+                    f"Anggaran API global harian tercapai; coba lagi sekitar {format_wait(wait)}."
+                )
+            _diag_semaphore_start = _diag_loop.time()
+            async with self.ai_semaphore:
+                _diag_semaphore_done = _diag_loop.time()
+                diag = {
+                    "started": _diag_start,
+                    "request_id": getattr(target_msg, "id", None),
+                    "gwm_queue_seconds": _diag_gwm_admitted - _diag_gwm_start,
+                    "budget_seconds": _diag_budget_done - _diag_gwm_admitted,
+                    "semaphore_seconds": _diag_semaphore_done - _diag_semaphore_start,
+                }
+                text = ""
+                calls: list[dict] = []
+                for attempt in range(2):
+                    attempt_diag = dict(diag)
+                    attempt_diag["attempt"] = attempt + 1
+                    try:
+                        text, calls = await self._run_responses_ai_impl(
+                            messages, target_msg, mode,
+                            allow_tools=allow_tools, allow_image_tool=allow_image_tool, extra_input=extra_input,
+                            _diag_timing=attempt_diag,
+                            file_generation=file_generation,
+                        )
+                        diag.update(attempt_diag)
+                        break
+                    except Exception as exc:
+                        error_text = str(exc)
+                        safe_gateway_failure = (
+                            isinstance(exc, RuntimeError)
+                            and (
+                                re.match(r"^Responses HTTP (?:502|503|504):", error_text) is not None
+                                or (
+                                    re.match(r"^Responses HTTP 500:", error_text) is not None
+                                    and "unable to forward upstream stream" in error_text.lower()
+                                )
                             )
+                            and "first_event_seconds" not in attempt_diag
                         )
-                        and "first_event_seconds" not in attempt_diag
-                    )
-                    if attempt == 0 and safe_gateway_failure:
-                        retry_allowed, _retry_wait = await asyncio.to_thread(
-                            self.global_budget.acquire, "responses"
-                        )
-                        if not retry_allowed:
-                            raise RuntimeError(
-                                "Anggaran API global harian tercapai; retry Responses dibatalkan "
-                                "agar batas penggunaan tetap dipatuhi."
-                            ) from exc
-                        logging.warning(
-                            "[RESPONSES-RETRY] request_id=%s status=upstream_gateway_failure attempt=1",
-                            diag.get("request_id"),
-                        )
-                        await asyncio.sleep(0.5)
-                        continue
-                    diag.update(attempt_diag)
-                    raise
+                        if attempt == 0 and safe_gateway_failure:
+                            retry_allowed, _retry_wait = await asyncio.to_thread(
+                                self.global_budget.acquire, "responses"
+                            )
+                            if not retry_allowed:
+                                raise RuntimeError(
+                                    "Anggaran API global harian tercapai; retry Responses dibatalkan "
+                                    "agar batas penggunaan tetap dipatuhi."
+                                ) from exc
+                            logging.warning(
+                                "[RESPONSES-RETRY] request_id=%s status=upstream_gateway_failure attempt=1",
+                                diag.get("request_id"),
+                            )
+                            await asyncio.sleep(0.5)
+                            continue
+                        diag.update(attempt_diag)
+                        raise
         logging.warning(
-            "[TTFT-DIAG] request_id=%s mode=%s budget=%.3fs semaphore=%.3fs request_to_first_event=%s request_to_first_text=%s total=%.3fs",
-            diag.get("request_id"), mode, diag["budget_seconds"], diag["semaphore_seconds"],
+            "[TTFT-DIAG] request_id=%s mode=%s gwm_queue=%.3fs budget=%.3fs semaphore=%.3fs request_to_first_event=%s request_to_first_text=%s total=%.3fs",
+            diag.get("request_id"), mode, diag["gwm_queue_seconds"], diag["budget_seconds"],
+            diag["semaphore_seconds"],
             f'{diag["first_event_seconds"]:.3f}s' if "first_event_seconds" in diag else "n/a",
             f'{diag["first_text_seconds"]:.3f}s' if "first_text_seconds" in diag else "n/a",
             _diag_loop.time() - _diag_start,
@@ -5750,16 +5787,17 @@ class ClouzerBot(commands.Bot):
                                         "refined geometric details, professional editorial art direction. Absolutely no text, "
                                         "letters, numbers, typography, labels, logos, watermark, UI, charts or diagrams."
                                     )
-                                    budget_ok, budget_wait = await asyncio.to_thread(self.global_budget.acquire, "images")
-                                    if not budget_ok:
-                                        raise RuntimeError(
-                                            "Anggaran gambar global harian tercapai pada visual slide "
-                                            + str(visual_index) + "; coba lagi sekitar " + format_wait(budget_wait) + "."
-                                        )
-                                    async with self.image_semaphore:
-                                        visual_bytes, _visual_name, _visual_mime, visual_engine = await self.generate_cloudflare_image(
-                                            visual_prompt, aspect_ratio="16:9", model_override=PPTX_IMAGE_MODEL
-                                        )
+                                    async with self.workload_manager.slot("image", heavy=True):
+                                        budget_ok, budget_wait = await asyncio.to_thread(self.global_budget.acquire, "images")
+                                        if not budget_ok:
+                                            raise RuntimeError(
+                                                "Anggaran gambar global harian tercapai pada visual slide "
+                                                + str(visual_index) + "; coba lagi sekitar " + format_wait(budget_wait) + "."
+                                            )
+                                        async with self.image_semaphore:
+                                            visual_bytes, _visual_name, _visual_mime, visual_engine = await self.generate_cloudflare_image(
+                                                visual_prompt, aspect_ratio="16:9", model_override=PPTX_IMAGE_MODEL
+                                            )
                                     image_assets.append(visual_bytes)
                                     logging.info(
                                         "[PPTX-VISUAL] scope=%s slide=%d model=%s engine=%s bytes=%d",
