@@ -2191,5 +2191,73 @@ Deskripsi visual: Gambar robot dengan teks AI besar."""
         self.assertLess(failed_closed_log, fail_closed_raise)
         self.assertLess(fail_closed_raise, generic_retry_log)
 
+
+
+
+class PdfWorkflowFixRegressionTests(unittest.TestCase):
+    def test_pdf_layout_uses_actual_html_measurement_and_page_retry(self):
+        import pymupdf
+        from clouzer_file_creation import _make_pdf
+
+        long_paragraph = (
+            "**Teks tebal** dengan *teks miring*, kode `CLOUZER.resume_pdf()`, "
+            "dan kalimat panjang untuk menguji pengukuran layout HTML yang sebenarnya. "
+        ) * 45
+        content = (
+            "# Uji Pengukuran Layout PDF\n\n"
+            "## Pendahuluan\n\nParagraf pembuka.\n\n"
+            "## Isi Pengujian\n\n" + long_paragraph + "\n\n"
+            "## Kesimpulan\n\nDokumen harus tetap utuh dan dapat diekstrak."
+        )
+        data = _make_pdf(content, "Uji Pengukuran Layout PDF")
+        with pymupdf.open(stream=data, filetype="pdf") as doc:
+            extracted = "\n".join(page.get_text() for page in doc)
+            self.assertGreaterEqual(doc.page_count, 2)
+            self.assertIn("Teks tebal", extracted)
+            self.assertIn("CLOUZER.resume_pdf()", extracted)
+            self.assertIn("Kesimpulan", extracted)
+
+    def test_startup_pdf_resume_reports_real_terminal_state(self):
+        source_path = Path(__file__).with_name("revisi_audit_final_main.py")
+        source = source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(source_path))
+        bot_class = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "ClouzerBot"
+        )
+        worker = next(
+            node for node in bot_class.body
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "_resume_one_startup_pdf_job"
+        )
+        worker_source = ast.get_source_segment(source, worker)
+        for marker in (
+            "stage=failed_manual_retry_required",
+            "stage=returned_pending",
+            "stage=unexpected_pending_state",
+            "stage=completed delivery_state=attachment_confirmed",
+        ):
+            self.assertIn(marker, worker_source)
+        self.assertIn('raw_final_task is None', worker_source)
+        self.assertIn('normalize_pending_retry_task(raw_final_task)', worker_source)
+
+    def test_interrupted_file_retry_keeps_long_file_output_budget(self):
+        source_path = Path(__file__).with_name("revisi_audit_final_main.py")
+        source = source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(source_path))
+        bot_class = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "ClouzerBot"
+        )
+        process = next(
+            node for node in bot_class.body
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "process_ai_turn"
+        )
+        process_source = ast.get_source_segment(source, process)
+        retry_start = process_source.index("except ResponsesStreamInterrupted as stream_exc:")
+        retry_end = process_source.index("img_calls =", retry_start)
+        retry_source = process_source[retry_start:retry_end]
+        self.assertIn("file_generation=bool(requested_file_format)", retry_source)
+
+
 if __name__ == "__main__":
     unittest.main()
