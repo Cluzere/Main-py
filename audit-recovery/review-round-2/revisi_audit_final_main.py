@@ -277,6 +277,10 @@ MAX_MEMORY_FILE_BYTES = 20 * 1024 * 1024
 MAX_RESPONSES_STREAM_BYTES = 20 * 1024 * 1024
 MAX_RESPONSES_LINE_BYTES = 1024 * 1024
 MAX_RESPONSES_OUTPUT_CHARS = _env_int_capped("MAX_RESPONSES_OUTPUT_CHARS", 65536, minimum=1024, maximum=100_000)
+# Separate bounded budget for long file streams; normal chat keeps its 64 KiB ceiling.
+# This is a memory/safety ceiling, not a CPU throttle. PDF continuation splits long documents
+# across Responses calls; a large file response must not be misclassified as a broken SSE stream.
+MAX_FILE_RESPONSES_OUTPUT_CHARS = _env_int_capped("MAX_FILE_RESPONSES_OUTPUT_CHARS", 350_000, minimum=65_536, maximum=500_000)
 MAX_RESPONSES_FUNCTION_CALLS = 8
 MAX_RESPONSES_FUNCTION_ARGUMENT_CHARS = 16 * 1024
 MAX_RECENT_MESSAGES = 10
@@ -618,12 +622,13 @@ def validate_and_normalize_image_bytes(raw_bytes: bytes) -> tuple[bytes, str, st
         raise RuntimeError(f"Gagal memverifikasi/menyiapkan gambar: {exc}") from exc
 
 
-def append_bounded_response_text(current: str, chunk: str) -> str:
-    """Append provider text only while the final response remains within a hard character cap."""
+def append_bounded_response_text(current: str, chunk: str, max_chars: int | None = None) -> str:
+    """Append provider text within a bounded per-request character budget."""
     if not isinstance(current, str) or not isinstance(chunk, str):
         raise RuntimeError("Responses mengirim teks dengan tipe tidak valid.")
-    if len(current) + len(chunk) > MAX_RESPONSES_OUTPUT_CHARS:
-        raise RuntimeError("Responses output melewati batas panjang keamanan.")
+    limit = MAX_RESPONSES_OUTPUT_CHARS if max_chars is None else max(1, int(max_chars))
+    if len(current) + len(chunk) > limit:
+        raise RuntimeError(f"Responses output melewati batas panjang keamanan ({limit} karakter).")
     return current + chunk
 
 
@@ -4779,6 +4784,7 @@ class ClouzerBot(commands.Bot):
             "stream": True,
         }
 
+        response_output_limit = MAX_FILE_RESPONSES_OUTPUT_CHARS if file_generation else MAX_RESPONSES_OUTPUT_CHARS
         raw_full_text = ""
         function_calls: list[dict] = []
         response_completed = False
@@ -4866,7 +4872,7 @@ class ClouzerBot(commands.Bot):
                             _diag_timing["first_text_at"] = asyncio.get_running_loop().time()
                             _diag_timing["first_text_seconds"] = _diag_timing["first_text_at"] - _diag_request_start
                         if delta and (raw_full_text or delta.strip()):
-                            raw_full_text = append_bounded_response_text(raw_full_text, delta)
+                            raw_full_text = append_bounded_response_text(raw_full_text, delta, response_output_limit)
                             cleaned_live = clean_response_text(raw_full_text)
                             now = asyncio.get_event_loop().time()
                             # Do not stream raw document source into Discord. It adds
@@ -4887,7 +4893,7 @@ class ClouzerBot(commands.Bot):
                         elif item.get("type") == "message" and not raw_full_text:
                             for part in item.get("content", []):
                                 if part.get("type") in ("output_text", "text"):
-                                    raw_full_text = append_bounded_response_text(raw_full_text, part.get("text", ""))
+                                    raw_full_text = append_bounded_response_text(raw_full_text, part.get("text", ""), response_output_limit)
 
                     elif etype == "response.completed":
                         response_completed = True
@@ -5301,9 +5307,11 @@ class ClouzerBot(commands.Bot):
                     if not requested_file_format:
                         raise
                     logging.warning(
-                        "[FILE-RETRY] scope=%s format=%s reason=stream_interrupted partial_chars=%s",
+                        "[FILE-RETRY] scope=%s format=%s reason=stream_interrupted error_type=%s error=%s partial_chars=%s",
                         scope_key,
                         requested_file_format,
+                        type(stream_exc).__name__,
+                        str(stream_exc)[:240],
                         len(getattr(stream_exc, "partial_text", "") or ""),
                     )
                     await status_msg.edit(
