@@ -5152,6 +5152,13 @@ class ClouzerBot(commands.Bot):
                     web_badge_shown,
                     web_status_transitioned,
                 )
+                if web_badge_shown and not web_status_transitioned:
+                    await edit_turn_status_message(
+                        target_msg,
+                        stage="response_cancelled",
+                        content="⚠️ *Permintaan dihentikan sebelum jawaban selesai.*",
+                    )
+                    web_status_transitioned = True
                 raise
             except Exception as stream_exc:
                 logging.warning(
