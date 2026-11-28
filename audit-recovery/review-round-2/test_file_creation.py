@@ -1,3 +1,4 @@
+import ast
 import csv
 import io
 import json
@@ -10,6 +11,44 @@ from clouzer_file_creation import create_document_file, detect_requested_file_fo
 
 
 class FileCreationTests(unittest.TestCase):
+    def test_long_file_stream_has_separate_output_budget(self):
+        source_path = Path(__file__).with_name("revisi_audit_final_main.py")
+        source = source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(source_path))
+        function = next(
+            node for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "append_bounded_response_text"
+        )
+        isolated = ast.Module(body=[function], type_ignores=[])
+        namespace = {"MAX_RESPONSES_OUTPUT_CHARS": 65_536}
+        exec(compile(isolated, str(source_path), "exec"), namespace)
+        append_text = namespace["append_bounded_response_text"]
+
+        self.assertEqual(append_text("chat", " response"), "chat response")
+        with self.assertRaisesRegex(RuntimeError, "65536"):
+            append_text("x" * 65_536, "y")
+        self.assertEqual(len(append_text("x" * 65_536, "y", 350_000)), 65_537)
+        with self.assertRaisesRegex(RuntimeError, "350000"):
+            append_text("x" * 350_000, "y", 350_000)
+
+        self.assertIn(
+            'MAX_FILE_RESPONSES_OUTPUT_CHARS = _env_int_capped("MAX_FILE_RESPONSES_OUTPUT_CHARS", 350_000',
+            source,
+        )
+        self.assertIn(
+            "response_output_limit = MAX_FILE_RESPONSES_OUTPUT_CHARS if file_generation else MAX_RESPONSES_OUTPUT_CHARS",
+            source,
+        )
+        self.assertIn(
+            "append_bounded_response_text(raw_full_text, delta, response_output_limit)",
+            source,
+        )
+        self.assertIn(
+            'append_bounded_response_text(raw_full_text, part.get("text", ""), response_output_limit)',
+            source,
+        )
+        self.assertIn("error_type=%s error=%s partial_chars=%s", source)
+
     def test_file_generation_system_instruction_uses_local_backend_for_all_formats(self):
         formats = ("txt", "pdf", "docx", "xlsx", "pptx", "zip", "csv", "json", "md", "html", "xml", "yaml", "rtf", "odt")
         for fmt in formats:
