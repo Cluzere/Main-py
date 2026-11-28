@@ -5040,7 +5040,7 @@ class ClouzerBot(commands.Bot):
                         if not raw_full_text and (not web_badge_shown or web_status_transitioned):
                             web_badge_shown = True
                             web_status_transitioned = False
-                            web_status_transitioned = await edit_turn_status_message(
+                            await edit_turn_status_message(
                                 target_msg,
                                 stage="web_search_started",
                                 content="🌐 *Sedang menelusuri web secara live...*",
@@ -5087,7 +5087,7 @@ class ClouzerBot(commands.Bot):
                             # message edits/rate-limit pressure and exposes a partial
                             # draft that users can mistake for the finished deliverable.
                             if not file_generation and now - last_edit >= 0.8 and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT:
-                                web_status_transitioned = await edit_turn_status_message(
+                                await edit_turn_status_message(
                                     target_msg,
                                     stage="answer_stream_delta",
                                     content=cleaned_live + " ▌",
