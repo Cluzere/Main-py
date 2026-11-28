@@ -4808,7 +4808,7 @@ class ClouzerBot(commands.Bot):
         prompt_chars = 0
         has_image_payload = False
         has_file_payload = False
-        file_markers = ("--- manifest lampiran ---", "--- transkrip audio", "[file pdf", "[konten lampiran")
+        file_markers = ("--- manifest lampiran ---", "--- konten ", "--- transkrip audio", "[file pdf", "[konten lampiran", "konten lampiran:")
         for message in messages or []:
             content = message.get("content", "") if isinstance(message, dict) else ""
             if isinstance(content, str):
