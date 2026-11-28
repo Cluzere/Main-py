@@ -4671,7 +4671,8 @@ class ClouzerBot(commands.Bot):
             # process_ai_turn handles file-pipeline exceptions internally and may
             # return normally. The persisted retry task is therefore the source of
             # truth: it is removed only after Discord confirms the attachment.
-            final_task = normalize_pending_retry_task(state.get("pending_retry_task"))
+            raw_final_task = state.get("pending_retry_task")
+            final_task = normalize_pending_retry_task(raw_final_task)
             if final_task and final_task.get("kind") == "file" and final_task.get("format") == "pdf":
                 if final_task.get("auto_resume") is False:
                     logging.error(
@@ -4684,9 +4685,14 @@ class ClouzerBot(commands.Bot):
                         scope_key, final_task.get("auto_resume", False),
                         final_task.get("auto_resume_attempts", task.get("auto_resume_attempts", 0)),
                     )
-            else:
+            elif raw_final_task is None:
                 logging.warning(
                     "[PDF-STARTUP-RESUME] scope=%s stage=completed delivery_state=attachment_confirmed",
+                    scope_key,
+                )
+            else:
+                logging.error(
+                    "[PDF-STARTUP-RESUME] scope=%s stage=unexpected_pending_state action=manual_inspection_required",
                     scope_key,
                 )
         except Exception as exc:
