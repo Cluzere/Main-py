@@ -91,6 +91,7 @@ class WorkloadManager:
             selected = self._select_next()
             if selected is waiter:
                 self._waiters.remove(waiter)
+                waiter["admitted"] = True
                 self._active += 1
                 self._active_by_kind[waiter["kind"]] = self._active_by_kind.get(waiter["kind"], 0) + 1
                 if waiter["heavy"]:
@@ -118,6 +119,7 @@ class WorkloadManager:
                 "kind": kind,
                 "heavy": bool(heavy),
                 "user_id": int(user_id) if user_id is not None else None,
+                "admitted": False,
             }
             self._waiters.append(waiter)
             try:
@@ -135,6 +137,16 @@ class WorkloadManager:
             except BaseException:
                 if waiter in self._waiters:
                     self._waiters.remove(waiter)
+                elif waiter.get("admitted"):
+                    # wait_for() can be cancelled at the admission boundary.
+                    # Roll back the reservation so cancellation cannot leak capacity.
+                    waiter["admitted"] = False
+                    self._active = max(0, self._active - 1)
+                    self._active_by_kind[kind] = max(0, self._active_by_kind.get(kind, 1) - 1)
+                    if self._active_by_kind[kind] == 0:
+                        self._active_by_kind.pop(kind, None)
+                    if heavy:
+                        self._active_heavy = max(0, self._active_heavy - 1)
                 self._condition.notify_all()
                 raise
 
