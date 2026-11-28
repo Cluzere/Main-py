@@ -78,6 +78,9 @@ def normalize_pending_retry_task(raw: object) -> dict | None:
     source_has_attachments = raw.get("source_has_attachments")
     if isinstance(source_has_attachments, bool):
         task["source_has_attachments"] = source_has_attachments
+    delivery_started = raw.get("delivery_started")
+    if isinstance(delivery_started, bool):
+        task["delivery_started"] = delivery_started
     attempts = raw.get("auto_resume_attempts", 0)
     if isinstance(attempts, int) and not isinstance(attempts, bool):
         task["auto_resume_attempts"] = max(0, min(2, attempts))
