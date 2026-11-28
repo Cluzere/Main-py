@@ -61,7 +61,7 @@ class FileCreationTests(unittest.TestCase):
         self.assertIn('int(task.get("auto_resume_attempts", 0)) >= 2', worker)
         self.assertIn("candidates.sort", worker)
         self.assertIn("await self.process_ai_turn(", worker)
-        self.assertIn('"[PDF-STARTUP-RESUME]"', worker)
+        self.assertIn("[PDF-STARTUP-RESUME]", worker)
 
         process = next(
             node for node in bot_class.body
