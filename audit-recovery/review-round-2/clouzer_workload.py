@@ -35,12 +35,32 @@ class WorkloadManager:
         self._active_heavy = 0
         self._active_by_kind: dict[str, int] = {}
         self._light_streak = 0
+        self._host_pressure = False
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._kind_limits = {
             "ai": self.max_active,
             "attachment": min(2, self.max_active),
             "image": 1,
             "audio": 1,
         }
+
+    def set_host_pressure(self, high: bool) -> None:
+        high = bool(high)
+        if high == self._host_pressure:
+            return
+        self._host_pressure = high
+        logging.warning(
+            "[GWM] stage=host_pressure state=%s action=%s",
+            "high" if high else "normal",
+            "pause_new_heavy_admissions" if high else "resume_heavy_admissions",
+        )
+        loop = self._loop
+        if loop is not None and not loop.is_closed():
+            loop.call_soon_threadsafe(lambda: asyncio.create_task(self._notify_waiters()))
+
+    async def _notify_waiters(self) -> None:
+        async with self._condition:
+            self._condition.notify_all()
 
     def _kind_has_capacity(self, kind: str) -> bool:
         return self._active_by_kind.get(kind, 0) < self._kind_limits.get(kind, self.max_active)
@@ -52,6 +72,7 @@ class WorkloadManager:
             item for item in self._waiters
             if self._kind_has_capacity(item["kind"])
             and (not item["heavy"] or self._active_heavy < self.heavy_max_active)
+            and (not self._host_pressure or not item["heavy"])
         ]
         if not eligible:
             return None
@@ -83,6 +104,7 @@ class WorkloadManager:
     @asynccontextmanager
     async def slot(self, kind: str, *, heavy: bool = False, user_id: int | None = None):
         kind = str(kind or "other").strip().lower()[:24] or "other"
+        self._loop = asyncio.get_running_loop()
         started = time.monotonic()
         waiter = None
         async with self._condition:
