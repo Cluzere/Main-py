@@ -4255,16 +4255,16 @@ class ClouzerBot(commands.Bot):
             finally:
                 self.attachment_semaphore.release()
 
-        # Cabang teks sudah dipindai (dan dipotong) di dalam _encode_attachment_impl.
-        if text and ftype not in ("text", "blocked"):
-            ext = os.path.splitext(filename.lower())[1]
-            scan = await asyncio.to_thread(scan_secrets, text, code_mode=ext in CODE_EXTS)
-            if scan.blocked:
-                return self._blocked_attachment_result(filename, scan.reason)
-            text = scan.text
-            if scan.hits:
-                text += f"\n[Catatan keamanan: {scan.hits} nilai yang tampak seperti rahasia pada {scrub_secrets(filename)[:80]} disensor.]\n"
-        return text, local_imgs, http_urls, ftype
+            # Keep post-parse secret scanning inside GWM as it can also consume CPU.
+            if text and ftype not in ("text", "blocked"):
+                ext = os.path.splitext(filename.lower())[1]
+                scan = await asyncio.to_thread(scan_secrets, text, code_mode=ext in CODE_EXTS)
+                if scan.blocked:
+                    return self._blocked_attachment_result(filename, scan.reason)
+                text = scan.text
+                if scan.hits:
+                    text += f"\n[Catatan keamanan: {scan.hits} nilai yang tampak seperti rahasia pada {scrub_secrets(filename)[:80]} disensor.]\n"
+            return text, local_imgs, http_urls, ftype
 
     async def _encode_attachment_impl(self, attachment: discord.Attachment) -> tuple[str | None, list[str], list[str], str]:
         """Parser asli tanpa kebijakan keamanan. Jangan dipanggil langsung: pakai encode_attachment()."""
