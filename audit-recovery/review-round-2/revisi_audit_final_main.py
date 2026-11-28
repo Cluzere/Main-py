@@ -2212,6 +2212,40 @@ async def send_turn_status_message(target_channel, reply_to_message=None):
     return await target_channel.send(status_text)
 
 
+async def edit_turn_status_message(target_msg, *, stage: str, content: str, raise_errors: bool = False):
+    """Edit a Discord progress message with observable success/failure diagnostics."""
+    if target_msg is None:
+        logging.warning(
+            "[DISCORD-STATUS-EDIT] message_id=n/a stage=%s outcome=skipped reason=no_target",
+            stage,
+        )
+        return False
+    started = asyncio.get_running_loop().time()
+    try:
+        await target_msg.edit(content=content)
+    except Exception as exc:
+        elapsed = asyncio.get_running_loop().time() - started
+        logging.warning(
+            "[DISCORD-STATUS-EDIT] message_id=%s stage=%s outcome=failed elapsed=%.3fs error_type=%s",
+            getattr(target_msg, "id", None),
+            stage,
+            elapsed,
+            type(exc).__name__,
+            exc_info=True,
+        )
+        if raise_errors:
+            raise
+        return False
+    elapsed = asyncio.get_running_loop().time() - started
+    logging.info(
+        "[DISCORD-STATUS-EDIT] message_id=%s stage=%s outcome=success elapsed=%.3fs",
+        getattr(target_msg, "id", None),
+        stage,
+        elapsed,
+    )
+    return True
+
+
 class ClouzerBot(commands.Bot):
     _EMBEDDED_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif")
 
@@ -4937,6 +4971,7 @@ class ClouzerBot(commands.Bot):
 
         last_edit = asyncio.get_event_loop().time()
         web_badge_shown = False
+        web_status_transitioned = False
 
         _diag_request_start = asyncio.get_running_loop().time()
         async with self.http_session.post(url, headers=headers, json=payload, timeout=timeout, allow_redirects=False) as resp:
@@ -5001,11 +5036,35 @@ class ClouzerBot(commands.Bot):
 
                     if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching") and not raw_full_text and not web_badge_shown:
                         web_badge_shown = True
-                        try:
-                            if target_msg is not None:
-                                await target_msg.edit(content="🌐 *Sedang menelusuri web secara live...*")
-                        except Exception:
-                            pass
+                        await edit_turn_status_message(
+                            target_msg,
+                            stage="web_search_started",
+                            content="🌐 *Sedang menelusuri web secara live...*",
+                        )
+
+                    elif etype == "response.web_search_call.completed" and web_badge_shown and not web_status_transitioned:
+                        # Web search is over. Never leave the Discord message showing
+                        # an active-search badge while the model is composing its answer.
+                        cleaned_live = clean_response_text(raw_full_text).strip()
+                        next_status = (
+                            cleaned_live + " ▌"
+                            if not file_generation and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT
+                            else "🧠 *Penelusuran selesai. CLOUZER sedang menyusun jawaban...*"
+                        )
+                        await edit_turn_status_message(
+                            target_msg,
+                            stage="web_search_completed",
+                            content=next_status,
+                        )
+                        web_status_transitioned = True
+
+                    elif etype == "response.web_search_call.failed" and web_badge_shown and not web_status_transitioned:
+                        await edit_turn_status_message(
+                            target_msg,
+                            stage="web_search_failed",
+                            content="⚠️ *Penelusuran web gagal. CLOUZER sedang mencoba menyelesaikan respons...*",
+                        )
+                        web_status_transitioned = True
 
                     elif etype == "response.output_text.delta":
                         delta = event.get("delta", "")
@@ -5020,12 +5079,12 @@ class ClouzerBot(commands.Bot):
                             # message edits/rate-limit pressure and exposes a partial
                             # draft that users can mistake for the finished deliverable.
                             if not file_generation and now - last_edit >= 0.8 and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT:
-                                try:
-                                    if target_msg is not None:
-                                        await target_msg.edit(content=cleaned_live + " ▌")
+                                if await edit_turn_status_message(
+                                    target_msg,
+                                    stage="answer_stream_delta",
+                                    content=cleaned_live + " ▌",
+                                ):
                                     last_edit = now
-                                except Exception:
-                                    pass
 
                     elif etype == "response.output_item.done":
                         item = event.get("item", {})
@@ -5038,6 +5097,19 @@ class ClouzerBot(commands.Bot):
 
                     elif etype == "response.completed":
                         response_completed = True
+                        if web_badge_shown and not web_status_transitioned:
+                            cleaned_live = clean_response_text(raw_full_text).strip()
+                            next_status = (
+                                cleaned_live
+                                if not file_generation and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT
+                                else "🧠 *Penelusuran selesai. CLOUZER sedang menyusun jawaban...*"
+                            )
+                            await edit_turn_status_message(
+                                target_msg,
+                                stage="response_completed",
+                                content=next_status,
+                            )
+                            web_status_transitioned = True
                         resp_obj = event.get("response", {})
                         for item in resp_obj.get("output", []):
                             if item.get("type") == "function_call":
@@ -5048,16 +5120,54 @@ class ClouzerBot(commands.Bot):
                                         raw_full_text = append_bounded_response_text(raw_full_text, part.get("text", ""))
 
                     elif etype == "response.incomplete":
+                        if web_badge_shown and not web_status_transitioned:
+                            await edit_turn_status_message(
+                                target_msg,
+                                stage="response_incomplete",
+                                content="⚠️ *Respons belum selesai. CLOUZER sedang menyiapkan penanganan error...*",
+                            )
+                            web_status_transitioned = True
                         resp_obj = event.get("response", {})
                         details = resp_obj.get("incomplete_details") or {}
                         reason = details.get("reason") or resp_obj.get("status") or "unknown"
                         raise RuntimeError(f"Responses stream incomplete: {reason}")
 
                     elif etype in ("error", "response.failed"):
+                        if web_badge_shown and not web_status_transitioned:
+                            await edit_turn_status_message(
+                                target_msg,
+                                stage="response_failed",
+                                content="⚠️ *Respons gagal diproses. CLOUZER sedang menyiapkan pesan error...*",
+                            )
+                            web_status_transitioned = True
                         err_msg = event.get("error", {}).get("message") or str(event)[:250]
                         raise RuntimeError(f"Responses Stream Error: {err_msg}")
 
+            except asyncio.CancelledError:
+                logging.warning(
+                    "[RESPONSES-STREAM] request_id=%s outcome=cancelled web_badge_shown=%s web_status_transitioned=%s",
+                    getattr(target_msg, "id", None),
+                    web_badge_shown,
+                    web_status_transitioned,
+                )
+                raise
             except Exception as stream_exc:
+                logging.warning(
+                    "[RESPONSES-STREAM] request_id=%s outcome=exception error_type=%s web_badge_shown=%s web_status_transitioned=%s partial_chars=%d",
+                    getattr(target_msg, "id", None),
+                    type(stream_exc).__name__,
+                    web_badge_shown,
+                    web_status_transitioned,
+                    len(raw_full_text),
+                    exc_info=True,
+                )
+                if web_badge_shown and not web_status_transitioned:
+                    await edit_turn_status_message(
+                        target_msg,
+                        stage="response_stream_interrupted",
+                        content="⚠️ *Aliran respons terputus. CLOUZER sedang menyiapkan penanganan error...*",
+                    )
+                    web_status_transitioned = True
                 if raw_full_text:
                     raise ResponsesStreamInterrupted(
                         "Responses stream terputus setelah sebagian teks diterima: %s" % type(stream_exc).__name__,
