@@ -4828,20 +4828,22 @@ class ClouzerBot(commands.Bot):
         _diag_gwm_start = _diag_loop.time()
         async with self.workload_manager.slot("ai", heavy=heavy_ai):
             _diag_gwm_admitted = _diag_loop.time()
-            allowed, wait = await asyncio.to_thread(self.global_budget.acquire, "responses")
-            _diag_budget_done = _diag_loop.time()
-            if not allowed:
-                raise RuntimeError(
-                    f"Anggaran API global harian tercapai; coba lagi sekitar {format_wait(wait)}."
-                )
             _diag_semaphore_start = _diag_loop.time()
             async with self.ai_semaphore:
                 _diag_semaphore_done = _diag_loop.time()
+                # Consume quota only after both GWM and provider concurrency slots
+                # are available, immediately before the first provider attempt.
+                allowed, wait = await asyncio.to_thread(self.global_budget.acquire, "responses")
+                _diag_budget_done = _diag_loop.time()
+                if not allowed:
+                    raise RuntimeError(
+                        f"Anggaran API global harian tercapai; coba lagi sekitar {format_wait(wait)}."
+                    )
                 diag = {
                     "started": _diag_start,
                     "request_id": getattr(target_msg, "id", None),
                     "gwm_queue_seconds": _diag_gwm_admitted - _diag_gwm_start,
-                    "budget_seconds": _diag_budget_done - _diag_gwm_admitted,
+                    "budget_seconds": _diag_budget_done - _diag_semaphore_done,
                     "semaphore_seconds": _diag_semaphore_done - _diag_semaphore_start,
                 }
                 text = ""
