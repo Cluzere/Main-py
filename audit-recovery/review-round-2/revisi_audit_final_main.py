@@ -4668,6 +4668,27 @@ class ClouzerBot(commands.Bot):
                 channel, guild, user, "Ulangi", [],
                 reply_to_message=source_message,
             )
+            # process_ai_turn handles file-pipeline exceptions internally and may
+            # return normally. The persisted retry task is therefore the source of
+            # truth: it is removed only after Discord confirms the attachment.
+            final_task = normalize_pending_retry_task(state.get("pending_retry_task"))
+            if final_task and final_task.get("kind") == "file" and final_task.get("format") == "pdf":
+                if final_task.get("auto_resume") is False:
+                    logging.error(
+                        "[PDF-STARTUP-RESUME] scope=%s stage=failed_manual_retry_required attempts=%s",
+                        scope_key, final_task.get("auto_resume_attempts", task.get("auto_resume_attempts", 0)),
+                    )
+                else:
+                    logging.warning(
+                        "[PDF-STARTUP-RESUME] scope=%s stage=returned_pending auto_resume=%s attempts=%s",
+                        scope_key, final_task.get("auto_resume", False),
+                        final_task.get("auto_resume_attempts", task.get("auto_resume_attempts", 0)),
+                    )
+            else:
+                logging.warning(
+                    "[PDF-STARTUP-RESUME] scope=%s stage=completed delivery_state=attachment_confirmed",
+                    scope_key,
+                )
         except Exception as exc:
             task["auto_resume"] = False
             state["pending_retry_task"] = task
@@ -5468,6 +5489,7 @@ class ClouzerBot(commands.Bot):
                         mode=mode,
                         allow_tools=False,
                         allow_image_tool=False,
+                        file_generation=bool(requested_file_format),
                     )
 
                 img_calls = [fc for fc in function_calls if fc.get("name") == "generate_image"]
