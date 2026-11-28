@@ -2235,6 +2235,8 @@ class ClouzerBot(commands.Bot):
         self.memory_lock = asyncio.Lock()
         self.last_memory_save_error: str | None = None
         self._sync_task: asyncio.Task | None = None
+        self._startup_pdf_resume_task: asyncio.Task | None = None
+        self._startup_pdf_resume_scheduled = False
         # --- patch security-hardening-2026-11 ---
         self.rate_limiter = RateLimiter(
             load_rate_rules(),
@@ -4582,6 +4584,102 @@ class ClouzerBot(commands.Bot):
             return
         self._sync_task = asyncio.create_task(self._run_background_sync())
 
+    def schedule_startup_pdf_resume(self):
+        # Schedule once per process, even if Discord emits another READY after reconnect.
+        if self._startup_pdf_resume_scheduled:
+            return
+        self._startup_pdf_resume_scheduled = True
+        self._startup_pdf_resume_task = asyncio.create_task(self._resume_one_startup_pdf_job())
+
+    async def _resume_one_startup_pdf_job(self):
+        await self.wait_until_ready()
+        candidates = []
+        for scope_key, state in list(self.memory_data.get("guilds", {}).items()):
+            if not isinstance(state, dict):
+                continue
+            task = normalize_pending_retry_task(state.get("pending_retry_task"))
+            if not task or task.get("kind") != "file" or task.get("format") != "pdf":
+                continue
+            if task.get("auto_resume") is not True:
+                continue
+            if int(task.get("auto_resume_attempts", 0)) >= 2:
+                logging.warning(
+                    "[PDF-STARTUP-RESUME] scope=%s stage=attempt_limit attempts=%s action=manual_retry_required",
+                    scope_key, task.get("auto_resume_attempts", 0),
+                )
+                continue
+            candidates.append((float(task.get("created_at", 0.0)), str(scope_key), state, task))
+
+        if not candidates:
+            logging.info("[PDF-STARTUP-RESUME] stage=scan result=no_eligible_job")
+            return
+
+        # Resume only one job per boot. This avoids launching several expensive
+        # generations together and competing for the short startup CPU boost.
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        _, scope_key, state, task = candidates[0]
+        channel_id = task.get("channel_id")
+        user_id = task.get("user_id")
+        guild_id = task.get("guild_id")
+        source_message_id = task.get("source_message_id")
+        if not all(isinstance(value, int) and value > 0 for value in (channel_id, user_id)):
+            task["auto_resume"] = False
+            state["pending_retry_task"] = task
+            await self.save_memory()
+            logging.error(
+                "[PDF-STARTUP-RESUME] scope=%s stage=invalid_metadata action=manual_retry_required",
+                scope_key,
+            )
+            return
+
+        try:
+            channel = self.get_channel(channel_id)
+            if channel is None:
+                channel = await self.fetch_channel(channel_id)
+            guild = getattr(channel, "guild", None)
+            if guild_id and (guild is None or int(guild.id) != guild_id):
+                raise RuntimeError("Channel guild tidak cocok dengan metadata pekerjaan tertunda")
+            if not self.is_channel_allowed(channel, guild):
+                raise RuntimeError("Channel tidak lagi diizinkan untuk CLOUZER")
+
+            source_message = None
+            if isinstance(source_message_id, int) and source_message_id > 0:
+                try:
+                    source_message = await channel.fetch_message(source_message_id)
+                except discord.NotFound:
+                    if task.get("source_has_attachments"):
+                        raise RuntimeError("Pesan sumber dengan lampiran sudah tidak tersedia")
+                    logging.warning(
+                        "[PDF-STARTUP-RESUME] scope=%s stage=source_message_missing continuing_without_reply=true",
+                        scope_key,
+                    )
+            user = source_message.author if source_message is not None else self.get_user(user_id)
+            if user is None:
+                user = await self.fetch_user(user_id)
+
+            task["auto_resume_attempts"] = int(task.get("auto_resume_attempts", 0)) + 1
+            state["pending_retry_task"] = task
+            await self.save_memory()
+            logging.warning(
+                "[PDF-STARTUP-RESUME] scope=%s stage=starting attempt=%d channel=%s source_message=%s",
+                scope_key, task["auto_resume_attempts"], channel_id, source_message_id or "n/a",
+            )
+            await self.process_ai_turn(
+                channel, guild, user, "Ulangi", [],
+                reply_to_message=source_message,
+            )
+        except Exception as exc:
+            task["auto_resume"] = False
+            state["pending_retry_task"] = task
+            try:
+                await self.save_memory()
+            except Exception:
+                logging.exception("[PDF-STARTUP-RESUME] scope=%s stage=disable_save_failed", scope_key)
+            logging.exception(
+                "[PDF-STARTUP-RESUME] scope=%s stage=aborted error_type=%s error=%s",
+                scope_key, type(exc).__name__, str(exc)[:240],
+            )
+
     async def sync_commands_to_guilds(self):
         await self._run_background_sync()
 
@@ -5127,7 +5225,34 @@ class ClouzerBot(commands.Bot):
                     "kind": "file",
                     "format": requested_file_format,
                     "prompt": clean_content[:10_000],
+                    "guild_id": int(guild_id or 0),
+                    "channel_id": int(channel_id or 0),
+                    "user_id": int(user.id),
+                    "source_message_id": int(
+                        retry_source_message_id
+                        or (getattr(reply_to_message, "id", 0) if reply_to_message is not None else 0)
+                        or 0
+                    ),
+                    "source_has_attachments": bool(
+                        reply_to_message is not None and getattr(reply_to_message, "attachments", None)
+                    ),
+                    "auto_resume": requested_file_format == "pdf",
+                    "auto_resume_attempts": 0,
+                    "created_at": time.time(),
                 }
+                if not guild_state["pending_retry_task"]["source_message_id"]:
+                    guild_state["pending_retry_task"].pop("source_message_id")
+                # Durably record the job before any provider call. If the host kills
+                # the process mid-generation, the next boot can resume it once.
+                try:
+                    await self.save_memory()
+                except Exception:
+                    await status_msg.edit(
+                        content="⚠️ Permintaan file tidak dijalankan karena antrean PDF tidak berhasil disimpan ke disk.",
+                        view=None,
+                    )
+                    logging.exception("[FILE-QUEUE] scope=%s stage=persist_before_generation_failed", scope_key)
+                    return
                 format_labels = {
                     "txt": "teks biasa", "pdf": "dokumen PDF", "docx": "dokumen Word",
                     "xlsx": "spreadsheet Excel", "pptx": "presentasi PowerPoint",
@@ -5604,7 +5729,19 @@ class ClouzerBot(commands.Bot):
                             "kind": "file",
                             "format": requested_file_format,
                             "prompt": clean_content[:10_000],
-                            **({"source_message_id": int(retry_source_message_id or reply_to_message.id)} if retry_source_message_id or (reply_to_message is not None and getattr(reply_to_message, "attachments", None)) else {}),
+                            "guild_id": int(guild_id or 0),
+                            "channel_id": int(channel_id or 0),
+                            "user_id": int(user.id),
+                            **({"source_message_id": int(retry_source_message_id or reply_to_message.id)} if retry_source_message_id or (reply_to_message is not None) else {}),
+                            "source_has_attachments": bool(
+                                reply_to_message is not None and getattr(reply_to_message, "attachments", None)
+                            ),
+                            "auto_resume": False,
+                            "auto_resume_attempts": int(
+                                normalize_pending_retry_task(guild_state.get("pending_retry_task")).get("auto_resume_attempts", 0)
+                                if normalize_pending_retry_task(guild_state.get("pending_retry_task")) else 0
+                            ),
+                            "created_at": time.time(),
                         }
                         try:
                             await self.save_memory()
@@ -6426,6 +6563,7 @@ async def cek_tool_cmd(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     bot.schedule_command_sync()
+    bot.schedule_startup_pdf_resume()
     print(f"[ONLINE] Clouzer AI Bot aktif (Cloudflare AI: {'OK (' + str(len(CF_ACCOUNTS)) + ' akun)' if CF_ACCOUNTS else 'MISSING'} | Gen: {CF_IMAGE_MODEL} | Edit: {CF_EDIT_MODEL} | Audio: {CF_AUDIO_MODEL} | Multi-Format Doc/Slide/Sheet/Design/Audio Reader + Native Web Search)!")
     print("[CHECK] Pastikan Message Content Intent juga aktif di Discord Developer Portal.")
 
