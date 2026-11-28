@@ -2387,7 +2387,14 @@ class ClouzerBot(commands.Bot):
 
     @asynccontextmanager
     async def ingress_lock(self, key: str):
-        """FIFO gate acquired at message ingress, before any attachment I/O."""
+        """Bounded FIFO gate acquired at message ingress, before attachment I/O."""
+        # Count active + waiting message turns across every scope. This bounds
+        # the Discord ingress task population independently of per-scope locks.
+        global_refs = sum(self.ingress_lock_refs.values())
+        if global_refs >= GWM_MAX_ACTIVE + GWM_MAX_PENDING:
+            yield False, "global_full"
+            return
+
         lock = self.ingress_locks.get(key)
         if lock is None:
             lock = asyncio.Lock()
