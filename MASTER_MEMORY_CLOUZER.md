@@ -538,7 +538,7 @@ Dua regression test baru ditambahkan ke `test_file_creation.py`:
 
 Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rinci tetap di Bagian G.
 
-**PDF 100 halaman — kandidat stream fix:** source/test patch committed at `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`; source inspection and fetch-back verification PASS. CI exact-head and Wispbyte live retest are **NOT VERIFIED**. Do not treat this as PDF acceptance or as proof the 100-page request now succeeds.
+**PDF 100 halaman — kandidat stream fix:** source/test patch committed at `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`; source inspection, fetch-back, and exact-head CI PASS (§52.67). Wispbyte live retest and 100-page acceptance remain **NOT VERIFIED**. Do not treat this as PDF acceptance or as proof the 100-page request now succeeds.
 
 ## E1. Hasil format historis
 
@@ -574,7 +574,7 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 - SSE append paths select per-request cap.
 - Retry log now includes exception type/message.
 - Regression test added.
-Exact candidate code/test commit: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`. CI and live retest NOT VERIFIED.
+Exact candidate code/test commit: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`. Exact-head CI PASS (§52.67); live retest NOT VERIFIED.
 
 1. **PDF 100-page stream fix — priority 1.**
    - First verify all required GitHub Actions on exact SHA `c4007796...` reach terminal SUCCESS; if a test/workflow fails, inspect logs, fix candidate only, commit, and repeat.
@@ -5838,7 +5838,7 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Reproducible candidate defect identified: global chat output cap also applied to file generation; exact 65,536 partial count strongly matches it.
 - Candidate source patch: **COMMITTED / FETCH-BACK VERIFIED**.
 - Regression test: **COMMITTED / FETCH-BACK VERIFIED**.
-- Exact-head CI: **NOT VERIFIED**.
+- Exact-head CI: **PASS** on all three workflows for exact SHA `c4007796...` (§52.67).
 - 100-page PDF live acceptance: **NOT VERIFIED**.
 - CPU optimization/cache retained; Wispbyte CPU quota remains an external host constraint and is not altered by this patch.
 - Next: exact-head CI → user-controlled candidate restart → one same-prompt 100-page live retest → inspect logs/artifact/attachment. Keep validator minimum intact.
@@ -5865,3 +5865,31 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Kesimpulan: **GitHub Actions exact commit c4007796 = PASS** untuk workflow/check yang terdaftar. Ini membuktikan pemeriksaan CI tersebut lulus; ini **bukan** bukti live runtime Wispbyte, sukses generasi PDF 100 halaman, atau keberhasilan attachment Discord.
 - Link run: https://github.com/Cluzere/Main-py/actions/runs/46087677904 ; https://github.com/Cluzere/Main-py/actions/runs/46087677753 ; https://github.com/Cluzere/Main-py/actions/runs/46087677798
 - Next action: user perlu mengendalikan restart/reload kandidat Wispbyte sesuai prosedur aman yang telah disepakati. Jangan restart sendiri, jangan ubah Startup Command, jangan deploy/merge, dan jangan sentuh production. Setelah kandidat hidup, verifikasi SHA yang benar-benar berjalan lalu jalankan ulang skenario PDF minimal 100 halaman dan kumpulkan log rinci, metrik CPU/RAM/quota/throttling, jumlah halaman, validator, serta attachment Discord.
+
+
+## 52.68 Wispbyte startup CPU boost dan investigasi PDF runtime — 28 November 2026
+
+### Sumber resmi Wispbyte
+- Halaman resmi Wispbyte menyatakan free server memperoleh satu full CPU core selama sekitar 90 detik pertama saat start/restart, lalu kembali ke batas steady-state 35% CPU. Tujuan yang disebut Wispbyte adalah mempercepat startup/install (npm/pip/native compile), bukan menjamin proses berat yang dimulai saat boost boleh berjalan tanpa batas setelah jendela itu berakhir.
+- Sumber: https://wispbyte.com/ ; https://wispbyte.com/blog/free-hosting-comparison (diterbitkan Wispbyte, 23 Juni 2026). Periksa ulang bila kebijakan berubah.
+
+### Inspeksi kandidat
+- Branch diperiksa: `audit-recovery-gpt-2026-11-23`; branch HEAD saat pemeriksaan: `e61aaeba79cb09c3c358ebf3664ba4563655f701` (docs-only commit di atas patch PDF code/test). Master Memory blob sebelum catatan ini: `8419c7242b6ab625a3d23ce7b68351cb240ce670`.
+- Candidate entrypoint yang diperiksa: `audit-recovery/review-round-2/revisi_audit_final_main.py`; tidak ada startup job queue atau auto-resume pending PDF job yang ditemukan pada jalur `main()`, `setup_hook()`, atau `on_ready()`. `on_ready()` hanya menjadwalkan global slash-command sync dan mencetak status ONLINE. PDF/file generation berjalan ketika `on_message`/alur `process_ai_turn` menerima perintah Discord.
+- Saat file diminta, `process_ai_turn` menyimpan metadata `pending_retry_task` pada `guild_state`, lalu menjalankan Responses AI; inspeksi ini belum membuktikan task tersebut langsung dipersist ke disk sebelum proses provider dimulai atau otomatis di-replay pada startup.
+- Resource tracker berjalan pada thread terpisah dengan sampling default 1 detik; ia membaca procfs/cgroup dan menulis CSV. Tidak ada dasar dari inspeksi ini untuk menyatakan tracker adalah penyebab utama CPU. Background sync slash commands tidur 1.5 detik sebelum satu kali sync.
+- Tidak ada kode, test, workflow, Startup Command, production file, atau runtime yang diubah dalam investigasi ini.
+
+### Log Wispbyte terbaru yang diberikan pengguna
+- Pengguna mengonfirmasi perintah PDF dikirim sebelum server dihentikan. Log startup menunjukkan server mencapai ONLINE sekitar 03:00:29 dan CPU meningkat bertahap hingga sekitar 28.8% one-core / 30.6% cgroup sebelum proses dihentikan; panel melaporkan average CPU 15.40%.
+- RSS berada sekitar 125–126 MB dan cgroup memory sekitar 170 MB dari limit 588.8 MB; data ini tidak menunjukkan tekanan RAM sebagai pemicu.
+- Quota sempat berubah menjadi `35000 100000`; beberapa throttle events tercatat. Traceback `CancelledError`/ `KeyboardInterrupt` terjadi saat proses dihentikan platform dan merupakan konsekuensi shutdown, bukan bukti penyebab awal.
+- Tidak ada log `[FILE-RETRY]` atau output PDF dalam cuplikan tersebut; karena itu run ini membuktikan CPU-related stop yang dilaporkan, bukan keberhasilan/kegagalan spesifik PDF patch.
+- Waktu persis perintah PDF relatif terhadap 90 detik startup boost belum tercatat. Jangan mengasumsikan request mulai selama boost.
+
+### Rencana dan batas teknis
+- Menjalankan seluruh PDF generation saat startup tidak mungkin dilakukan dengan desain saat ini tanpa mekanisme job queue/persistence dan cara aman memasukkan prompt sebelum bot siap menerima Discord message.
+- Opsi yang layak diteliti pada branch kandidat: persistent queued-job record + startup worker yang menunggu Discord readiness, menjalankan satu job yang memang sudah tersimpan, lalu menerapkan kontrol beban/penundaan saat jendela boost berakhir. Ini harus fail-safe, tidak menggandakan job, tidak mengulang pengiriman Discord, dan tidak menganggap boost sebagai CPU exemption permanen.
+- Lebih sederhana untuk diagnosis awal: satu controlled PDF request segera setelah ONLINE, catat timestamp request, response start/end, dan CPU curve. Namun request hanya memanfaatkan sisa waktu boost; jika lebih dari ~90 detik, normal quota berlaku.
+- Jangan mengubah Startup Command atau melakukan restart. Pengguna mengendalikan Wispbyte. Tidak ada otorisasi untuk mengubah kode startup-queue pada catatan ini; perlu instruksi eksplisit untuk implementasi.
+- Status: Wispbyte startup boost **DOCUMENTED**; kandidat belum memiliki startup PDF queue **SOURCE-INSPECTED**; penyebab CPU ramp **NOT VERIFIED**; 100-page PDF live acceptance **NOT VERIFIED**.
