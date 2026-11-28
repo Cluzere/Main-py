@@ -557,6 +557,8 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
             "p { margin: 0; padding: 0; } strong { font-weight: bold; } "
             "em { font-style: italic; } code { font-family: Courier; }"
         )
+        if y + size * 1.2 > bottom:
+            new_page()
         available_height = max(0, bottom - y)
         rect = fitz.Rect(x, y, right, bottom)
         result = page.insert_htmlbox(rect, markup, css=css, scale_low=0.90)
