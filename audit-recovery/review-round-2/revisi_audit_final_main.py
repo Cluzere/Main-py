@@ -5317,12 +5317,8 @@ class ClouzerBot(commands.Bot):
         status_msg = await send_turn_status_message(target_channel, reply_to_message)
         _turn_diag["queue_status_send_seconds"] = _turn_loop.time() - _queue_status_started
         _queue_wait_started = _turn_loop.time()
-        _turn_queue_heavy = bool(
-            requested_file_format or additional_file_text or current_turn_images
-            or len(clean_content) >= 12000
-        )
         async with self.guild_lock(
-            scope_key, status_message=status_msg, heavy=_turn_queue_heavy
+            scope_key, status_message=status_msg
         ) as _queue_acquired:
             if not _queue_acquired:
                 return
@@ -6842,16 +6838,7 @@ async def on_message(message: discord.Message):
             return
 
     _scope_key = bot.get_scope_key(message.guild, message.author.id, message.channel.id)
-    _ingress_heavy = bool(
-        len(clean_content) >= 12000
-        or any(
-            int(getattr(att, "size", 0) or 0) >= 2 * 1024 * 1024
-            or os.path.splitext(str(getattr(att, "filename", "")).lower())[1]
-            in (OFFICE_DOC_EXTS | set(AUDIO_EXTS) | set(IMAGE_EXTS) | {".zip", ".7z"})
-            for att in message.attachments
-        )
-    )
-    async with bot.ingress_lock(_scope_key, heavy=_ingress_heavy) as (_ingress_acquired, _ingress_reason):
+    async with bot.ingress_lock(_scope_key) as (_ingress_acquired, _ingress_reason):
         if not _ingress_acquired:
             if _ingress_reason == "full":
                 _queue_notice = "⚠️ Antrean pesan masuk per percakapan penuh. Pesan ini belum diproses; tunggu lalu kirim ulang."
