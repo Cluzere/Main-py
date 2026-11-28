@@ -2237,7 +2237,7 @@ async def edit_turn_status_message(target_msg, *, stage: str, content: str, rais
             raise
         return False
     elapsed = asyncio.get_running_loop().time() - started
-    logging.info(
+    logging.warning(
         "[DISCORD-STATUS-EDIT] message_id=%s stage=%s outcome=success elapsed=%.3fs",
         getattr(target_msg, "id", None),
         stage,
@@ -5079,12 +5079,14 @@ class ClouzerBot(commands.Bot):
                             # message edits/rate-limit pressure and exposes a partial
                             # draft that users can mistake for the finished deliverable.
                             if not file_generation and now - last_edit >= 0.8 and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT:
-                                if await edit_turn_status_message(
+                                await edit_turn_status_message(
                                     target_msg,
                                     stage="answer_stream_delta",
                                     content=cleaned_live + " ▌",
-                                ):
-                                    last_edit = now
+                                )
+                                # Rate-limit attempts even when Discord rejects an edit;
+                                # otherwise every subsequent token can trigger another retry.
+                                last_edit = now
 
                     elif etype == "response.output_item.done":
                         item = event.get("item", {})
