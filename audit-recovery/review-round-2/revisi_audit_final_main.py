@@ -29,7 +29,7 @@ import sys
 _SCRIPT_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_MODULE_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_MODULE_DIR)
-from clouzer_workload import WorkloadManager
+from clouzer_workload import WorkloadManager, WorkloadQueueFull
 from clouzer_file_creation import (
     detect_requested_file_format,
     create_document_file,
@@ -5353,7 +5353,13 @@ class ClouzerBot(commands.Bot):
         status_msg = await send_turn_status_message(target_channel, reply_to_message)
         _turn_diag["queue_status_send_seconds"] = _turn_loop.time() - _queue_status_started
         _queue_wait_started = _turn_loop.time()
-        async with self.guild_lock(scope_key, status_message=status_msg) as _queue_acquired:
+        _turn_queue_heavy = bool(
+            requested_file_format or additional_file_text or current_turn_images
+            or len(clean_content) >= 12000
+        )
+        async with self.guild_lock(
+            scope_key, status_message=status_msg, heavy=_turn_queue_heavy
+        ) as _queue_acquired:
             if not _queue_acquired:
                 return
             _turn_diag["queue_wait_seconds"] = _turn_loop.time() - _queue_wait_started
@@ -6872,10 +6878,21 @@ async def on_message(message: discord.Message):
             return
 
     _scope_key = bot.get_scope_key(message.guild, message.author.id, message.channel.id)
-    async with bot.ingress_lock(_scope_key) as (_ingress_acquired, _ingress_reason):
+    _ingress_heavy = bool(
+        len(clean_content) >= 12000
+        or any(
+            int(getattr(att, "size", 0) or 0) >= 2 * 1024 * 1024
+            or os.path.splitext(str(getattr(att, "filename", "")).lower())[1]
+            in (OFFICE_DOC_EXTS | set(AUDIO_EXTS) | set(IMAGE_EXTS) | {".zip", ".7z"})
+            for att in message.attachments
+        )
+    )
+    async with bot.ingress_lock(_scope_key, heavy=_ingress_heavy) as (_ingress_acquired, _ingress_reason):
         if not _ingress_acquired:
             if _ingress_reason == "full":
-                _queue_notice = "⚠️ Antrean pesan masuk penuh. Pesan ini belum diproses; tunggu lalu kirim ulang."
+                _queue_notice = "⚠️ Antrean pesan masuk per percakapan penuh. Pesan ini belum diproses; tunggu lalu kirim ulang."
+            elif _ingress_reason == "global_full":
+                _queue_notice = "⚠️ Antrean global CLOUZER penuh. Pesan ini belum diproses; coba lagi setelah antrean longgar."
             else:
                 _queue_notice = "⚠️ Waktu tunggu antrean pesan masuk habis. Pesan ini belum diproses; kirim ulang."
             try:
