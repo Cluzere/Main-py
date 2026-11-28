@@ -2334,10 +2334,12 @@ class ClouzerBot(commands.Bot):
         self.guild_lock_refs[key] = current_refs + 1
         acquired = False
         admission = self.workload_manager.slot("queue", heavy=heavy)
+        admission_entered = False
         admission_released = False
         try:
             try:
                 await admission.__aenter__()
+                admission_entered = True
                 try:
                     if status_message is None:
                         await lock.acquire()
@@ -2348,8 +2350,11 @@ class ClouzerBot(commands.Bot):
                         )
                     acquired = True
                 finally:
-                    await admission.__aexit__(None, None, None)
-                    admission_released = True
+                    release_task = asyncio.create_task(admission.__aexit__(None, None, None))
+                    try:
+                        await asyncio.shield(release_task)
+                    finally:
+                        admission_released = True
             except WorkloadQueueFull:
                 if status_message is not None:
                     try:
@@ -2391,9 +2396,10 @@ class ClouzerBot(commands.Bot):
                     logging.debug("Tidak dapat memperbarui status tugas yang dibatalkan", exc_info=True)
             raise
         finally:
-            if not admission_released:
+            if admission_entered and not admission_released:
                 try:
-                    await asyncio.shield(admission.__aexit__(None, None, None))
+                    release_task = asyncio.create_task(admission.__aexit__(None, None, None))
+                    await asyncio.shield(release_task)
                 except BaseException:
                     logging.debug("Gagal melepas admission GWM pada guild lock", exc_info=True)
             if acquired:
@@ -2422,10 +2428,12 @@ class ClouzerBot(commands.Bot):
         self.ingress_lock_refs[key] = current_refs + 1
         acquired = False
         admission = self.workload_manager.slot("ingress", heavy=heavy)
+        admission_entered = False
         admission_released = False
         try:
             try:
                 await admission.__aenter__()
+                admission_entered = True
                 try:
                     await asyncio.wait_for(
                         lock.acquire(),
@@ -2433,8 +2441,11 @@ class ClouzerBot(commands.Bot):
                     )
                     acquired = True
                 finally:
-                    await admission.__aexit__(None, None, None)
-                    admission_released = True
+                    release_task = asyncio.create_task(admission.__aexit__(None, None, None))
+                    try:
+                        await asyncio.shield(release_task)
+                    finally:
+                        admission_released = True
             except WorkloadQueueFull:
                 yield False, "global_full"
                 return
@@ -2443,9 +2454,10 @@ class ClouzerBot(commands.Bot):
                 return
             yield True, None
         finally:
-            if not admission_released:
+            if admission_entered and not admission_released:
                 try:
-                    await asyncio.shield(admission.__aexit__(None, None, None))
+                    release_task = asyncio.create_task(admission.__aexit__(None, None, None))
+                    await asyncio.shield(release_task)
                 except BaseException:
                     logging.debug("Gagal melepas admission GWM pada ingress lock", exc_info=True)
             if acquired:
