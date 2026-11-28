@@ -2204,11 +2204,16 @@ class PdfWorkflowFixRegressionTests(unittest.TestCase):
             "**Teks tebal** dengan *teks miring*, kode `CLOUZER.resume_pdf()`, "
             "dan kalimat panjang untuk menguji pengukuran layout HTML yang sebenarnya. "
         ) * 28
+        filler = "\\n\\n".join(
+            f"Baris pengisi {index} untuk menguji pemindahan paragraf ke halaman baru."
+            for index in range(1, 28)
+        )
         content = (
-            "# Uji Pengukuran Layout PDF\n\n"
-            "## Pendahuluan\n\nParagraf pembuka.\n\n"
-            "## Isi Pengujian\n\n" + long_paragraph + "\n\n"
-            "## Kesimpulan\n\nDokumen harus tetap utuh dan dapat diekstrak."
+            "# Uji Pengukuran Layout PDF\\n\\n"
+            "## Pendahuluan\\n\\nParagraf pembuka.\\n\\n"
+            + filler + "\\n\\n"
+            "## Isi Pengujian\\n\\n" + long_paragraph + "\\n\\n"
+            "## Kesimpulan\\n\\nDokumen harus tetap utuh dan dapat diekstrak."
         )
         data = _make_pdf(content, "Uji Pengukuran Layout PDF")
         with pymupdf.open(stream=data, filetype="pdf") as doc:
