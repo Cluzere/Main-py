@@ -371,7 +371,29 @@ Bagian ini hanya mencatat apa yang diubah pada kode kandidat. Hasil pengujian ti
 - Test blob final setelah blank-layout title lookup: `d907fd0990856ed0f951c802d7eb202733ea8cb2`.
 - Commit perbaikan test: `6acc7cc28e8fee2efe699e00e2a1a77deac26d67`.
 
-## C2. Pengembangan kandidat sebelumnya
+## C1.1. Perbaikan batas output Responses untuk PDF panjang — 28 November 2026
+
+**Scope:** hanya candidate entrypoint; tidak mengubah helper renderer, validator, CPU optimization/caching sebelumnya, production, atau startup.
+
+File: `audit-recovery/review-round-2/revisi_audit_final_main.py`
+
+- Memisahkan batas penampungan output Responses untuk file generation dari chat biasa.
+- Chat biasa tetap menggunakan `MAX_RESPONSES_OUTPUT_CHARS` default 65.536 karakter.
+- File generation menggunakan `MAX_FILE_RESPONSES_OUTPUT_CHARS` default 350.000 karakter, minimum 65.536 dan maksimum 500.000, dapat diatur melalui environment variable.
+- `append_bounded_response_text` menerima batas per-call opsional; dua jalur SSE text delta dan final output item menggunakan budget yang dipilih sesuai `file_generation`.
+- Log `[FILE-RETRY]` kini mencatat tipe dan pesan exception serta jumlah karakter parsial, agar pemutusan SSE asli dapat dibedakan dari batas internal.
+- Tujuan: mencegah output file panjang terpotong tepat pada batas chat 65.536 karakter lalu salah diperlakukan sebagai stream interruption; tetap mempertahankan hard cap untuk penggunaan RAM dan batas keamanan.
+- PDF long-document continuation yang sudah ada (target internal sekitar 2.600 karakter per halaman, maksimum 12 continuation) tetap dipakai; tidak mengubah validator minimum halaman atau melemahkan acceptance criteria.
+- CPU optimizations/caching PyMuPDF sebelumnya tetap dipertahankan. Ini bukan penghapusan CPU limit atau perubahan quota hosting.
+
+### Commit dan blob
+- Source commit: `b5eebf5aeb1947af4f30a236fbc5af14f94dbaaf`.
+- Source blob: `df7ab40e655d14e2fb6ffd19358ddb0931d7d8da`.
+- Test commit berikutnya: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
+- Test blob: `93b478c67664686764c926447d35e9f87858f9fb`.
+- Exact candidate head setelah patch dan regression test: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
+
+## C2. Pengembangan kandidat sebelumnya## C2. Pengembangan kandidat sebelumnya
 
 Riwayat pengembangan lintas format (retry/refusal recovery, XLSX parser/schema, PDF validator/pagination, DOCX rendering/table handling, PPTX title handling, ZIP, CSV, Box integration) dipertahankan rinci dalam arsip Bagian G §§5–21 dan §§30–52.49. Gunakan catatan tersebut untuk mengetahui commit, akar masalah, dan perubahan historis sebelum menyentuh subsistem yang sama.
 
@@ -502,9 +524,21 @@ Dua regression test baru ditambahkan ke `test_file_creation.py`:
 - Both runs target the same exact SHA `57bb1a85c62b874a637f4f384e56a0bf85033818`; no failed steps reported.
 - Scope: candidate syntax/security/regression CI PASS. This does **not** prove Wispbyte startup/runtime or live PDF generation/Discord delivery. The manual-only `staging-smoke-test.yml` was not part of these push-triggered runs; do not count it as passed. The separate `audit-candidate-check.yml` was not shown among these latest SHA runs.
 
-# E. KANDIDAT — HASIL YANG SUDAH TERBUKTI
+## D5. PDF long Responses output budget — exact candidate head CI NOT VERIFIED
+
+- Exact code/test SHA: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
+- Added `test_long_file_stream_has_separate_output_budget` in `test_file_creation.py`. It compiles the actual bounded-append function from the candidate entrypoint in isolation, checks that normal chat retains the 65.536-character limit, checks file-generation can append beyond 65.536 up to 350.000, checks the file cap still raises, and asserts both SSE append paths use the per-request budget plus detailed retry diagnostics.
+- Test blob: `93b478c67664686764c926447d35e9f87858f9fb`; source blob: `df7ab40e655d14e2fb9a063fdbadf8527393736`.
+- Candidate source and test files were fetched back from the branch and their blob SHAs/content markers matched the committed changes.
+- Workflow file `.github/workflows/clouzer-multiformat-audit.yml` confirms push trigger includes `audit-recovery/review-round-2/test_*.py`; test commit should trigger the multi-format suite.
+- GitHub connector's `fetch_commit_workflow_runs` returned an empty list for this push commit, and combined status returned no checks. This connector method is documented to return PR-triggered runs only; therefore push-workflow terminal state is **NOT VERIFIED**, not evidence that no workflow ran and not CI PASS. Next session must inspect Actions runs/jobs for exact SHA `c4007796...` and wait for terminal status per A2.
+- Do not ask for Wispbyte live retest until required CI is verified PASS.
+
+# E. KANDIDAT — HASIL YANG SUDAH TERBUKTI# E. KANDIDAT — HASIL YANG SUDAH TERBUKTI
 
 Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rinci tetap di Bagian G.
+
+**PDF 100 halaman — kandidat stream fix:** source/test patch committed at `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`; source inspection and fetch-back verification PASS. CI exact-head and Wispbyte live retest are **NOT VERIFIED**. Do not treat this as PDF acceptance or as proof the 100-page request now succeeds.
 
 ## E1. Hasil format historis
 
@@ -532,28 +566,30 @@ Bagian ini adalah ringkasan hasil yang dapat dipakai sebagai baseline; bukti rin
 
 # F. KANDIDAT — PLANNING / PEKERJAAN BERIKUTNYA
 
-**PEMBARUAN STATUS — 28 NOVEMBER 2026:** Audit statis PyMuPDF selesai PASS pada §52.60; tidak perlu patch dan jangan ulangi. Pencocokan entrypoint runtime dengan branch kandidat selesai PASS pada §52.61: blob entrypoint identik `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6`. Diagnostik environment Wispbyte PASS pada §52.57–§52.58; jangan ulangi pip check/import test tanpa perubahan dependency atau bukti regresi.
+**PEMBARUAN STATUS — 28 NOVEMBER 2026:** PyMuPDF static audit, existing PDF rendering optimizations, and Wispbyte dependency checks remain as recorded in §§52.57–52.61. Existing CPU-work reduction (deduplicated validation/cached PyMuPDF extraction) is retained; it is not a Python CPU-throttling mechanism. Wispbyte previously stopped a server for average CPU 15.98% (user-supplied email); the approximate 15% threshold discussed historically was unverified community context. Cgroup quota is host-side and has varied between `100000 100000` and `35000 100000`.
 
-**RESOURCE TRACE — LOG PENGGUNA:** 131 baris CSV setelah startup: process CPU one-core avg 0,19%, max 1,0%; cgroup CPU avg 0,95%, max 80,3% (puncak startup); RSS stabil 124,9 MB; cgroup memory avg 170,01 MB, max 171,8 MB dari limit 588,8 MB; throttle delta avg 0,02, max 3. Log PDF berikutnya menunjukkan lonjakan CPU singkat 26–40% one-core dan throttle events sesaat, lalu kembali idle. Tidak ada bukti tekanan RAM atau CPU tinggi yang menetap pada sampel tersebut. CSV mentah tidak diperiksa independen; ini ringkasan log yang ditempel pengguna. Jangan minta ekstraksi ulang tanpa gejala baru.
+**PDF LONG-OUTPUT REGRESSION — NEW ACTIVE PRIORITY:** User supplied 100-page PDF test logs on 28 November. Resource samples showed CPU peak 17.9% one-core, RSS ~127 MB, cgroup memory ~160 MB / 588.8 MB, quota later `35000 100000`, and zero throttle events. At 02:10:50, log recorded `[FILE-RETRY] reason=stream_interrupted partial_chars=65536`; user-facing failure followed at 02:11:04. Candidate source inspection found global 65.536-character cap was applied to file-generation SSE as well as normal chat; the append helper raises when exceeded and the stream wrapper can reclassify that exception as `ResponsesStreamInterrupted`. Exact 65.536 match strongly implicates the internal cap, although previous historical SSE timeouts/rate-limit errors (§G1 around lines 790–792) mean real transport/provider interruptions remain possible. Patch now committed:
+- File generation cap: `MAX_FILE_RESPONSES_OUTPUT_CHARS=350000` default, max 500000.
+- Normal chat cap remains 65536.
+- SSE append paths select per-request cap.
+- Retry log now includes exception type/message.
+- Regression test added.
+Exact candidate head: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`. CI and live retest NOT VERIFIED.
 
-**PPTX STATUS — 28 NOVEMBER 2026:** Commit source `99ea0fed2f78415fcafdfcae4ad892ebb3d397e1` membuat visual generation wajib untuk PPTX dan menutup generic fallback saat visual generation/embedding melempar ValueError/RuntimeError. Regression test tambahan telah dibuat; setelah iterasi perbaikan test harness, exact code/test SHA `25696f05874c0739d5a3c738a980230dad8061ba` lulus ketiga workflow CI (D3). Test blob `36494cb08f8fee95d26e3ade54a3aa93afd24479`; entrypoint blob `53c1abb5bd0a72083e58cdb7bbaa381b0ba837d6`; helper blob `f6af7ccc86e637321bb074e710b19b864f6fb081`. Wispbyte belum dikonfirmasi memuat commit tersebut dan belum ada live retest pasca-patch.
+1. **PDF 100-page stream fix — priority 1.**
+   - First verify all required GitHub Actions on exact SHA `c4007796...` reach terminal SUCCESS; if a test/workflow fails, inspect logs, fix candidate only, commit, and repeat.
+   - After CI PASS, ask user to update/restart only the Wispbyte candidate runtime when they explicitly choose to do so. Do not restart/deploy it yourself and do not touch production.
+   - Run the same controlled 100-page PDF prompt once. Verify startup SHA, `[PDF-CONTINUATION]` pass/total/target logs, absence/presence of `[FILE-RETRY]` with detailed exception, final page count, validator result, CPU/RAM/quota/throttle, and Discord attachment send separately.
+   - If it still interrupts, use newly logged `error_type` and `error` to distinguish output cap, SSE timeout, provider rate limit, and transport failure. Do not assume CPU is the cause from low CPU utilization.
+   - Preserve minimum-100-page validator; never lower the requested page count to make the test pass.
+2. **PPTX live acceptance — next priority after PDF stream regression closes.** Candidate visual fail-closed/routing CI is recorded in §52.64; Wispbyte live visual generation and artifact review remain NOT VERIFIED. Use one controlled 5-slide test only after the PDF issue is closed.
+3. **CSV/JSON and reliability backlog:** inspect only reproducible gaps; SSE interruption/provider rate-limit/backoff remains separate from PDF rendering and CPU optimization.
+4. **Discord attachment delivery:** verify send, receipt, and download separately from file creation/validation.
+5. **CLOUZER → Box automatic upload:** remains NOT VERIFIED.
 
-1. **PPTX — prioritas aktif berikutnya.**
-   - Jangan ulangi tes PDF, XLSX, ZIP, atau DOCX yang sudah lulus untuk acceptance masing-masing.
-   - CI sudah PASS pada exact code/test SHA `25696f0...`; tidak perlu mengulang workflow yang sama tanpa perubahan kode atau regresi baru.
-   - Langkah live berikutnya memerlukan pengguna mengotorisasi dan melakukan satu restart candidate Wispbyte; jangan restart sendiri. Cocokkan startup log dengan branch HEAD terbaru yang akan diambil (commit dokumentasi Master Memory mungkin menjadi HEAD descendant dari code/test SHA, tetapi harus memuat code/test tersebut).
-   - Lakukan satu controlled 5-slide PPTX test. Pastikan log menunjukkan request format pptx, Lucid Origin call per slide, generated count, embed count, validation, dan Discord attachment send. Jangan mengulang prompt bila log/artefak yang sama sudah cukup untuk diagnosis.
-   - Inspeksi raw PPTX: package integrity, lima media files, image relationships dan picture shapes, 16:9 full-bleed, editable text, tidak ada Markdown/instruksi visual, render semua slide, clipping/kontras/artefak, ukuran file, dan bukti attachment Discord. Simpan koreksi sebagai file baru.
-2. **CSV dan JSON:** setelah PPTX selesai, cocokkan checklist/artefak historis. Lakukan satu tes hanya jika acceptance gap belum tertutup; jangan mengulang tes PASS.
-3. **Reliability:** retry, context persistence, SSE interruption, provider rate-limit/backoff, dan status per tahap tetap workstream terpisah. Kerjakan hanya jika ada reproduksi/tes yang belum ditutup.
-4. **Discord attachment delivery:** buktikan pengiriman, penerimaan, dan unduhan attachment secara terpisah dari file generation/validation. Jangan menyimpulkan delivery dari keberadaan file di Box.
-5. **CLOUZER → Box automatic upload:** masih NOT VERIFIED. Audit tools runtime CLOUZER dan uji upload yang benar-benar dipanggil bot; konektor Box ChatGPT dan upload manual pengguna bukan bukti integrasi bot.
-6. **Workflow/repository hardening:** backlog permissions/path triggers/action pinning/staging smoke tetap terpisah. Jangan mengubah settings atau workflow hanya demi status hijau; staging smoke manual-only dan membutuhkan secrets yang sudah dikonfigurasi.
+**Batas otorisasi:** perubahan hanya pada candidate branch `audit-recovery-gpt-2026-11-23`. Production `/home/container/main.py`, branch `main`, PR #6 merge, Wispbyte Startup Command, deployment, dan restart tetap dilindungi. Pengguna mengendalikan restart Wispbyte. Jangan mengubah atau melemahkan PDF validator.
 
-**Batas otorisasi:** hanya candidate branch `audit-recovery-gpt-2026-11-23` untuk perubahan. Production `/home/container/main.py`, branch `main`, PR #6 merge, Startup Command, restart/deploy tetap tidak diizinkan tanpa izin eksplisit terpisah. Pengguna mengendalikan restart Wispbyte.
-
-Setiap bukti baru harus dipilah ke C (implementasi), D (tes/CI), E (hasil), F (pekerjaan tersisa), dan G (arsip). Jangan menandai item selesai tanpa bukti.
-
+Setiap bukti baru harus dipilah ke C/D/E/F/G. Jangan menandai CI, runtime, PDF 100 halaman, atau Discord delivery PASS tanpa bukti.
 
 # G. ARSIP KRONOLOGIS LENGKAP — RIWAYAT ASLI DIPERTAHANKAN
 
@@ -5765,3 +5801,84 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Live Lucid Origin response, Wispbyte runtime commit, actual embedded media in a new PPTX, visual render acceptance, Discord attachment delivery, dan automatic Box upload: **NOT VERIFIED**.
 - Tidak ada restart/deploy Wispbyte, perubahan Startup Command, production edit, PR merge, atau perubahan production branch pada sesi ini.
 - Next step: satu live candidate restart yang dilakukan pengguna setelah otorisasi eksplisit, verifikasi startup SHA, lalu satu controlled 5-slide PPTX test dan inspeksi artefak. Jangan mengulang tes format yang sudah PASS.
+
+
+## 52.65 PDF 100-page output cap investigation and candidate fix — 28 November 2026
+
+### User-supplied Wispbyte run
+- Startup fetched branch `audit-recovery-gpt-2026-11-23` and reset to documentation commit `19c9ac6` before the new source patch. Python 3.11.18 candidate entrypoint started successfully and printed `[ONLINE]`; dependencies were already installed.
+- Resource log samples: process CPU one-core rose from 0–1% idle to 16.0% current, 17.9% 30-second peak; cgroup CPU peak 17.5%; RSS approximately 127 MB; cgroup memory approximately 160 MB of 588.8 MB; quota changed from `100000 100000` to `35000 100000`; throttle events remained 0 in the displayed intervals.
+- At `2026-11-28 02:10:50`, log: `[FILE-RETRY] ... format=pdf reason=stream_interrupted partial_chars=65536`. At `02:11:04`, bot returned “Penyusunan file PDF gagal sebelum lampiran selesai dibuat. Konteks permintaan disimpan.”
+- These are user-provided logs, not independently captured telemetry. They show no RAM pressure and no throttling in the displayed intervals; they do not establish the Wispbyte billing/average CPU calculation.
+- Historical Wispbyte stop on 26 November was reported by user via email as average CPU 15.98%. The previously discussed ~15% sustained threshold was not verified from authoritative Wispbyte documentation. Earlier CPU optimization at commit `ae5b75c48af59b713ec239fc1b1205feb3863df4` reduced redundant PDF work by reusing validation/PyMuPDF extraction results; it did not implement a runtime CPU throttle/compressor. Keep this distinction clear.
+
+### Candidate source root-cause inspection
+- Before this patch, `MAX_RESPONSES_OUTPUT_CHARS` defaulted to 65,536 and `append_bounded_response_text` raised `RuntimeError` when accumulated SSE text plus the next delta exceeded that limit.
+- `run_responses_ai` wrapped exceptions occurring after partial output as `ResponsesStreamInterrupted`; the file-generation caller logged only generic `reason=stream_interrupted` and partial character count.
+- The exact `partial_chars=65536` in the new log matches the old global cap. This is strong evidence of an internal output-cap collision, not proof of a network failure. Historical logs also show genuine SSE read timeouts and provider `rate_limit_exceeded` (§G1 lines ~790–792), so detailed exception diagnostics are necessary.
+- Existing long PDF logic uses target approximately `min(350000, requested_pages * 2600)` and up to 12 continuation passes. The original 65,536 global cap could interrupt a file stream before the continuation logic had a chance to run.
+- No PDF validator minimum, renderer, CPU cache, or startup command was changed.
+
+### Candidate patch committed
+- Source commit `b5eebf5aeb1947af4f30a236fbc5af14f94dbaaf`; entrypoint blob `df7ab40e655d14e2fb9a063fdbadf8527393736`.
+- File generation now has separate bounded output budget `MAX_FILE_RESPONSES_OUTPUT_CHARS`, default 350,000, minimum 65,536, maximum 500,000. Normal chat retains 65,536.
+- Both SSE delta and completed output-item append paths use the selected per-request limit.
+- `[FILE-RETRY]` now logs exception type and truncated exception message in addition to partial character count.
+- Test commit `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`; test blob `93b478c67664686764c926447d35e9f87858f9fb`.
+- Added `test_long_file_stream_has_separate_output_budget` to `audit-recovery/review-round-2/test_file_creation.py`; it checks the normal-chat cap, file-generation cap, cap enforcement, per-request stream wiring, and diagnostic fields.
+- Source/test were fetched back from GitHub and blob/content checks passed. Exact candidate branch head is `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
+
+### CI and live status
+- `clouzer-multiformat-audit.yml` push trigger includes `audit-recovery/review-round-2/test_*.py`.
+- GitHub connector's `fetch_commit_workflow_runs` returned no PR-triggered runs for the push commit; combined status returned empty. This does not establish whether push workflows ran. Exact-head CI is **NOT VERIFIED**; inspect GitHub Actions run list/jobs directly and wait for terminal status.
+- No Wispbyte restart or live retest after commit `c4007796...` has occurred. The user's supplied runtime log is from the pre-patch candidate checkout at `19c9ac6`.
+- Production `main.py`, production branch `main`, PR #6, startup command, deployment, and restart were not changed or performed.
+
+### Current verdict
+- Reproducible candidate defect identified: global chat output cap also applied to file generation; exact 65,536 partial count strongly matches it.
+- Candidate source patch: **COMMITTED / FETCH-BACK VERIFIED**.
+- Regression test: **COMMITTED / FETCH-BACK VERIFIED**.
+- Exact-head CI: **NOT VERIFIED**.
+- 100-page PDF live acceptance: **NOT VERIFIED**.
+- CPU optimization/cache retained; Wispbyte CPU quota remains an external host constraint and is not altered by this patch.
+- Next: exact-head CI → user-controlled candidate restart → one same-prompt 100-page live retest → inspect logs/artifact/attachment. Keep validator minimum intact.
+
+## HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
+
+### Status kanonis saat handoff dibuat
+- Repo `Cluzere/Main-py`, candidate branch `audit-recovery-gpt-2026-11-23`.
+- Latest exact branch head: `c4007796e21fcc1b249d19fbaeffeb3c8d5369c9`.
+- Candidate entrypoint: `audit-recovery/review-round-2/revisi_audit_final_main.py`, blob `df7ab40e655d14e2fb9a063fdbadf8527393736`.
+- Candidate tests: `audit-recovery/review-round-2/test_file_creation.py`, blob `93b478c67664686764c926447d35e9f87858f9fb`.
+- Master Memory is this file, `MASTER_MEMORY_CLOUZER.md`; handoff is temporary and must be reconciled/removed only after the next session reads it, following A0.12–A0.14.
+
+### What was done in this session
+1. Read current Master Memory A–F and relevant G evidence, including CPU history, PDF closeout, Wispbyte startup, and prior resource diagnostics.
+2. Investigated user-provided 100-page PDF failure logs.
+3. Confirmed candidate global output buffer cap was 65,536 characters for all Responses calls; exceptions after partial output become `ResponsesStreamInterrupted`.
+4. Implemented separate file-generation cap 350,000 characters (max 500,000) while retaining 65,536 for ordinary chat; added detailed stream failure logging.
+5. Added regression test `test_long_file_stream_has_separate_output_budget`.
+6. Committed source and test separately; fetched both back and verified their blob SHAs/content markers.
+
+### Key interpretation — do not lose this
+- CPU optimizations from the prior 15.98% Wispbyte incident are existing PDF-work reductions (deduplicated validation and PyMuPDF caching), not a Python CPU throttling feature. Keep them.
+- Latest supplied pre-patch log showed no throttle events and low/moderate CPU, but Wispbyte quota was `35000 100000`; do not assume CPU has unlimited capacity.
+- `partial_chars=65536` exactly matches the old global response character cap. This strongly suggests an internal cap-triggered false stream interruption, but old history includes genuine SSE timeouts/rate limiting; new detailed error fields will distinguish these in the next live run.
+- Do not change/relax minimum-100-page PDF validation or renderer/CPU optimizations without a new specific finding.
+
+### First actions for next session
+1. Fetch latest `MASTER_MEMORY_CLOUZER.md` from the candidate branch. Read all of A–F, this active handoff, and relevant G §52.65. Reconcile with live GitHub branch state.
+2. Verify branch HEAD is still `c4007796...`; if newer, inspect its diff and preserve any later changes.
+3. Inspect GitHub Actions runs/jobs for exact SHA `c4007796...`; connector status currently **NOT VERIFIED**. Wait until required push workflows reach terminal status. If failed, inspect logs, fix only candidate branch, commit, and recheck all required workflows.
+4. Only after CI PASS, tell the user the candidate is ready for a user-controlled Wispbyte candidate restart/reload. Do not restart/deploy it yourself; do not alter Startup Command.
+5. After user restart, verify startup fetch SHA. Run the same 100-page PDF prompt once. Collect new `[FILE-RETRY]` error type/message, `[PDF-CONTINUATION]` progress, resource trace CPU/RAM/quota/throttling, final PDF page count/validator outcome, and Discord attachment evidence.
+6. If failure remains, classify it from the detailed exception (internal cap, SSE read timeout, provider rate limit, or transport error) before patching. Do not assume CPU is the root cause.
+7. Do not touch production `/home/container/main.py`, production branch `main`, PR #6 merge, deployment, or production restart. No such permission was granted. Keep PR #6 draft/unmerged.
+
+### Acceptance state at handoff
+- Candidate patch and regression test: committed and fetch-back verified.
+- Exact-head CI: **NOT VERIFIED**.
+- Wispbyte live 100-page PDF retest: **NOT VERIFIED**.
+- PDF 100-page acceptance and Discord attachment delivery: **NOT VERIFIED**.
+- Production unchanged; no deploy/restart performed.
+
