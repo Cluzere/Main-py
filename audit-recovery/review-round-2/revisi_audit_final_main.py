@@ -4600,6 +4600,12 @@ class ClouzerBot(commands.Bot):
             task = normalize_pending_retry_task(state.get("pending_retry_task"))
             if not task or task.get("kind") != "file" or task.get("format") != "pdf":
                 continue
+            if task.get("delivery_started") is True:
+                logging.error(
+                    "[PDF-STARTUP-RESUME] scope=%s stage=delivery_reconciliation_required action=manual_inspection_required",
+                    scope_key,
+                )
+                continue
             if task.get("auto_resume") is not True:
                 continue
             if int(task.get("auto_resume_attempts", 0)) >= 2:
@@ -4674,7 +4680,12 @@ class ClouzerBot(commands.Bot):
             raw_final_task = state.get("pending_retry_task")
             final_task = normalize_pending_retry_task(raw_final_task)
             if final_task and final_task.get("kind") == "file" and final_task.get("format") == "pdf":
-                if final_task.get("auto_resume") is False:
+                if final_task.get("delivery_started") is True:
+                    logging.error(
+                        "[PDF-STARTUP-RESUME] scope=%s stage=delivery_reconciliation_required action=manual_inspection_required",
+                        scope_key,
+                    )
+                elif final_task.get("auto_resume") is False:
                     logging.error(
                         "[PDF-STARTUP-RESUME] scope=%s stage=failed_manual_retry_required attempts=%s",
                         scope_key, final_task.get("auto_resume_attempts", task.get("auto_resume_attempts", 0)),
@@ -4685,9 +4696,14 @@ class ClouzerBot(commands.Bot):
                         scope_key, final_task.get("auto_resume", False),
                         final_task.get("auto_resume_attempts", task.get("auto_resume_attempts", 0)),
                     )
+            elif raw_final_task is None and self.last_memory_save_error:
+                logging.error(
+                    "[PDF-STARTUP-RESUME] scope=%s stage=attachment_confirmed_cleanup_persist_failed action=manual_inspection_required",
+                    scope_key,
+                )
             elif raw_final_task is None:
                 logging.warning(
-                    "[PDF-STARTUP-RESUME] scope=%s stage=completed delivery_state=attachment_confirmed",
+                    "[PDF-STARTUP-RESUME] scope=%s stage=completed delivery_state=attachment_confirmed_cleanup_persisted=true",
                     scope_key,
                 )
             else:
@@ -5732,6 +5748,19 @@ class ClouzerBot(commands.Bot):
                             + "Nama file: " + generated_name + "\n"
                             + "Ukuran: " + format(len(generated_bytes), ",") + " byte"
                         )
+                        if requested_file_format == "pdf":
+                            # Persist a delivery gate before the external Discord side effect.
+                            # If the process stops after upload but before task cleanup is
+                            # durable, startup must not blindly send the same PDF again.
+                            delivery_task = normalize_pending_retry_task(guild_state.get("pending_retry_task"))
+                            if delivery_task and delivery_task.get("kind") == "file" and delivery_task.get("format") == "pdf":
+                                delivery_task["delivery_started"] = True
+                                guild_state["pending_retry_task"] = delivery_task
+                                await self.save_memory()
+                                logging.info(
+                                    "[PDF-DELIVERY] scope=%s stage=delivery_gate_persisted filename=%s",
+                                    scope_key, generated_name,
+                                )
                         delivered_message = await status_msg.edit(content=caption, attachments=[generated_file], view=None)
                         delivered_attachments = getattr(delivered_message, "attachments", None)
                         if delivered_attachments is None or not any(
@@ -5757,6 +5786,12 @@ class ClouzerBot(commands.Bot):
                             await self.save_memory()
                         except Exception:
                             logging.exception("Gagal menyimpan memory setelah file berhasil dikirim (%s)", scope_key)
+                            if requested_file_format == "pdf":
+                                logging.error(
+                                    "[PDF-DELIVERY] scope=%s stage=task_cleanup_persist_failed "
+                                    "delivery_confirmed=true startup_duplicate_guard=delivery_started",
+                                    scope_key,
+                                )
                         return
                     except Exception as file_exc:
                         logging.exception("Pembuatan/pengiriman file %s gagal (%s)", requested_file_format, scope_key)
