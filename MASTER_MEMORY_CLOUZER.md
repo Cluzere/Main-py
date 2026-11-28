@@ -9,49 +9,6 @@
 
 > **Cara membaca dokumen ini:** Bagian A adalah aturan operasional yang berlaku dan menjadi sumber otoritatif. Bagian B adalah kondisi proyek. Bagian C, D, E, dan F memisahkan pengembangan kandidat, pengujian, hasil yang terbukti, dan planning. Bagian G adalah arsip kronologis asli yang dipertahankan untuk menjaga bukti, detail, SHA, log, dan keputusan lama. Jika ada kalimat aturan lama di arsip yang tampak bertentangan dengan Bagian A, ikuti Bagian A; arsip adalah rekaman historis, bukan sumber aturan yang lebih baru.
 
-## HANDOFF AKTIF — UNTUK SESI BERIKUTNYA
-
-**Dibuat:** 28 November 2026  
-**Project:** CLOUZER Discord AI bot  
-**Repository/branch:** `Cluzere/Main-py` / `audit-recovery-gpt-2026-11-23`  
-**Candidate entrypoint:** `audit-recovery/review-round-2/revisi_audit_final_main.py`  
-**Status dokumen saat handoff disiapkan:** fetched dari branch; blob SHA sebelum update ini `73e491775639fee9c3fcab52e0475bd54ab0c8a7`. Commit dan blob hasil handoff wajib diverifikasi setelah penyimpanan.
-
-### 1. Kenapa sesi dipindahkan
-- Pengguna meminta sesi baru dengan konteks CLOUZER tetap utuh agar sesi/bot penerima tidak salah memahami proyek atau mengulang pekerjaan.
-- Handoff ini sengaja disimpan sebagai blok sementara DI DALAM `MASTER_MEMORY_CLOUZER.md`, bukan hanya di chat. Sesi penerima wajib memproses lalu menghapus blok ini setelah selesai membaca dan merekonsiliasi isinya.
-
-### 2. Status teknis yang harus dibawa
-- Kandidat terbaru yang tercatat pada §52.69: persistent PDF startup-resume queue sudah diimplementasikan pada branch kandidat. Perubahan menyimpan metadata tugas sebelum provider call, hanya auto-resume PDF, maksimal satu job per boot, maksimum dua percobaan otomatis, memeriksa channel/source message, dan memakai alur `process_ai_turn(..., "Ulangi", ...)`.
-- Exact final code/test commit yang tercatat: `2b096388e74783407bdf8479dcb1c620b5b21169`. Candidate entrypoint blob `d254b82722f22580f10c136f3f9138e1f3807eed`; helper blob `a84ae6d57ab61346c2d1c31737cc07ae778333b4`; test blob `4e4ec812ee90c85fc5a7863bc66ac7116c3f2e4b`.
-- Exact-head GitHub Actions pada commit tersebut tercatat PASS 3/3: run `46093060197`, `46093060193`, `46093060079`. Ini hanya bukti CI, bukan bukti Wispbyte live runtime.
-- Belum diverifikasi live: restart kandidat oleh pengguna, persistensi `memory.json` melewati stop/start, marker `[PDF-STARTUP-RESUME]`, auto-resume aktual, pembuatan PDF, jumlah halaman, validator, pengiriman attachment Discord, dan kurva CPU/RAM/quota/throttling. Jangan menyebutnya PASS.
-- Investigasi CPU sebelumnya: Wispbyte startup boost sekitar 90 detik lalu steady-state quota 35% menurut sumber Wispbyte yang dicatat di §52.68. Log pengguna menunjukkan CPU naik bertahap sampai sekitar 28.8–32% one-core/cgroup, quota turun ke `35000 100000`, dan throttling; RSS sekitar 125–127 MB serta cgroup memory sekitar 170 MB dari 588.8 MB. Panel provider pernah menyebut average CPU 15.40%. Metrik ini tidak boleh dicampur atau dianggap identik.
-- Log run CPU yang dibahas tidak memperlihatkan `[PDF-STARTUP-RESUME] stage=starting`; karena itu PDF resume belum terbukti menjadi pemakan CPU pada run tersebut. Akar penyebab CPU ramp belum teridentifikasi.
-- Source audit terdahulu mencatat tracker sampling 1 detik, summary tiap 30 detik, AI concurrency 4, attachment concurrency 3, dan PDF panjang hingga 12 continuation calls sequential. Belum ada scheduler global yang mengatur semua jenis workload berat.
-- Tidak ada kode yang diubah dalam percakapan sesi handoff ini. Update ini hanya dokumentasi/handoff.
-
-### 3. Rencana kerja penerima — urutan wajib
-1. Fetch ulang branch dan baca seluruh Bagian A–F serta blok handoff ini. Buka arsip G yang relevan, khususnya §§52.68–52.69 dan catatan CPU sebelumnya. Cocokkan SHA aktual branch; jangan mengandalkan SHA lama jika branch sudah bergerak.
-2. Setelah memahami handoff, pindahkan fakta/keputusan yang masih relevan ke bagian permanen A–G. Tambahkan catatan penerimaan handoff ke arsip G. **Lalu hapus hanya blok `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` ini**, commit, fetch ulang, dan verifikasi penghapusan serta kelestarian catatan permanen sesuai A0.12–A0.14.
-3. Minta pengguna melakukan restart kandidat Wispbyte hanya ketika siap; jangan restart sendiri. Setelah runtime hidup, verifikasi commit/blob kandidat yang benar-benar berjalan dan apakah `memory.json` bertahan melewati stop/start.
-4. Periksa log startup untuk `[PDF-STARTUP-RESUME]` dan status eligibility. Jalankan satu controlled PDF test; rekam timestamp request, waktu worker mulai, continuation pass/total, page count, validator, hasil attachment Discord, CPU/RAM/quota/throttle, serta apakah server melewati jendela boost. Pisahkan file creation, validation, dan delivery.
-5. Setelah tes live, lanjutkan audit CPU dengan instrumentasi ringan per tahap (ingress/classification, parsing, PDF render/validation, ZIP, image/audio, AI calls, file generation, Discord send). Gunakan telemetry berbiaya rendah; jangan menaikkan sampling agresif.
-6. Berdasarkan bukti, rancang Global Workload Manager untuk seluruh prompt/pekerjaan berat: klasifikasi berdasarkan biaya aktual (jumlah halaman/file, ukuran input, dimensi gambar, tahapan tool), lane ringan vs berat, antrean global, concurrency terbatas per tahap, backpressure, chunking/cooperative yield, timeout/cancel, dan metrik antrean/durasi. Jangan mengasumsikan panjang prompt teks saja mewakili biaya.
-7. Jangan membuat CPU spike buatan untuk mengecoh batas provider. Aplikasi tidak dapat menjamin atau mengganti quota cgroup Wispbyte. Tujuan adalah mengurangi beban puncak, memberi backpressure, dan menjaga chat ringan tetap responsif.
-8. Tambahkan regression tests dan benchmark terkontrol sebelum patch. Catat baseline vs hasil: CPU, throttling, wall time, queue wait, RSS, completion. Implementasi hanya pada candidate branch dan hanya setelah otorisasi eksplisit untuk patch.
-
-### 4. Batas otorisasi
-- Production `main.py`, production branch `main`, PR #6 merge, deployment, Wispbyte Startup Command, dan restart dilindungi. Jangan disentuh tanpa izin eksplisit terpisah.
-- Pengguna mengendalikan Wispbyte restart. Jangan klaim restart/deploy telah dilakukan.
-- Jangan melemahkan validator minimum 100 halaman atau mengubah file/konfigurasi lain di luar scope.
-- Jangan mengklaim hasil live, CI, file, atau delivery tanpa bukti spesifik.
-- Jika akses GitHub gagal, pertahankan handoff dan jangan menghapusnya.
-
-### 5. Langkah pertama yang harus dilakukan
-Baca dan rekonsiliasikan Master Memory penuh sesuai A0. Jangan langsung coding. Setelah blok ini diproses, hapus handoff sementara mengikuti protokol penerimaan; pekerjaan teknis berikutnya dimulai dari verifikasi runtime kandidat dan tes PDF startup-resume/CPU yang terkontrol.
-
----
 
 # A. ATURAN INDUK — WAJIB DIIKUTI
 
@@ -6005,3 +5962,13 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Blok `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` memuat alasan perpindahan sesi, status kandidat PDF startup-resume dan exact-head CI, batas bukti live, rekonsiliasi CPU/quota, urutan rencana kerja, serta batas otorisasi.
 - Bagian F diperbarui dengan planning baru: verifikasi runtime/auto-resume PDF oleh pengguna; tes terkontrol; stage-level telemetry rendah overhead; kemudian desain global workload manager untuk prompt berat dan semua jalur CPU-intensive. Tidak ada patch kode atau perubahan runtime dari sesi dokumentasi ini.
 - Handoff ini harus tetap ada sampai sesi penerima benar-benar membaca dan merekonsiliasinya. Jangan hapus sebelum itu. Penerima harus mengikuti A0.12–A0.14.
+
+
+## 52.71 Penerimaan handoff sesi 28 November 2026 dan pembacaan penuh Master Memory
+
+- Sesi penerima melakukan fetch langsung dari GitHub terhadap `MASTER_MEMORY_CLOUZER.md` pada branch `audit-recovery-gpt-2026-11-23` dan membaca seluruh dokumen dari awal sampai akhir: 6.008 baris, 593.686 karakter. Pembacaan mencakup seluruh Bagian A–F, blok handoff aktif, seluruh arsip Bagian G, termasuk §§52.68–52.70.
+- Blob SHA sebelum pembaruan ini: `ef6e6a0a9af2f5b789f420db73d186bfac181d24`. HEAD branch sebelum pembaruan: `2b0dfb2f81d8f629b5196ebaceff418df0c23fd8`.
+- Isi handoff direkonsiliasikan dengan bagian permanen. Status PDF startup-resume, exact-head CI PASS 3/3 pada commit kode `2b096388e74783407bdf8479dcb1c620b5b21169`, live Wispbyte persistence/auto-resume yang masih NOT VERIFIED, investigasi CPU/quota, serta rencana instrumentasi dan Global Workload Manager telah dipastikan tercakup pada Bagian F dan §52.70. Batas otorisasi produksi dan prosedur penerimaan handoff tetap tercakup pada Bagian A.
+- Setelah pembacaan dan rekonsiliasi selesai, hanya blok sementara `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` di bagian awal dokumen yang dihapus. Bagian A–G, semua arsip historis, status permanen, dan §52.70 dipertahankan.
+- Tidak ada kode kandidat, helper, test, workflow, Wispbyte Startup Command/runtime, production `main.py`, production branch `main`, atau PR #6 yang diubah. Tidak ada deployment, merge, atau restart.
+- Pembaruan ini adalah penerimaan dan pembersihan dokumentasi handoff saja. Verifikasi akhir wajib memastikan blok sementara sudah tidak ada dan catatan penerimaan ini tetap tersimpan.
