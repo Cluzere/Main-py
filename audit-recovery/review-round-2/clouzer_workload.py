@@ -130,6 +130,16 @@ class WorkloadManager:
             except asyncio.TimeoutError as exc:
                 if waiter in self._waiters:
                     self._waiters.remove(waiter)
+                elif waiter.get("admitted"):
+                    # A timeout can land immediately after admission. Roll back
+                    # the reserved counters just like cancellation does.
+                    waiter["admitted"] = False
+                    self._active = max(0, self._active - 1)
+                    self._active_by_kind[kind] = max(0, self._active_by_kind.get(kind, 1) - 1)
+                    if self._active_by_kind[kind] == 0:
+                        self._active_by_kind.pop(kind, None)
+                    if heavy:
+                        self._active_heavy = max(0, self._active_heavy - 1)
                 self._condition.notify_all()
                 raise WorkloadQueueFull(
                     "Waktu tunggu antrean kerja global habis. Coba lagi beberapa saat."
