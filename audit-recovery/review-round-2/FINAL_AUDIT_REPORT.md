@@ -266,3 +266,54 @@ The ZIP member loop calls `check_file_signature()` before dispatching every memb
 - Run: https://github.com/Cluzere/Main-py/actions/runs/45567432060
 
 This updates the previous 85 + 76 count. Production remains blocked pending the live gates listed above.
+
+---
+
+## Addendum — Global Workload Manager and restart-readiness review — 28 November 2026
+
+### Candidate identity and exact-source verification
+
+- Active branch: `audit-recovery-gpt-2026-11-23`.
+- Branch HEAD after GWM queue hardening and regression updates: `933814e5a0f8e1077b6106e8501b202ad41a8f33`.
+- Candidate entry point: `audit-recovery/review-round-2/revisi_audit_final_main.py`, blob `004e7b794bc093767a5959aaeb98e66ace6585e9`.
+- GWM module: `audit-recovery/review-round-2/clouzer_workload.py`, blob `c2d532df7970e6dea1fcf1fd61fe2f6f7aeb3a12`.
+- GWM regression tests: `audit-recovery/review-round-2/test_clouzer_workload.py`, blob `490eb428770dd197b42d0a658b0148cd8d481d29`.
+- Candidate imports all helper modules from its own script directory. The required `clouzer_workload.py`, `clouzer_file_creation.py`, and `clouzer_box_oauth.py` are present beside the entry point.
+- `requirements-audit.txt` includes `py7zr>=1.0,<2` and `defusedxml`; the latest candidate CI successfully installed the runtime dependencies and passed `pip check`.
+
+### GWM behavior and integration
+
+- Global admission defaults: 3 active jobs, 24 pending jobs, 300-second queue timeout, and at most 1 active heavy job. Environment overrides are hard-capped.
+- Per-kind limits: attachments at most 2, images at most 1, audio at most 1 when used as a GWM kind. Audio transcription is currently nested under the already-admitted heavy attachment slot and retains its own audio semaphore; it deliberately does not acquire a nested GWM slot, avoiding self-deadlock when global active capacity is 1.
+- Heavy classification covers document/file generation, prompts at or above 12,000 characters, image/file payloads, and extra input. Attachment parsing, image generation/editing, PPTX visual generation/embedding, AI Responses calls, and the diagnostic AI probe use GWM admission.
+- Sustained host pressure is derived from cgroup CPU usage relative to the actual `cpu.max` quota, process CPU, and cgroup memory. Two consecutive high samples pause new heavy admissions; three consecutive low samples resume them. Already-running jobs are not preempted, and the application cannot override Wispbyte's CPU quota.
+- Per-scope conversation and message-ingress queues also have global and per-scope bounds. Queue state is in-memory and is not restored after a hard process crash/restart.
+
+### Additional defect found and fixed
+
+- Source inspection found that `guild_lock()` allocated a new per-scope lock before checking global/per-scope admission caps, and `ingress_lock()` allocated a lock before checking the per-scope cap. Rejected requests using many unique scopes could therefore leave unreferenced lock objects in dictionaries.
+- Candidate code now performs admission checks before allocating those per-scope locks. The existing `finally` cleanup continues to remove locks after the last reference is released.
+- Candidate source change: commit `7bc080bf4e6c0f120f087025947baca32d85ff1f`.
+- GWM regression coverage now includes heavy concurrency, host-pressure admission, cancellation while waiting, cancellation after admission, global queue cap, timeout cleanup, per-kind attachment cap, and heavy-job fairness. The fairness fixture initially exposed an incorrect test setup; the fixture was corrected to begin with a heavy holder, and the final exact-head run passed.
+
+### Exact-head CI
+
+All three workflows completed successfully for branch HEAD `933814e5a0f8e1077b6106e8501b202ad41a8f33`:
+
+1. Audit candidate syntax check — run `46128684441`: dependency installation, `pip check`, full candidate compile, `pip-audit --strict`, Bandit medium/high scan, GWM scheduler tests, document creation tests, archive regression tests, and existing audit regression tests all passed.
+2. Audit recovery candidate — run `46128684437`: compile, high-severity Bandit scan, dependency installation, and focused regression tests passed.
+3. CLOUZER multi-format file audit — run `46128684496`: compile, high-severity Bandit scan, dependency installation, and complete candidate regression suite passed.
+
+Run links:
+- https://github.com/Cluzere/Main-py/actions/runs/46128684441
+- https://github.com/Cluzere/Main-py/actions/runs/46128684437
+- https://github.com/Cluzere/Main-py/actions/runs/46128684496
+
+### Deployment boundary and verdict
+
+- Source-level GWM integration, syntax, dependency consistency, static security scans, and CI regression checks are **PASS** for the exact candidate head above.
+- The candidate is eligible for a **user-controlled Wispbyte candidate restart** as the next controlled validation stage. This is not a production-readiness or live CPU-safety certification.
+- Live Discord/provider behavior, Wispbyte restart/shutdown, PDF persistence/auto-resume, real multi-user behavior, and CPU/RAM/throttling after restart remain **NOT VERIFIED**. Do not run stress/load tests or synthetic CPU-spike tests.
+- The user previously confirmed the Wispbyte Startup Command already targets the candidate. Do not alter it or other Wispbyte configuration during this preparation.
+- The user must perform the restart and share the startup/Ready logs plus the requested sanitized PDF resume/task-state evidence. The assistant must not restart or deploy.
+- Production source `main (4).py` remains blob `ffffd0c17169b29504f4a8713dca396cf61ddeff`, identical on `main` and the audit branch. PR #6 remains OPEN / DRAFT / UNMERGED. No production source, production branch, deployment, or hosting configuration was changed.
