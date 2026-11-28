@@ -29,7 +29,7 @@ import sys
 _SCRIPT_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_MODULE_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_MODULE_DIR)
-from clouzer_workload import WorkloadManager, WorkloadQueueFull
+from clouzer_workload import WorkloadManager
 from clouzer_file_creation import (
     detect_requested_file_format,
     create_document_file,
@@ -2311,13 +2311,14 @@ class ClouzerBot(commands.Bot):
         return user_id in self.image_busy_users
 
     @asynccontextmanager
-    async def guild_lock(self, key: str, status_message=None, *, heavy: bool = False):
+    async def guild_lock(self, key: str, status_message=None):
         lock = self.guild_locks.get(key)
         if lock is None:
             lock = asyncio.Lock()
             self.guild_locks[key] = lock
 
         current_refs = self.guild_lock_refs.get(key, 0)
+        # Ref pertama adalah pemroses aktif; sisanya adalah waiter FIFO.
         if status_message is not None and current_refs >= MAX_QUEUE_PENDING_PER_SCOPE + 1:
             try:
                 await status_message.edit(
@@ -2333,38 +2334,16 @@ class ClouzerBot(commands.Bot):
 
         self.guild_lock_refs[key] = current_refs + 1
         acquired = False
-        admission = self.workload_manager.slot("queue", heavy=heavy)
-        admission_entered = False
-        admission_released = False
         try:
             try:
-                await admission.__aenter__()
-                admission_entered = True
-                try:
-                    if status_message is None:
-                        await lock.acquire()
-                    else:
-                        await asyncio.wait_for(
-                            lock.acquire(),
-                            timeout=QUEUE_WAIT_TIMEOUT_SECONDS,
-                        )
-                    acquired = True
-                finally:
-                    release_task = asyncio.create_task(admission.__aexit__(None, None, None))
-                    try:
-                        await asyncio.shield(release_task)
-                    finally:
-                        admission_released = True
-            except WorkloadQueueFull:
-                if status_message is not None:
-                    try:
-                        await status_message.edit(
-                            content="⚠️ Antrean global CLOUZER penuh. Pesan ini belum diproses; coba lagi setelah antrean longgar."
-                        )
-                    except Exception:
-                        logging.debug("Gagal memperbarui status antrean GWM penuh", exc_info=True)
-                yield False
-                return
+                if status_message is None:
+                    await lock.acquire()
+                else:
+                    await asyncio.wait_for(
+                        lock.acquire(),
+                        timeout=QUEUE_WAIT_TIMEOUT_SECONDS,
+                    )
+                acquired = True
             except asyncio.TimeoutError:
                 if status_message is not None:
                     try:
@@ -2396,12 +2375,6 @@ class ClouzerBot(commands.Bot):
                     logging.debug("Tidak dapat memperbarui status tugas yang dibatalkan", exc_info=True)
             raise
         finally:
-            if admission_entered and not admission_released:
-                try:
-                    release_task = asyncio.create_task(admission.__aexit__(None, None, None))
-                    await asyncio.shield(release_task)
-                except BaseException:
-                    logging.debug("Gagal melepas admission GWM pada guild lock", exc_info=True)
             if acquired:
                 lock.release()
             remaining = self.guild_lock_refs.get(key, 1) - 1
@@ -2413,7 +2386,7 @@ class ClouzerBot(commands.Bot):
                 self.guild_lock_refs[key] = remaining
 
     @asynccontextmanager
-    async def ingress_lock(self, key: str, *, heavy: bool = False):
+    async def ingress_lock(self, key: str):
         """FIFO gate acquired at message ingress, before any attachment I/O."""
         lock = self.ingress_locks.get(key)
         if lock is None:
@@ -2427,39 +2400,18 @@ class ClouzerBot(commands.Bot):
 
         self.ingress_lock_refs[key] = current_refs + 1
         acquired = False
-        admission = self.workload_manager.slot("ingress", heavy=heavy)
-        admission_entered = False
-        admission_released = False
         try:
             try:
-                await admission.__aenter__()
-                admission_entered = True
-                try:
-                    await asyncio.wait_for(
-                        lock.acquire(),
-                        timeout=QUEUE_WAIT_TIMEOUT_SECONDS,
-                    )
-                    acquired = True
-                finally:
-                    release_task = asyncio.create_task(admission.__aexit__(None, None, None))
-                    try:
-                        await asyncio.shield(release_task)
-                    finally:
-                        admission_released = True
-            except WorkloadQueueFull:
-                yield False, "global_full"
-                return
+                await asyncio.wait_for(
+                    lock.acquire(),
+                    timeout=QUEUE_WAIT_TIMEOUT_SECONDS,
+                )
+                acquired = True
             except asyncio.TimeoutError:
                 yield False, "timeout"
                 return
             yield True, None
         finally:
-            if admission_entered and not admission_released:
-                try:
-                    release_task = asyncio.create_task(admission.__aexit__(None, None, None))
-                    await asyncio.shield(release_task)
-                except BaseException:
-                    logging.debug("Gagal melepas admission GWM pada ingress lock", exc_info=True)
             if acquired:
                 lock.release()
             remaining = self.ingress_lock_refs.get(key, 1) - 1
