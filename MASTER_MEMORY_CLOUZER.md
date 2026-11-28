@@ -6020,3 +6020,27 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
   - https://github.com/Cluzere/Main-py/actions/runs/46118914639
   - https://github.com/Cluzere/Main-py/actions/runs/46118914633
 - Final verdict: source-level workflow and automated CI regression/security checks for the candidate are **PASS**. Live Wispbyte stop/start persistence, actual startup auto-resume, provider output, real 100-page artifact generation under Wispbyte quota, real Discord attachment delivery, and CPU/RAM/throttling remain **NOT VERIFIED** and cannot be certified by GitHub CI. User must perform any Wispbyte restart; assistant must not restart/deploy. Before restart, confirm Startup Command targets this exact candidate entrypoint and deployed helper file is the matching candidate helper. Production `main.py`, production branch `main`, and PR #6 remain untouched/unmerged.
+
+
+## 52.73 Exact-source CI verification for PDF workflow fixes — 28 November 2026
+
+- Setelah perubahan §52.72, pengguna meminta workflow diperiksa sampai tuntas. Tiga workflow kandidat dijalankan melalui PR sementara khusus CI (#7), karena konektor GitHub yang tersedia tidak menyediakan daftar seluruh push-triggered runs atau aksi workflow_dispatch. Untuk mengaktifkan pull_request trigger tanpa mengubah production, dibuat dua branch sementara `ci-validation-base-2026-11-28` dan `ci-validation-head-2026-11-28`; tiga workflow candidate pada base sementara diberi pull_request trigger yang dibatasi ke branch validasi dan path test kandidat. PR #7 dibuat non-draft untuk memastikan trigger berjalan, lalu ditutup setelah hasil dikumpulkan. PR #7 CLOSED / UNMERGED.
+- Run pertama pada fixture PDF awal gagal hanya pada tes baru `test_pdf_layout_uses_actual_html_measurement_and_page_retry`: 28 repetisi teks belum membuat halaman pertama penuh, sehingga PDF yang benar tetap hanya satu halaman dan assertion perpindahan halaman tidak terpicu. Ini adalah kelemahan fixture tes, bukan bukti kegagalan generator. Fixture diperbaiki dengan menambahkan 27 paragraf pengisi sebelum paragraf panjang, sehingga kondisi sisa halaman sempit diuji dan paragraf masih muat pada halaman baru. Tes yang diperbaiki lulus pada run final.
+- Exact candidate branch HEAD sesudah penyesuaian fixture: `37cee0034cb57321391815b2610c20e338ce3f9f`.
+- Fetch-back membuktikan source/test yang diuji CI memiliki blob SHA identik dengan branch kandidat:
+  - `revisi_audit_final_main.py`: `0bcde8205950023174be5d628990627939180c1b`
+  - `clouzer_file_creation.py`: `a53d4371617891869c065cab484360b27da7e478`
+  - `test_file_creation.py`: `8152980f436803ab68fca38098611c002045a9f0`
+- Tiga workflow pada commit PR head `4d21e53d23485db0474fe8d0fe6d066b1356f6bd` selesai SUCCESS (3/3):
+  1. Audit candidate syntax check — run `46120035253`: compile, pip check, pip-audit, Bandit medium/high, verifikasi ZIP fixture SHA-256, 176 file tests, 100 candidate archive tests, dan 93 existing audit regression tests; semuanya lulus.
+  2. Audit recovery candidate — run `46120035254`: compile, Bandit high severity, dependency installation, 176 focused regression tests; lulus.
+  3. CLOUZER multi-format file audit — run `46120035235`: compile, Bandit high severity, dependency installation, 176 complete candidate regression tests; lulus.
+- Run links:
+  - https://github.com/Cluzere/Main-py/actions/runs/46120035253
+  - https://github.com/Cluzere/Main-py/actions/runs/46120035254
+  - https://github.com/Cluzere/Main-py/actions/runs/46120035235
+- Hasil tes regresi baru yang penting: pengukuran HTML PDF dan page-break retry lulus; output budget untuk interrupted file stream lulus; marker terminal startup resume lulus; tes delivery gate persistence sebelum Discord send lulus. Tes minimum-page validator yang sudah ada tetap berjalan dalam suite dan tidak diubah/dilemahkan.
+- Batas bukti: ini CI/source-level PASS, bukan live Discord/provider/Wispbyte. Workflow staging credential/API smoke test tetap tidak dijalankan karena memerlukan secret Discord dan Xingchi staging; tidak ada credential yang dibaca atau dipakai. Tidak ada live `memory.json` persistence, real Discord attachment delivery/download, atau CPU/RAM/quota claim.
+- Candidate branch `audit-recovery-gpt-2026-11-23` dan PR #6 tetap terpisah dari production: PR #6 masih OPEN / DRAFT / UNMERGED. Production `main.py`, branch `main`, deploy, Startup Command, dan Wispbyte runtime tidak disentuh.
+- PR sementara #7 ditutup tanpa merge. Branch sementara tetap hanya artefak validasi dan tidak menjadi target deploy.
+- Verdict: candidate source + regression CI = PASS (3/3). Berikutnya baru layak masuk tahap controlled Wispbyte candidate restart oleh pengguna, setelah memastikan Startup Command menunjuk file kandidat yang tepat. Assistant tidak melakukan restart/deploy.
