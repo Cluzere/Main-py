@@ -29,7 +29,7 @@ import sys
 _SCRIPT_MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_MODULE_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_MODULE_DIR)
-from clouzer_workload import WorkloadManager
+from clouzer_workload import WorkloadManager, WorkloadQueueFull
 from clouzer_file_creation import (
     detect_requested_file_format,
     create_document_file,
@@ -2318,33 +2318,45 @@ class ClouzerBot(commands.Bot):
             self.guild_locks[key] = lock
 
         current_refs = self.guild_lock_refs.get(key, 0)
-        # Ref pertama adalah pemroses aktif; sisanya adalah waiter FIFO.
-        if status_message is not None and current_refs >= MAX_QUEUE_PENDING_PER_SCOPE + 1:
-            try:
-                await status_message.edit(
-                    content=(
-                        "⚠️ Antrean percakapan penuh. Pesan ini belum diproses; "
-                        "tunggu giliran yang ada selesai lalu kirim ulang."
+        global_refs = sum(self.guild_lock_refs.values())
+        if global_refs >= GWM_MAX_ACTIVE + GWM_MAX_PENDING:
+            if status_message is not None:
+                try:
+                    await status_message.edit(
+                        content="⚠️ Antrean global percakapan penuh. Pesan ini belum diproses; coba lagi setelah antrean longgar."
                     )
-                )
-            except Exception:
-                logging.debug("Gagal memperbarui status antrean penuh", exc_info=True)
-            yield False
-            return
+                except Exception:
+                    logging.debug("Gagal memperbarui status antrean global", exc_info=True)
+                yield False
+                return
+            raise WorkloadQueueFull("Antrean global percakapan CLOUZER penuh. Coba lagi beberapa saat.")
+
+        # Ref pertama adalah pemroses aktif; sisanya adalah waiter FIFO.
+        if current_refs >= MAX_QUEUE_PENDING_PER_SCOPE + 1:
+            if status_message is not None:
+                try:
+                    await status_message.edit(
+                        content=(
+                            "⚠️ Antrean percakapan penuh. Pesan ini belum diproses; "
+                            "tunggu giliran yang ada selesai lalu kirim ulang."
+                        )
+                    )
+                except Exception:
+                    logging.debug("Gagal memperbarui status antrean penuh", exc_info=True)
+                yield False
+                return
+            raise WorkloadQueueFull("Antrean percakapan penuh. Coba lagi setelah giliran sebelumnya selesai.")
 
         self.guild_lock_refs[key] = current_refs + 1
         acquired = False
         try:
             try:
-                if status_message is None:
-                    await lock.acquire()
-                else:
-                    await asyncio.wait_for(
-                        lock.acquire(),
-                        timeout=QUEUE_WAIT_TIMEOUT_SECONDS,
-                    )
+                await asyncio.wait_for(
+                    lock.acquire(),
+                    timeout=QUEUE_WAIT_TIMEOUT_SECONDS,
+                )
                 acquired = True
-            except asyncio.TimeoutError:
+            except asyncio.TimeoutError as exc:
                 if status_message is not None:
                     try:
                         await status_message.edit(
@@ -2355,8 +2367,9 @@ class ClouzerBot(commands.Bot):
                         )
                     except Exception:
                         logging.debug("Gagal memperbarui status timeout antrean", exc_info=True)
-                yield False
-                return
+                    yield False
+                    return
+                raise WorkloadQueueFull("Waktu tunggu antrean percakapan habis. Coba lagi beberapa saat.") from exc
 
             yield True
         except asyncio.CancelledError:
