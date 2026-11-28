@@ -4971,6 +4971,7 @@ class ClouzerBot(commands.Bot):
         last_edit = asyncio.get_event_loop().time()
         web_badge_shown = False
         web_status_transitioned = False
+        web_active_items: set[str] = set()
 
         _diag_request_start = asyncio.get_running_loop().time()
         async with self.http_session.post(url, headers=headers, json=payload, timeout=timeout, allow_redirects=False) as resp:
@@ -5033,37 +5034,47 @@ class ClouzerBot(commands.Bot):
                             })
                             _diag_timing["web_last_completed_at"] = _diag_now
 
-                    if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching") and not raw_full_text and not web_badge_shown:
-                        web_badge_shown = True
-                        await edit_turn_status_message(
-                            target_msg,
-                            stage="web_search_started",
-                            content="🌐 *Sedang menelusuri web secara live...*",
-                        )
+                    if etype in ("response.web_search_call.in_progress", "response.web_search_call.searching"):
+                        web_item_key = str(event.get("item_id") or event.get("output_index") or "web-unknown")
+                        web_active_items.add(web_item_key)
+                        if not raw_full_text and (not web_badge_shown or web_status_transitioned):
+                            web_badge_shown = True
+                            web_status_transitioned = False
+                            await edit_turn_status_message(
+                                target_msg,
+                                stage="web_search_started",
+                                content="🌐 *Sedang menelusuri web secara live...*",
+                            )
 
-                    elif etype == "response.web_search_call.completed" and web_badge_shown and not web_status_transitioned:
-                        # Web search is over. Never leave the Discord message showing
-                        # an active-search badge while the model is composing its answer.
-                        cleaned_live = clean_response_text(raw_full_text).strip()
-                        next_status = (
-                            cleaned_live + " ▌"
-                            if not file_generation and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT
-                            else "🧠 *Penelusuran selesai. CLOUZER sedang menyusun jawaban...*"
-                        )
-                        await edit_turn_status_message(
-                            target_msg,
-                            stage="web_search_completed",
-                            content=next_status,
-                        )
-                        web_status_transitioned = True
+                    elif etype == "response.web_search_call.completed":
+                        web_item_key = str(event.get("item_id") or event.get("output_index") or "web-unknown")
+                        web_active_items.discard(web_item_key)
+                        if web_badge_shown and not web_active_items and not web_status_transitioned:
+                            # Web search is over. Never leave the Discord message showing
+                            # an active-search badge while the model is composing its answer.
+                            cleaned_live = clean_response_text(raw_full_text).strip()
+                            next_status = (
+                                cleaned_live + " ▌"
+                                if not file_generation and cleaned_live and len(cleaned_live) <= DISCORD_MSG_CHUNK_LIMIT
+                                else "🧠 *Penelusuran selesai. CLOUZER sedang menyusun jawaban...*"
+                            )
+                            await edit_turn_status_message(
+                                target_msg,
+                                stage="web_search_completed",
+                                content=next_status,
+                            )
+                            web_status_transitioned = True
 
-                    elif etype == "response.web_search_call.failed" and web_badge_shown and not web_status_transitioned:
-                        await edit_turn_status_message(
-                            target_msg,
-                            stage="web_search_failed",
-                            content="⚠️ *Penelusuran web gagal. CLOUZER sedang mencoba menyelesaikan respons...*",
-                        )
-                        web_status_transitioned = True
+                    elif etype == "response.web_search_call.failed":
+                        web_item_key = str(event.get("item_id") or event.get("output_index") or "web-unknown")
+                        web_active_items.discard(web_item_key)
+                        if web_badge_shown and not web_active_items and not web_status_transitioned:
+                            await edit_turn_status_message(
+                                target_msg,
+                                stage="web_search_failed",
+                                content="⚠️ *Penelusuran web gagal. CLOUZER sedang mencoba menyelesaikan respons...*",
+                            )
+                            web_status_transitioned = True
 
                     elif etype == "response.output_text.delta":
                         delta = event.get("delta", "")
