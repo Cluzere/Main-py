@@ -5893,3 +5893,45 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Lebih sederhana untuk diagnosis awal: satu controlled PDF request segera setelah ONLINE, catat timestamp request, response start/end, dan CPU curve. Namun request hanya memanfaatkan sisa waktu boost; jika lebih dari ~90 detik, normal quota berlaku.
 - Jangan mengubah Startup Command atau melakukan restart. Pengguna mengendalikan Wispbyte. Tidak ada otorisasi untuk mengubah kode startup-queue pada catatan ini; perlu instruksi eksplisit untuk implementasi.
 - Status: Wispbyte startup boost **DOCUMENTED**; kandidat belum memiliki startup PDF queue **SOURCE-INSPECTED**; penyebab CPU ramp **NOT VERIFIED**; 100-page PDF live acceptance **NOT VERIFIED**.
+
+
+## 52.69 Persistent PDF startup-resume queue — implementation and exact-head CI — 28 November 2026
+
+### Scope and implementation
+- User explicitly authorized implementation ("Langsung") of a candidate-only mechanism to use Wispbyte's initial startup CPU boost for a PDF job interrupted by a host stop.
+- All changes are confined to branch `audit-recovery-gpt-2026-11-23`; no production `main.py`, production branch `main`, PR merge, deploy, Wispbyte Startup Command, or runtime restart was changed/performed.
+- Candidate source changes:
+  - Every newly requested file task now stores prompt, format, guild/channel/user IDs, original Discord message ID, whether the original message had attachments, creation timestamp, `auto_resume` flag, and a bounded auto-resume attempt counter.
+  - The pending task is synchronously persisted through `save_memory()` before the first provider call. If persistence fails, file generation is not started.
+  - `on_ready()` schedules a one-shot startup worker. It scans persisted pending tasks, selects at most one eligible PDF job per process boot, fetches its original channel/user/message, verifies channel authorization, increments and persists the attempt counter, then re-enters the existing `process_ai_turn(..., "Ulangi", ...)` flow.
+  - Only PDF tasks are automatically resumed. A maximum of two automatic startup attempts is permitted. A handled generation/delivery failure disables automatic resume and leaves the existing manual `Ulangi` path available. A task with unavailable required source attachments is not resumed without its source message.
+  - The normalizer in `clouzer_file_creation.py` now validates and preserves the resume metadata through memory load/save. Legacy pending tasks without the new metadata remain manual-retry only.
+  - Only one PDF job is resumed per boot to avoid concurrent startup CPU spikes. Worker is guarded against duplicate scheduling on Discord reconnect.
+- This is a persistent interrupted-job resume mechanism; it does not pre-generate a PDF before the first user command, and does not create a provider CPU exemption after the host's startup boost expires. Wispbyte's 90-second startup window begins before the Python bot is ONLINE; pip/dependency setup may consume part of it. The remaining boost time at worker start is not measured/guaranteed.
+- The mechanism does not implement a hard CPU throttle or guaranteed pause at the end of 90 seconds. It improves recovery/restart timing but cannot by itself prove or guarantee that a long PDF request will stay below Wispbyte's average CPU stop threshold. Live CPU acceptance remains required.
+- Persistence of `memory.json` across actual Wispbyte server stop/restart has not yet been live-verified. If host storage is ephemeral or reset by the startup clone/reset flow, this queue cannot recover the task.
+
+### Commits and exact source/test state
+- Helper metadata validator commits: `3e6ac61cc420801ba14239f6d9e57463bc07ffaf`, `9beacf4774246da79210dd905db8d651c8f5d7d1`, `acf8be36d96cc6a3954e18d0a46a6d81afcf177b`.
+- Candidate source implementation: `2de2ed1b07ff150c02b64e93fd7fb9e8c2126708`; follow-up correction preserving retry attempt count and attachment metadata: `599bf1c659dfbe018fe23f459d31979dff2a6b9b`.
+- Initial test commit `729e3efc183e0d72f9e633f306b4bfc3113d9db3` had one focused regression assertion failure (test expected a quoted log token rather than checking the log marker). This was a test assertion defect, not a source compile/security failure.
+- Corrected exact final commit: `2b096388e74783407bdf8479dcb1c620b5b21169`.
+- Fetch-back verification on final branch HEAD:
+  - Entry point blob: `d254b82722f22580f10c136f3f9138e1f3807eed`
+  - Helper blob: `a84ae6d57ab61346c2d1c31737cc07ae778333b4`
+  - Test blob: `4e4ec812ee90c85fc5a7863bc66ac7116c3f2e4b`
+  - Test additions cover metadata validation/round-trip, bounded attempts, durable persistence before provider call, startup worker eligibility/one-job behavior, and READY scheduling.
+- Exact-head GitHub Actions for `2b096388...`: all three completed/success:
+  1. Audit candidate syntax check — run `46093060197`: compile, dependency consistency, vulnerability/security scans, document/file tests, ZIP fixture, archive regression tests, existing audit regression tests.
+  2. Audit recovery candidate — run `46093060193`: compile, high-severity security scan, focused regression tests.
+  3. CLOUZER multi-format file audit — run `46093060079`: compile, high-severity security scan, complete candidate regression suite.
+- Run links:
+  - https://github.com/Cluzere/Main-py/actions/runs/46093060197
+  - https://github.com/Cluzere/Main-py/actions/runs/46093060193
+  - https://github.com/Cluzere/Main-py/actions/runs/46093060079
+
+### Current verdict and next step
+- Candidate persistent PDF startup-resume source: **COMMITTED / FETCH-BACK VERIFIED**.
+- Exact-head CI for `2b096388...`: **PASS (3/3 workflows)**.
+- Wispbyte live restart, proof of `memory.json` persistence across stop/start, startup auto-resume behavior, PDF artifact generation, Discord attachment delivery, and CPU/average/quota behavior: **NOT VERIFIED**.
+- Next step is user-controlled candidate restart only after the user is ready. Do not restart Wispbyte, change Startup Command, deploy, merge PR #6, or touch production. On the next user-operated start, verify the running candidate SHA, confirm `[PDF-STARTUP-RESUME]` logs and memory persistence, then run one controlled PDF test and capture full CPU/RAM/quota/throttle metrics plus final attachment.
