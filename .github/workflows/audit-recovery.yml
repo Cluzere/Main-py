@@ -10,6 +10,15 @@ on:
       - "audit-recovery/review-round-2/clouzer_file_creation.py"
       - "audit-recovery/review-round-2/test_*.py"
       - ".github/workflows/audit-recovery.yml"
+  pull_request:
+    branches:
+      - ci-validation-base-2026-11-28
+    paths:
+      - "audit-recovery/review-round-2/main_final_hardened_candidate.py"
+      - "audit-recovery/review-round-2/revisi_audit_final_main.py"
+      - "audit-recovery/review-round-2/clouzer_file_creation.py"
+      - "audit-recovery/review-round-2/test_*.py"
+      - ".github/workflows/audit-recovery.yml"
   workflow_dispatch:
 
 permissions:
