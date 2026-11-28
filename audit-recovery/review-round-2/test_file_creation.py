@@ -23,6 +23,7 @@ class FileCreationTests(unittest.TestCase):
             "source_has_attachments": True,
             "auto_resume": True,
             "auto_resume_attempts": 1,
+            "delivery_started": True,
             "created_at": 1234.5,
         }
         task = normalize_pending_retry_task(raw)
@@ -2257,6 +2258,36 @@ class PdfWorkflowFixRegressionTests(unittest.TestCase):
         retry_end = process_source.index("img_calls =", retry_start)
         retry_source = process_source[retry_start:retry_end]
         self.assertIn("file_generation=bool(requested_file_format)", retry_source)
+
+    def test_pdf_delivery_gate_is_persisted_before_discord_send(self):
+        source_path = Path(__file__).with_name("revisi_audit_final_main.py")
+        source = source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(source_path))
+        bot_class = next(
+            node for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "ClouzerBot"
+        )
+        process = next(
+            node for node in bot_class.body
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "process_ai_turn"
+        )
+        process_source = ast.get_source_segment(source, process)
+        gate_index = process_source.index('delivery_task["delivery_started"] = True')
+        persist_index = process_source.index("await self.save_memory()", gate_index)
+        send_index = process_source.index(
+            "delivered_message = await status_msg.edit(content=caption, attachments=[generated_file], view=None)",
+            persist_index,
+        )
+        self.assertLess(gate_index, persist_index)
+        self.assertLess(persist_index, send_index)
+
+        worker = next(
+            node for node in bot_class.body
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "_resume_one_startup_pdf_job"
+        )
+        worker_source = ast.get_source_segment(source, worker)
+        self.assertIn('task.get("delivery_started") is True', worker_source)
+        self.assertIn("stage=delivery_reconciliation_required", worker_source)
 
 
 if __name__ == "__main__":
