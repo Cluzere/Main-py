@@ -2212,7 +2212,7 @@ async def send_turn_status_message(target_channel, reply_to_message=None):
     return await target_channel.send(status_text)
 
 
-async def edit_turn_status_message(target_msg, *, stage: str, content: str, raise_errors: bool = False):
+async def edit_turn_status_message(target_msg, *, stage: str, content: str):
     """Edit a Discord progress message with observable success/failure diagnostics."""
     if target_msg is None:
         logging.warning(
@@ -2233,11 +2233,10 @@ async def edit_turn_status_message(target_msg, *, stage: str, content: str, rais
             type(exc).__name__,
             exc_info=True,
         )
-        if raise_errors:
-            raise
         return False
     elapsed = asyncio.get_running_loop().time() - started
-    logging.warning(
+    success_logger = logging.info if stage == "answer_stream_delta" else logging.warning
+    success_logger(
         "[DISCORD-STATUS-EDIT] message_id=%s stage=%s outcome=success elapsed=%.3fs",
         getattr(target_msg, "id", None),
         stage,
