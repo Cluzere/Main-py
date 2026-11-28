@@ -5234,11 +5234,18 @@ class ClouzerBot(commands.Bot):
                         or 0
                     ),
                     "source_has_attachments": bool(
-                        reply_to_message is not None and getattr(reply_to_message, "attachments", None)
+                        (reply_to_message is not None and getattr(reply_to_message, "attachments", None))
+                        or (retrying_pending_task and pending_retry_task.get("source_has_attachments"))
                     ),
                     "auto_resume": requested_file_format == "pdf",
-                    "auto_resume_attempts": 0,
-                    "created_at": time.time(),
+                    "auto_resume_attempts": (
+                        int(pending_retry_task.get("auto_resume_attempts", 0))
+                        if retrying_pending_task else 0
+                    ),
+                    "created_at": (
+                        float(pending_retry_task.get("created_at", time.time()))
+                        if retrying_pending_task else time.time()
+                    ),
                 }
                 if not guild_state["pending_retry_task"]["source_message_id"]:
                     guild_state["pending_retry_task"].pop("source_message_id")
