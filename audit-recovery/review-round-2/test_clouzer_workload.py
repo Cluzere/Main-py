@@ -139,7 +139,8 @@ class WorkloadManagerTests(unittest.IsolatedAsyncioTestCase):
         order = []
 
         async def holder():
-            async with manager.slot("ai", heavy=False):
+            # Start with a heavy slot so the fairness streak begins at zero.
+            async with manager.slot("ai", heavy=True):
                 entered.set()
                 await release.wait()
 
