@@ -546,29 +546,39 @@ def _make_pdf(content: str, title: str, page_number_start: int = 1) -> bytes:
         escaped = re.sub(chr(96) + r"([^" + chr(96) + r"]+)" + chr(96), r"<code>\1</code>", escaped)
         plain = re.sub(r"<[^>]+>", "", escaped)
         lines = wrap_cell(plain, font, size, content_width - (18 if marker else 0))
-        # Keep a measured safety margin without wasting a full extra line
-        # on every paragraph. insert_htmlbox below remains the final clipping
-        # guard; a negative spare value still aborts the PDF build.
-        line_height = size * 1.35
-        needed = max(line_height + gap + 6, len(lines) * line_height + gap + 7)
-        if y + needed > bottom:
-            new_page()
+        # Let PyMuPDF measure the actual HTML layout. A character-width estimate
+        # can undercount lines when bold/code markup changes font metrics, which
+        # previously caused valid paragraphs to fail with "Paragraf PDF tidak muat".
         x = left + (16 if marker else 0)
-        rect = fitz.Rect(x, y, right, min(bottom, y + needed + 2))
         markup = marker + escaped
-        result = page.insert_htmlbox(
-            rect, markup,
-            css=f"body {{ margin: 0; padding: 0; font-family: Helvetica; font-size: {size}pt; line-height: 1.2; color: #212933; }} "
-                "p { margin: 0; padding: 0; } strong { font-weight: bold; } em { font-style: italic; } code { font-family: Courier; }",
-            # Permit only a small typographic downscale as a safety margin;
-            # do not abort an otherwise valid report because HTML layout
-            # metrics exceed the estimated box by a fraction of a point.
-            scale_low=0.90,
+        css = (
+            f"body {{ margin: 0; padding: 0; font-family: Helvetica; font-size: {size}pt; "
+            "line-height: 1.2; color: #212933; } "
+            "p { margin: 0; padding: 0; } strong { font-weight: bold; } "
+            "em { font-style: italic; } code { font-family: Courier; }"
         )
+        available_height = max(0, bottom - y)
+        rect = fitz.Rect(x, y, right, bottom)
+        result = page.insert_htmlbox(rect, markup, css=css, scale_low=0.90)
         spare = result[0] if isinstance(result, tuple) else result
+        if spare < 0 and y > top:
+            # The paragraph does not fit in the remaining part of this page.
+            # Retry once at the top of a fresh page before failing closed.
+            new_page()
+            available_height = bottom - y
+            rect = fitz.Rect(x, y, right, bottom)
+            result = page.insert_htmlbox(rect, markup, css=css, scale_low=0.90)
+            spare = result[0] if isinstance(result, tuple) else result
+            logging.info(
+                "[PDF-LAYOUT] action=move_paragraph_to_next_page estimated_lines=%d",
+                len(lines),
+            )
         if spare < 0:
-            raise ValueError("Paragraf PDF tidak muat; pembuatan dibatalkan agar teks tidak terpotong.")
-        y += needed
+            raise ValueError(
+                "Paragraf PDF melebihi kapasitas satu halaman; konten tidak dipotong."
+            )
+        used_height = available_height - spare
+        y += max(size * 1.2, used_height) + gap
 
     def draw_table(rows):
         nonlocal y
