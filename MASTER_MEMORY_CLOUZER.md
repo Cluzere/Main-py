@@ -6098,3 +6098,56 @@ Automatic CLOUZER → Box hanya boleh dinaikkan menjadi PASS setelah satu tes li
 - Setelah pembacaan dan rekonsiliasi selesai, hanya blok sementara `HANDOFF AKTIF — UNTUK SESI BERIKUTNYA` di bagian awal dokumen yang dihapus. Bagian A–G dan seluruh arsip historis dipertahankan.
 - Tidak ada perubahan kode kandidat, tes, workflow, Wispbyte Startup Command/runtime, production `main.py`, production branch `main`, PR #6, deployment, merge, atau restart.
 - Pembaruan ini adalah penerimaan/pembersihan dokumentasi handoff saja. Verifikasi fetch-back memastikan blok sementara tidak ada dan catatan §52.75 tersimpan.
+
+## 52.76 Global Workload Manager implementation, queue hardening, and restart-readiness — 28 November 2026
+
+### Otorisasi dan batas kerja
+- Pengguna secara eksplisit meminta implementasi GWM dilanjutkan sampai kandidat siap untuk controlled restart, tanpa menyentuh production.
+- Semua perubahan tetap hanya pada branch kandidat `audit-recovery-gpt-2026-11-23`.
+- Tidak ada Wispbyte runtime test, stress/load test, CPU spike, deployment, merge, atau restart yang dilakukan. Risiko warning/ban Wispbyte tetap dihormati.
+- Pengguna sebelumnya telah mengonfirmasi Startup Command Wispbyte sudah benar dan menunjuk kandidat; jangan ubah Startup Command atau konfigurasi Wispbyte lain pada tahap ini.
+- Production `main (4).py` tetap blob `ffffd0c17169b29504f4a8713dca396cf61ddeff`, sama dengan branch `main`. PR #6 tetap OPEN / DRAFT / UNMERGED.
+
+### Koreksi fakta file helper
+- Klaim sesi sebelumnya bahwa `clouzer_workload.py` tidak ditemukan adalah keliru karena path yang diperiksa salah.
+- File tersebut memang ada di `audit-recovery/review-round-2/clouzer_workload.py`, satu direktori dengan entry point kandidat, bersama `clouzer_file_creation.py` dan `clouzer_box_oauth.py`.
+- Candidate import `WorkloadManager` dan `WorkloadQueueFull` dari helper tersebut; exact-head CI berhasil mengompilasi ketiga file.
+
+### GWM yang terpasang di kandidat
+- Entry point: `audit-recovery/review-round-2/revisi_audit_final_main.py`.
+- Helper: `audit-recovery/review-round-2/clouzer_workload.py`.
+- Test: `audit-recovery/review-round-2/test_clouzer_workload.py`.
+- Default admission: maksimum 3 pekerjaan aktif, 24 antrean pending, timeout 300 detik, maksimum 1 pekerjaan berat aktif; override environment dibatasi hard cap.
+- Batas per jenis: attachment maksimum 2, image maksimum 1. Audio transcription berada di dalam heavy attachment slot yang sudah diakuisisi dan tetap memakai audio semaphore; tidak mengambil GWM slot bersarang agar tidak deadlock pada konfigurasi GWM_MAX_ACTIVE=1.
+- Klasifikasi AI berat mencakup file generation, prompt >=12.000 karakter, payload gambar/file, dan extra input. Attachment parsing, image generation/edit, PPTX visual generation/embedding, AI Responses, serta diagnostic AI probe melewati GWM.
+- Resource tracker memasok sinyal host pressure berdasarkan pemakaian CPU cgroup relatif terhadap `cpu.max`, process CPU, dan pemakaian memory cgroup. Dua sampel tinggi berturut-turut menahan admission pekerjaan berat baru; tiga sampel rendah berturut-turut membuka kembali admission. Pekerjaan yang sedang berjalan tidak dipreempt. GWM tidak dapat mengubah CPU quota Wispbyte.
+- Queue per-scope conversation dan message ingress dibatasi global serta per-scope. Queue in-memory hilang saat hard crash/restart; tidak diklaim persisten.
+
+### Temuan dan patch tambahan
+- Audit menemukan alokasi lock per-scope dilakukan sebelum pengecekan kapasitas pada `guild_lock()`, dan sebelum pengecekan batas per-scope pada `ingress_lock()`. Request yang ditolak dari banyak scope unik dapat meninggalkan objek lock tanpa referensi.
+- Perbaikan memindahkan alokasi lock setelah seluruh admission check. Cleanup di `finally` tetap menghapus lock setelah referensi terakhir dilepas.
+- Commit patch kandidat: `7bc080bf4e6c0f120f087025947baca32d85ff1f`.
+- Regression test GWM mencakup heavy concurrency, host-pressure admission, cancellation saat menunggu, cancellation setelah admission, global pending cap, timeout cleanup, per-kind attachment cap, dan fairness heavy job. Fixture fairness sempat gagal karena holder awal mengubah light streak; fixture dikoreksi untuk memakai heavy holder. Final exact-head run lulus.
+
+### Exact-source CI dan identitas artefak
+- Final source/test branch head yang diuji: `933814e5a0f8e1077b6106e8501b202ad41a8f33`.
+- Candidate blob: `004e7b794bc093767a5959aaeb98e66ace6585e9`.
+- GWM helper blob: `c2d532df7970e6dea1fcf1fd61fe2f6f7aeb3a12`.
+- GWM test blob: `490eb428770dd197b42d0a658b0148cd8d481d29`.
+- Exact-head CI 3/3 SUCCESS:
+  1. Audit candidate syntax check — run `46128684441`: dependency installation, pip check, compile, pip-audit, Bandit medium/high, GWM scheduler tests, document tests, archive tests, dan existing audit regression tests lulus.
+  2. Audit recovery candidate — run `46128684437`: compile, high-severity Bandit, dependency installation, dan focused regression tests lulus.
+  3. CLOUZER multi-format file audit — run `46128684496`: compile, high-severity Bandit, dependency installation, dan complete candidate regression suite lulus.
+- Run links:
+  - https://github.com/Cluzere/Main-py/actions/runs/46128684441
+  - https://github.com/Cluzere/Main-py/actions/runs/46128684437
+  - https://github.com/Cluzere/Main-py/actions/runs/46128684496
+- `requirements-audit.txt` mencakup `py7zr>=1.0,<2` dan `defusedxml`. Latest CI dependency installation dan pip check lulus.
+- Audit report addendum disimpan pada commit dokumentasi `e2a95b23c1e8c8795e19d1d8805d9a925a81cbe9`.
+
+### Verdict dan next step
+- Source-level GWM, queue admission, compile, dependency consistency, security scans, dan regression CI: **PASS** pada exact source/test commit di atas.
+- Kandidat **SIAP untuk controlled Wispbyte candidate restart oleh pengguna** sebagai tahap validasi runtime berikutnya. Ini bukan sertifikasi production-ready atau bukti live CPU safety.
+- Live Discord/provider, PDF persistence/auto-resume, real multi-user, CPU/RAM/throttling sesudah restart masih **NOT VERIFIED**. Jangan lakukan stress/load test atau CPU spike.
+- Pengguna yang melakukan restart; assistant tidak restart/deploy. Setelah restart, kumpulkan log startup sampai [ONLINE]/Ready, marker `[PDF-STARTUP-RESUME]`, dan status task PDF dari `memory.json` dalam bentuk tersensor. Verifikasi file runtime adalah kandidat yang tepat.
+- Jangan merge PR #6, jangan ubah production source/branch, dan jangan ubah Startup Command atau konfigurasi Wispbyte.
