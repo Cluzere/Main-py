@@ -3893,9 +3893,12 @@ class ClouzerBot(commands.Bot):
         return self._wrap_doc_content(ext.lstrip(".").upper(), filename, body[:25000])
 
     async def transcribe_audio_bytes(self, audio_bytes: bytes, filename: str) -> str:
-        async with self.workload_manager.slot("audio", heavy=True):
-            async with self.audio_semaphore:
-                return await self._transcribe_audio_bytes_impl(audio_bytes, filename)
+        # Audio transcription is invoked from encode_attachment(), which already
+        # holds the outer GWM attachment slot. Keep the audio-specific semaphore
+        # here without acquiring a nested heavy GWM slot (which could deadlock
+        # when GWM_MAX_ACTIVE=1).
+        async with self.audio_semaphore:
+            return await self._transcribe_audio_bytes_impl(audio_bytes, filename)
 
     async def _transcribe_audio_bytes_impl(self, audio_bytes: bytes, filename: str) -> str:
         if not audio_bytes:
