@@ -2312,11 +2312,6 @@ class ClouzerBot(commands.Bot):
 
     @asynccontextmanager
     async def guild_lock(self, key: str, status_message=None):
-        lock = self.guild_locks.get(key)
-        if lock is None:
-            lock = asyncio.Lock()
-            self.guild_locks[key] = lock
-
         current_refs = self.guild_lock_refs.get(key, 0)
         global_refs = sum(self.guild_lock_refs.values())
         if global_refs >= GWM_MAX_ACTIVE + GWM_MAX_PENDING:
@@ -2346,6 +2341,13 @@ class ClouzerBot(commands.Bot):
                 yield False
                 return
             raise WorkloadQueueFull("Antrean percakapan penuh. Coba lagi setelah giliran sebelumnya selesai.")
+
+        # Allocate per-scope lock only after admission checks. Otherwise a flood
+        # of rejected unique scopes could leave unreferenced lock objects behind.
+        lock = self.guild_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self.guild_locks[key] = lock
 
         self.guild_lock_refs[key] = current_refs + 1
         acquired = False
@@ -2408,15 +2410,16 @@ class ClouzerBot(commands.Bot):
             yield False, "global_full"
             return
 
-        lock = self.ingress_locks.get(key)
-        if lock is None:
-            lock = asyncio.Lock()
-            self.ingress_locks[key] = lock
-
         current_refs = self.ingress_lock_refs.get(key, 0)
         if current_refs >= MAX_QUEUE_PENDING_PER_SCOPE + 1:
             yield False, "full"
             return
+
+        # Do not retain lock objects for scopes rejected by the per-scope cap.
+        lock = self.ingress_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self.ingress_locks[key] = lock
 
         self.ingress_lock_refs[key] = current_refs + 1
         acquired = False
