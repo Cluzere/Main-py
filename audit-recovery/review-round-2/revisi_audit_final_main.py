@@ -4243,7 +4243,7 @@ class ClouzerBot(commands.Bot):
         # GWM admission happens before attachment parsing.
         ext = os.path.splitext(filename.lower())[1]
         attachment_heavy = (
-            ext in (OFFICE_DOC_EXTS | set(AUDIO_EXTS) | set(IMAGE_EXTS))
+            ext in (OFFICE_DOC_EXTS | set(AUDIO_EXTS) | set(IMAGE_EXTS) | {".zip", ".7z"})
             or int(getattr(attachment, "size", 0) or 0) >= 2 * 1024 * 1024
         )
         async with self.workload_manager.slot("attachment", heavy=attachment_heavy):
@@ -4804,11 +4804,15 @@ class ClouzerBot(commands.Bot):
         _diag_start = _diag_loop.time()
         prompt_chars = 0
         has_image_payload = False
+        has_file_payload = False
+        file_markers = ("--- manifest lampiran ---", "--- transkrip audio", "[file pdf", "[konten lampiran")
         for message in messages or []:
             content = message.get("content", "") if isinstance(message, dict) else ""
             if isinstance(content, str):
                 prompt_chars += len(content)
-                has_image_payload = has_image_payload or "data:image/" in content.lower()
+                lowered_content = content.lower()
+                has_image_payload = has_image_payload or "data:image/" in lowered_content
+                has_file_payload = has_file_payload or any(marker in lowered_content for marker in file_markers)
             elif isinstance(content, list):
                 for part in content:
                     if isinstance(part, dict):
@@ -4818,7 +4822,7 @@ class ClouzerBot(commands.Bot):
                         }
         if extra_input:
             prompt_chars += sum(len(str(item)) for item in extra_input)
-        heavy_ai = bool(file_generation or prompt_chars >= 12000 or has_image_payload or extra_input)
+        heavy_ai = bool(file_generation or prompt_chars >= 12000 or has_image_payload or has_file_payload or extra_input)
         _diag_gwm_start = _diag_loop.time()
         async with self.workload_manager.slot("ai", heavy=heavy_ai):
             _diag_gwm_admitted = _diag_loop.time()
@@ -5751,12 +5755,13 @@ class ClouzerBot(commands.Bot):
                                 model_refused=model_refused_file_content,
                             )
                             # Keep CPU-heavy rendering and deep validation off Discord's gateway loop.
-                            generated_bytes, generated_name, generated_mime = await asyncio.to_thread(
-                                create_document_file,
-                                requested_file_format,
-                                clean_content,
-                                file_source_content,
-                            )
+                            async with self.workload_manager.slot("attachment", heavy=True):
+                                generated_bytes, generated_name, generated_mime = await asyncio.to_thread(
+                                    create_document_file,
+                                    requested_file_format,
+                                    clean_content,
+                                    file_source_content,
+                                )
                             if requested_file_format == "pptx":
                                 # PPTX dibuat dengan visual secara default; jangan bergantung pada
                                 # kata "gambar/visual" yang mungkin tidak disebut pengguna.
@@ -5806,7 +5811,8 @@ class ClouzerBot(commands.Bot):
                                 expected_visuals = len(slide_briefs)
                                 if len(image_assets) != expected_visuals:
                                     raise RuntimeError("Jumlah visual yang dihasilkan tidak sesuai jumlah slide target.")
-                                generated_bytes = await asyncio.to_thread(embed_pptx_visuals, visual_source, image_assets)
+                                async with self.workload_manager.slot("attachment", heavy=True):
+                                    generated_bytes = await asyncio.to_thread(embed_pptx_visuals, visual_source, image_assets)
                                 if pptx_visual_followup:
                                     generated_name = re.sub(r"(?i)\.pptx$", "", generated_name) + "_visual.pptx"
                                 logging.info(
@@ -6674,19 +6680,6 @@ async def cek_tool_cmd(interaction: discord.Interaction):
         await interaction.response.send_message(rate_limit_text(wait), ephemeral=True)
         return
 
-    global_allowed, global_wait = await asyncio.to_thread(bot.global_budget.acquire, "responses")
-    if not global_allowed:
-        await interaction.response.send_message(
-            f"⏳ Anggaran API global harian tercapai; coba lagi sekitar {format_wait(global_wait)}.", ephemeral=True
-        )
-        return
-    # Diagnostik menjalankan dua request Responses; hitung request kedua sebelum mengirimnya.
-    second_allowed, second_wait = await asyncio.to_thread(bot.global_budget.acquire, "responses")
-    if not second_allowed:
-        await interaction.response.send_message(
-            f"⏳ Anggaran API global hampir habis; diagnostik butuh dua request. Coba lagi sekitar {format_wait(second_wait)}.", ephemeral=True
-        )
-        return
     await interaction.response.defer(thinking=True, ephemeral=True)
 
     url = f"{XINGCHI_BASE_URL}/responses"
@@ -6699,18 +6692,25 @@ async def cek_tool_cmd(interaction: discord.Interaction):
 
     async def run_probe(payload: dict) -> tuple[int, dict | None, str]:
         try:
-            async with bot.http_session.post(
-                url,
-                headers=headers,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=60),
-                allow_redirects=False,
-            ) as resp:
-                raw = await read_limited_response_text(resp, max_bytes=64 * 1024)
-                try:
-                    return resp.status, json.loads(raw), raw
-                except Exception:
-                    return resp.status, None, raw
+            async with bot.workload_manager.slot("ai", heavy=True):
+                allowed_now, wait_now = await asyncio.to_thread(bot.global_budget.acquire, "responses")
+                if not allowed_now:
+                    return 429, None, (
+                        "Anggaran API global harian tercapai; coba lagi sekitar "
+                        + format_wait(wait_now)
+                    )
+                async with bot.http_session.post(
+                    url,
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=60),
+                    allow_redirects=False,
+                ) as resp:
+                    raw = await read_limited_response_text(resp, max_bytes=64 * 1024)
+                    try:
+                        return resp.status, json.loads(raw), raw
+                    except Exception:
+                        return resp.status, None, raw
         except Exception as exc:
             return 0, None, f"{type(exc).__name__}: {exc}"
 
