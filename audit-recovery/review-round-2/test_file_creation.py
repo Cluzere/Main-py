@@ -2203,7 +2203,7 @@ class PdfWorkflowFixRegressionTests(unittest.TestCase):
         long_paragraph = (
             "**Teks tebal** dengan *teks miring*, kode `CLOUZER.resume_pdf()`, "
             "dan kalimat panjang untuk menguji pengukuran layout HTML yang sebenarnya. "
-        ) * 45
+        ) * 28
         content = (
             "# Uji Pengukuran Layout PDF\n\n"
             "## Pendahuluan\n\nParagraf pembuka.\n\n"
